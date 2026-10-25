@@ -1,0 +1,26 @@
+voxx
+Copyright 2026 yaobusuan and voxx contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+voxx does not bundle or redistribute any model weights. Weights are
+downloaded from their original publishers only after the user consents,
+and each remains under its own license, which voxx shows before download.
+
+voxx builds on the following third-party projects:
+
+- mlx-audio (MIT License)
+  https://github.com/Blaizzy/mlx-audio
+
+- Qwen3-TTS, Qwen3-ASR, Qwen3-ForcedAligner (Apache License 2.0)
+  Copyright Alibaba Cloud
+  https://github.com/QwenLM/Qwen3-TTS
+  https://github.com/QwenLM/Qwen3-ASR
+
+- VoxCPM (Apache License 2.0)
+  Copyright OpenBMB
+  https://github.com/OpenBMB/VoxCPM
+
+- CosyVoice (Apache License 2.0)
+  Copyright Alibaba FunAudioLLM
+  https://github.com/FunAudioLLM/CosyVoice
