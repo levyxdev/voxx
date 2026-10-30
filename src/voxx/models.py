@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from voxx.output import UNSUPPORTED, USAGE, VoxxError
+from voxx.output import NOT_INSTALLED, UNSUPPORTED, USAGE, VoxxError
 
 # Set to 1 only in tests: registers the fake Engine and its Model.
 FAKE_ENGINE_ENV = "VOXX_TEST_FAKE_ENGINE"
@@ -41,6 +41,11 @@ class Model:
                 "size_bytes": self.size_bytes, "sample_rate": self.sample_rate,
                 "weights_license": vars(self.weights_license), "code_license": vars(self.code_license),
                 "verified": self.verified, "repo": self.repo, "revision": self.revision}
+
+    def install_summary(self):
+        """What the user hears before agreeing to `voxx install`."""
+        return {"model": self.id, "size_bytes": self.size_bytes, "license": self.weights_license.id,
+                "license_url": self.weights_license.url}
 
 
 def _apache(url):
@@ -102,6 +107,17 @@ def is_installed(model):
     except (OSError, ValueError):
         return False
     return isinstance(manifest, dict) and manifest.get("revision") == model.revision
+
+
+def require_installed(required):
+    """Fails, without downloading anything, unless every Model is installed (ADR 0003)."""
+    missing = [m for m in required if not is_installed(m)]
+    if missing:
+        commands = " and ".join(f"`voxx install {m.id}`" for m in missing)
+        raise VoxxError("model_not_installed", f"Not installed: {', '.join(m.id for m in missing)}.",
+                        f"Tell the user each Model's size and license from details; once they agree, run {commands}.",
+                        {"missing": [m.install_summary() for m in missing], "total_bytes": sum(m.size_bytes for m in missing)},
+                        NOT_INSTALLED)
 
 
 def fake_engine_enabled():

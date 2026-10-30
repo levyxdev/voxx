@@ -55,3 +55,7 @@ def test_models_can_be_filtered_by_install_state(installed):
     assert set(by_id(installed("models", "--installed"))) == {"fake-tts"}
     assert set(by_id(installed("models", "--not-installed"))) == set(REAL_MODELS)
     assert by_id(installed("models"))["fake-tts"]["installed"] is True
+
+
+def test_installed_and_not_installed_together_are_an_argument_error(voxx):
+    assert voxx("models", "--installed", "--not-installed").exit_code == 2

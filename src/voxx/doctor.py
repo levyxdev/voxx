@@ -5,6 +5,7 @@ import platform
 import shutil
 import subprocess
 
+from voxx.files import nearest_existing
 from voxx.models import is_installed, models, voxx_home
 
 # Test-only: "<system> <machine>[ rosetta]" stands in for the real platform.
@@ -13,14 +14,14 @@ PLATFORM_ENV = "VOXX_TEST_PLATFORM"
 
 def doctor():
     home = voxx_home()
-    disk = next(p for p in (home, *home.parents) if p.exists())
+    disk = nearest_existing(home)
     listed = models()
     return {
         "platform": _platform(),
         "home": str(home),
         "disk": {"path": str(disk), "free_bytes": shutil.disk_usage(disk).free},
         "models": {"installed": [m.id for m in listed if is_installed(m)],
-                   "not_installed": [{"model": m.id, "size_bytes": m.size_bytes} for m in listed if not is_installed(m)]},
+                   "not_installed": [m.install_summary() for m in listed if not is_installed(m)]},
     }
 
 

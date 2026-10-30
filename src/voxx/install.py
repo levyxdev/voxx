@@ -12,6 +12,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
+from voxx.files import nearest_existing
 from voxx.models import INSTALL_MANIFEST, find_model, is_installed, model_dir
 from voxx.output import VoxxError, progress
 
@@ -21,6 +22,7 @@ TIMEOUT = 60
 # Raised while talking to the hub, as opposed to writing files locally.
 NETWORK_ERRORS = (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError)
 RETRY_HINT = "Run the same `voxx install` again: it resumes where it stopped."
+HUB_HINT = "Check HF_ENDPOINT: the hub it names is not serving this repo as Hugging Face does."
 
 
 def install(model_id):
@@ -29,10 +31,17 @@ def install(model_id):
     if is_installed(model):
         return _result(model, path, already_installed=True)
 
-    # Downloads land in <id>.partial/: a verified file under its own name, an unfinished one as <name>.download.
-    partial = path.with_name(path.name + ".partial")
-    files = _tree(model)
+    # Downloads land in <id>.<revision>.partial/: a verified file under its own name, an unfinished one as
+    # <name>.download. Naming the revision keeps an interrupted install of another revision from being reused.
+    partial = path.with_name(f"{path.name}.{model.revision}.partial")
+    for stale in path.parent.glob(f"{path.name}.*.partial"):
+        if stale != partial:
+            shutil.rmtree(stale)
+    files = _repo_files(model)
     _check_free_space(partial, sum(f["size"] - _downloaded(partial, f) for f in files))
+    if sum(f["size"] for f in files) != model.size_bytes:
+        raise _invalid_repo(model, f"The hub lists {sum(f['size'] for f in files)} bytes for {model.id}, "
+                                   f"not the {model.size_bytes} voxx verified.")
     progress("download_started", model=model.id, files=len(files), bytes=sum(f["size"] for f in files))
     for file in files:
         _download(model, file, partial)
@@ -59,25 +68,34 @@ def _url(*parts):
     return _endpoint() + "/" + "/".join(urllib.parse.quote(p) for p in parts)
 
 
-def _tree(model):
+def _repo_files(model):
+    """The files of the pinned revision, from the hub's tree API."""
     url = _url("api", "models", model.repo, "tree", model.revision) + "?recursive=true"
     try:
         with urllib.request.urlopen(url, timeout=TIMEOUT) as r:
             entries = json.load(r)
     except NETWORK_ERRORS as e:
         raise _download_failed(model, url, e)
+    except ValueError:
+        raise _invalid_repo(model, f"The hub's file list for {model.id} is not JSON.")
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+        raise _invalid_repo(model, f"The hub's file list for {model.id} is not a list of files.")
     files = [e for e in entries if e.get("type") == "file"]
     for file in files:
+        if not (isinstance(file.get("path"), str) and isinstance(file.get("size"), int) and isinstance(file.get("oid"), str)):
+            raise _invalid_repo(model, f"The hub lists a file of {model.id} without a path, size and checksum.")
         name = PurePosixPath(file["path"])
         if name.is_absolute() or ".." in name.parts or not name.parts:
-            raise VoxxError("invalid_repo", f"The repo of {model.id} lists an unsafe file path {file['path']!r}.",
-                            "Check HF_ENDPOINT: the hub it names is not serving this repo correctly.",
-                            {"model": model.id, "repo": model.repo, "path": file["path"]})
+            raise _invalid_repo(model, f"The hub lists an unsafe file path {file['path']!r} for {model.id}.")
     return files
 
 
+def _invalid_repo(model, message):
+    return VoxxError("invalid_repo", message, HUB_HINT, {"model": model.id, "repo": model.repo, "revision": model.revision})
+
+
 def _check_free_space(partial, required):
-    existing = next(p for p in (partial, *partial.parents) if p.exists())
+    existing = nearest_existing(partial)
     free = shutil.disk_usage(existing).free
     if required > free:
         raise VoxxError("insufficient_disk_space", f"Installing needs {required} more bytes but only {free} are free.",
@@ -93,8 +111,8 @@ def _downloaded(partial, file):
     return unfinished.stat().st_size if unfinished.exists() else 0
 
 
-def _hasher(file):
-    """The hub's checksum: SHA-256 for large (LFS) files, the git blob SHA-1 for the rest."""
+def _checksum(file):
+    """A hasher and the digest it must reach: SHA-256 for large (LFS) files, the git blob SHA-1 for the rest."""
     if "lfs" in file:
         return hashlib.sha256(), file["lfs"]["oid"]
     return hashlib.sha1(b"blob %d\0" % file["size"]), file["oid"]
@@ -106,7 +124,7 @@ def _download(model, file, partial):
         return
     unfinished = target.with_name(target.name + ".download")
     unfinished.parent.mkdir(parents=True, exist_ok=True)
-    hasher, expected = _hasher(file)
+    hasher, expected = _checksum(file)
     done = 0
     if unfinished.exists():
         with open(unfinished, "rb") as f:
@@ -119,7 +137,7 @@ def _download(model, file, partial):
         try:
             with urllib.request.urlopen(request, timeout=TIMEOUT) as r:
                 if done and r.status != 206:  # The hub ignored the Range: start over.
-                    hasher, expected = _hasher(file)
+                    hasher, expected = _checksum(file)
                     done = 0
                 with open(unfinished, "ab" if done else "wb") as out:
                     last = time.monotonic()

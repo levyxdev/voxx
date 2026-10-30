@@ -1,4 +1,4 @@
-"""Writing files so a reader never sees a half-written one."""
+"""Files and directories: writing so a reader never sees a half-written file, and finding where a path would live."""
 
 from contextlib import contextmanager
 
@@ -13,3 +13,8 @@ def replacing(path):
         partial.unlink(missing_ok=True)
         raise
     partial.replace(path)
+
+
+def nearest_existing(path):
+    """`path` if it exists, else its closest existing parent: where its disk space would come from."""
+    return next(p for p in (path, *path.parents) if p.exists())

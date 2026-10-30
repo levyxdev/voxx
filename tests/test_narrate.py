@@ -3,6 +3,7 @@ import os
 import wave
 
 import pytest
+from conftest import assert_error
 
 TWO_LINES = {
     "language": "zh",
@@ -11,15 +12,6 @@ TWO_LINES = {
         {"id": "send", "text": "点一下发送就完成了。", "style": "语气兴奋"},
     ],
 }
-
-
-def assert_error(run, exit_code, code):
-    assert run.exit_code == exit_code
-    assert run.result["ok"] is False
-    error = run.result["error"]
-    assert error["code"] == code
-    assert error["message"] and error["hint"]
-    return error
 
 
 def test_narrate_writes_a_wav_per_line_and_the_completed_narration(installed, write_narration, tmp_path):

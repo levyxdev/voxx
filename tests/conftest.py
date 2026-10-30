@@ -20,6 +20,15 @@ FAKE_FILES = {"config.json": FAKE_CONFIG,
               "model.safetensors": bytes(i % 251 for i in range(FAKE_MODEL.size_bytes - len(FAKE_CONFIG)))}
 
 
+def assert_error(run, exit_code, code):
+    assert run.exit_code == exit_code
+    assert run.result["ok"] is False
+    error = run.result["error"]
+    assert error["code"] == code
+    assert error["message"] and error["hint"]
+    return error
+
+
 @dataclass
 class Run:
     exit_code: int

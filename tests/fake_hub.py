@@ -25,6 +25,10 @@ class FakeHub:
     corrupt: set = field(default_factory=set)
     # file path -> size the tree API reports instead of the real one
     reported_sizes: dict = field(default_factory=dict)
+    # Answer every Range request with the whole file, as some mirrors do.
+    ignore_range: bool = False
+    # Answer the tree API with something that is not JSON.
+    garbage_tree: bool = False
 
     def start(self):
         hub = self
@@ -50,6 +54,8 @@ class FakeHub:
         path = handler.path.split("?")[0]
         for (repo, revision), files in self.repos.items():
             if path == f"/api/models/{repo}/tree/{revision}":
+                if self.garbage_tree:
+                    return _send(handler, 200, b"<html>Mirror maintenance</html>")
                 return _send(handler, 200, json.dumps([self._tree_entry(p, c) for p, c in files.items()]).encode())
             prefix = f"/{repo}/resolve/{revision}/"
             if path.startswith(prefix) and path[len(prefix):] in files:
@@ -69,7 +75,7 @@ class FakeHub:
             content = bytes([content[0] ^ 0xFF]) + content[1:]
         start = 0
         match = re.fullmatch(r"bytes=(\d+)-", handler.headers.get("Range") or "")
-        if match:
+        if match and not self.ignore_range:
             start = int(match.group(1))
             handler.send_response(206)
             handler.send_header("Content-Range", f"bytes {start}-{len(content) - 1}/{len(content)}")

@@ -85,22 +85,22 @@ MODEL = {
     },
 }
 
+INSTALL_SUMMARY = {
+    "type": "object",
+    "description": "What to tell the user before running `voxx install <model>`.",
+    "required": ["model", "size_bytes", "license", "license_url"],
+    "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
+                   "license": {"type": "string", "description": "SPDX id of the weights license."},
+                   "license_url": {"type": "string"}},
+}
+
 MODEL_NOT_INSTALLED = {
     "$schema": DRAFT,
     "description": "details of a model_not_installed error (exit code 3).",
     "type": "object",
     "required": ["missing", "total_bytes"],
     "properties": {
-        "missing": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["model", "size_bytes", "license", "license_url"],
-                "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
-                               "license": {"type": "string", "description": "SPDX id of the weights license."},
-                               "license_url": {"type": "string"}},
-            },
-        },
+        "missing": {"type": "array", "items": INSTALL_SUMMARY},
         "total_bytes": {"type": "integer"},
     },
 }
@@ -186,9 +186,7 @@ COMMANDS = {
                     "required": ["installed", "not_installed"],
                     "properties": {
                         "installed": {"type": "array", "items": _model_id},
-                        "not_installed": {"type": "array", "items": {
-                            "type": "object", "required": ["model", "size_bytes"],
-                            "properties": {"model": _model_id, "size_bytes": {"type": "integer"}}}},
+                        "not_installed": {"type": "array", "items": INSTALL_SUMMARY},
                     },
                 },
             },

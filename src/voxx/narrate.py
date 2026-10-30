@@ -7,9 +7,9 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing
-from voxx.models import is_installed, resolve_voice
+from voxx.models import require_installed, resolve_voice
 from voxx.narration import line_setting, load_narration
-from voxx.output import NOT_INSTALLED, USAGE, VoxxError, progress
+from voxx.output import USAGE, VoxxError, progress
 from voxx.worker.client import WorkerProcess
 
 OUTPUT_NAME = "narration.json"
@@ -51,14 +51,3 @@ def narrate(narration_path, out_dir):
     progress("narration_done", path=str(path))
     return {"path": str(path), "narration": narration}
 
-
-def require_installed(models):
-    """Fails, without downloading anything, unless every Model is installed (ADR 0003)."""
-    missing = [m for m in models if not is_installed(m)]
-    if missing:
-        commands = " and ".join(f"`voxx install {m.id}`" for m in missing)
-        raise VoxxError("model_not_installed", f"Not installed: {', '.join(m.id for m in missing)}.",
-                        f"Tell the user each Model's size and license from details; once they agree, run {commands}.",
-                        {"missing": [{"model": m.id, "size_bytes": m.size_bytes, "license": m.weights_license.id,
-                                      "license_url": m.weights_license.url} for m in missing],
-                         "total_bytes": sum(m.size_bytes for m in missing)}, NOT_INSTALLED)
