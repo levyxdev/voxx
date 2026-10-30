@@ -1,6 +1,6 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
-from voxx.narration import LANGUAGES, LINE_ID
+from voxx.narration import LANGUAGES, LINE_ID_RULE
 from voxx.output import USAGE, VoxxError
 
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
@@ -24,8 +24,9 @@ NARRATION_INPUT = {
                 "type": "object",
                 "required": ["id", "text"],
                 "properties": {
-                    "id": {"type": "string", "pattern": LINE_ID.pattern,
-                           "description": "Unique within the Narration, ignoring case; names the Line's audio file."},
+                    "id": {**_non_empty_string,
+                           "description": "Unique within the Narration, ignoring case and Unicode normalization; "
+                                          f"names the Line's audio file. {LINE_ID_RULE}"},
                     "text": _non_empty_string,
                     "voice": {**_non_empty_string, "description": "Overrides the Narration's voice for this Line."},
                     "style": {**_non_empty_string, "description": "Overrides the Narration's style for this Line."},

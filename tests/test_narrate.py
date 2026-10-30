@@ -62,11 +62,12 @@ def test_a_line_voice_overrides_the_narration_voice(voxx, write_narration, tmp_p
 
 def test_a_line_id_can_be_any_safe_file_name(voxx, write_narration, tmp_path):
     out = tmp_path / "out"
-    narration = {"language": "zh", "lines": [{"id": "开场", "text": "一"}, {"id": "step 1", "text": "二"}]}
+    longest = "开" * 81  # 243 bytes, so `<id>.wav.partial` is 255
+    narration = {"language": "zh", "lines": [{"id": "开场", "text": "一"}, {"id": "step 1", "text": "二"}, {"id": longest, "text": "三"}]}
     run = voxx("narrate", write_narration(narration), "--out", out)
 
     assert run.exit_code == 0
-    assert (out / "开场.wav").exists() and (out / "step 1.wav").exists()
+    assert all((out / f"{id}.wav").exists() for id in ("开场", "step 1", longest))
 
 
 @pytest.mark.parametrize("narration", [
@@ -80,7 +81,12 @@ def test_a_line_id_can_be_any_safe_file_name(voxx, write_narration, tmp_path):
     {"language": "zh", "lines": [{"id": ".hidden", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a\n", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": " ", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "caf\u00e9", "text": "一"}, {"id": "cafe\u0301", "text": "二"}]},
+    {"language": "zh", "lines": [{"id": "a\u200bb", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "\u202eabc", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a\u2028b", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "开" * 82, "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a", "text": ""}]},
 ])
 def test_an_invalid_narration_is_an_argument_error(voxx, write_narration, tmp_path, narration):
@@ -89,6 +95,13 @@ def test_an_invalid_narration_is_an_argument_error(voxx, write_narration, tmp_pa
 
     assert_error(run, 2, "invalid_narration")
     assert not out.exists()
+
+
+def test_a_line_id_that_is_not_valid_unicode_is_an_argument_error(voxx, tmp_path):
+    path = tmp_path / "narration.json"
+    path.write_text(json.dumps({"language": "zh", "lines": [{"id": "\ud800", "text": "一"}]}), encoding="utf-8")
+
+    assert_error(voxx("narrate", path, "--out", tmp_path / "out"), 2, "invalid_narration")
 
 
 def test_a_missing_narration_file_is_an_argument_error(voxx, tmp_path):
