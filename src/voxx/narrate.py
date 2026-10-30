@@ -50,4 +50,3 @@ def narrate(narration_path, out_dir):
         partial.write_text(json.dumps(narration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     progress("narration_done", path=str(path))
     return {"path": str(path), "narration": narration}
-

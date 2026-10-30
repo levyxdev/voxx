@@ -26,6 +26,7 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert {"model", "path", "already_installed"} <= set(commands["install"]["result"]["required"])
     assert {"platform", "disk", "models"} <= set(commands["doctor"]["result"]["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
+    assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
 
 
 def test_schema_describes_one_command(voxx):

@@ -4,6 +4,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 import shutil
 import time
 import urllib.error
@@ -23,6 +24,8 @@ TIMEOUT = 60
 NETWORK_ERRORS = (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError)
 RETRY_HINT = "Run the same `voxx install` again: it resumes where it stopped."
 HUB_HINT = "Check HF_ENDPOINT: the hub it names is not serving this repo as Hugging Face does."
+# Test-only: the free bytes the disk check sees.
+FREE_BYTES_ENV = "VOXX_TEST_FREE_BYTES"
 
 
 def install(model_id):
@@ -34,15 +37,16 @@ def install(model_id):
     # Downloads land in <id>.<revision>.partial/: a verified file under its own name, an unfinished one as
     # <name>.download. Naming the revision keeps an interrupted install of another revision from being reused.
     partial = path.with_name(f"{path.name}.{model.revision}.partial")
+    stale_name = re.compile(re.escape(path.name) + r"\.[0-9a-f]{40}\.partial")
     for stale in path.parent.glob(f"{path.name}.*.partial"):
-        if stale != partial:
+        if stale != partial and stale_name.fullmatch(stale.name):
             shutil.rmtree(stale)
     files = _repo_files(model)
-    _check_free_space(partial, sum(f["size"] - _downloaded(partial, f) for f in files))
-    if sum(f["size"] for f in files) != model.size_bytes:
-        raise _invalid_repo(model, f"The hub lists {sum(f['size'] for f in files)} bytes for {model.id}, "
-                                   f"not the {model.size_bytes} voxx verified.")
-    progress("download_started", model=model.id, files=len(files), bytes=sum(f["size"] for f in files))
+    total = sum(f["size"] for f in files)
+    if total != model.size_bytes:
+        raise _invalid_repo(model, f"The hub lists {total} bytes for {model.id}, not the {model.size_bytes} voxx verified.")
+    _check_free_space(partial, total - sum(_downloaded(partial, f) for f in files))
+    progress("download_started", model=model.id, files=len(files), bytes=total)
     for file in files:
         _download(model, file, partial)
     manifest = {"model": model.id, "repo": model.repo, "revision": model.revision,
@@ -82,7 +86,9 @@ def _repo_files(model):
         raise _invalid_repo(model, f"The hub's file list for {model.id} is not a list of files.")
     files = [e for e in entries if e.get("type") == "file"]
     for file in files:
-        if not (isinstance(file.get("path"), str) and isinstance(file.get("size"), int) and isinstance(file.get("oid"), str)):
+        lfs = file.get("lfs", {"oid": ""})
+        if not (isinstance(file.get("path"), str) and isinstance(file.get("size"), int) and isinstance(file.get("oid"), str)
+                and isinstance(lfs, dict) and isinstance(lfs.get("oid"), str)):
             raise _invalid_repo(model, f"The hub lists a file of {model.id} without a path, size and checksum.")
         name = PurePosixPath(file["path"])
         if name.is_absolute() or ".." in name.parts or not name.parts:
@@ -96,7 +102,7 @@ def _invalid_repo(model, message):
 
 def _check_free_space(partial, required):
     existing = nearest_existing(partial)
-    free = shutil.disk_usage(existing).free
+    free = int(os.environ[FREE_BYTES_ENV]) if FREE_BYTES_ENV in os.environ else shutil.disk_usage(existing).free
     if required > free:
         raise VoxxError("insufficient_disk_space", f"Installing needs {required} more bytes but only {free} are free.",
                         "Free up disk space, or set VOXX_HOME to a volume with room, then install again.",

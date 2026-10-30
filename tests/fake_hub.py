@@ -27,8 +27,8 @@ class FakeHub:
     reported_sizes: dict = field(default_factory=dict)
     # Answer every Range request with the whole file, as some mirrors do.
     ignore_range: bool = False
-    # Answer the tree API with something that is not JSON.
-    garbage_tree: bool = False
+    # Answer the tree API with this body instead of the real file list.
+    tree_body: bytes | None = None
 
     def start(self):
         hub = self
@@ -54,8 +54,8 @@ class FakeHub:
         path = handler.path.split("?")[0]
         for (repo, revision), files in self.repos.items():
             if path == f"/api/models/{repo}/tree/{revision}":
-                if self.garbage_tree:
-                    return _send(handler, 200, b"<html>Mirror maintenance</html>")
+                if self.tree_body is not None:
+                    return _send(handler, 200, self.tree_body)
                 return _send(handler, 200, json.dumps([self._tree_entry(p, c) for p, c in files.items()]).encode())
             prefix = f"/{repo}/resolve/{revision}/"
             if path.startswith(prefix) and path[len(prefix):] in files:

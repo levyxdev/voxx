@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from conftest import FAKE_FILES, assert_error
 
 from voxx.models import FAKE_MODEL
@@ -71,14 +72,19 @@ def test_a_resumed_install_starts_over_when_the_hub_ignores_the_range(voxx, hub)
     assert (voxx.home / "models" / "fake-tts" / "model.safetensors").read_bytes() == FAKE_FILES["model.safetensors"]
 
 
-def test_an_interrupted_install_of_another_revision_is_not_reused(voxx):
-    stale = voxx.home / "models" / "fake-tts.fedcba9876543210fedcba9876543210fedcba98.partial"
+def test_a_leftover_download_of_another_revision_is_cleaned_up(voxx):
+    models = voxx.home / "models"
+    stale = models / "fake-tts.fedcba9876543210fedcba9876543210fedcba98.partial"
     stale.mkdir(parents=True)
     (stale / "model.safetensors").write_bytes(b"weights of another revision")
+    # A Model whose id merely starts with "fake-tts." keeps its download.
+    other = models / "fake-tts.v2.fedcba9876543210fedcba9876543210fedcba98.partial"
+    other.mkdir()
 
     assert voxx("install", "fake-tts").exit_code == 0
-    assert (voxx.home / "models" / "fake-tts" / "model.safetensors").read_bytes() == FAKE_FILES["model.safetensors"]
+    assert (models / "fake-tts" / "model.safetensors").read_bytes() == FAKE_FILES["model.safetensors"]
     assert not stale.exists()
+    assert other.exists()
 
 
 def test_a_model_installed_at_another_revision_is_not_installed(installed):
@@ -90,18 +96,27 @@ def test_a_model_installed_at_another_revision_is_not_installed(installed):
     assert installed_ids(installed) == {"fake-tts"}
 
 
-def test_a_hub_that_does_not_serve_the_pinned_files_is_refused(voxx, hub):
-    hub.reported_sizes["config.json"] = len(FAKE_FILES["config.json"]) + 1
+@pytest.mark.parametrize("size", [len(FAKE_FILES["config.json"]) + 1, 10**18])
+def test_a_hub_that_does_not_serve_the_pinned_files_is_refused(voxx, hub, size):
+    hub.reported_sizes["config.json"] = size
 
     error = assert_error(voxx("install", "fake-tts"), 1, "invalid_repo")
 
     assert "HF_ENDPOINT" in error["hint"]
+    assert not any("/resolve/" in r.path for r in hub.requests)
     assert installed_ids(voxx) == set()
 
 
-def test_a_hub_that_answers_with_garbage_is_refused(voxx, hub):
-    hub.repos[(FAKE_MODEL.repo, FAKE_MODEL.revision)] = {}
-    hub.garbage_tree = True
+@pytest.mark.parametrize("tree", [
+    b"<html>Mirror maintenance</html>",
+    b'{"error": "busy"}',
+    b'["config.json"]',
+    b'[{"type": "file", "path": "config.json"}]',
+    b'[{"type": "file", "path": "../config.json", "size": 4096, "oid": "0"}]',
+    b'[{"type": "file", "path": "model.safetensors", "size": 4096, "oid": "0", "lfs": {"size": 4096}}]',
+])
+def test_a_hub_that_answers_with_a_malformed_file_list_is_refused(voxx, hub, tree):
+    hub.tree_body = tree
 
     assert_error(voxx("install", "fake-tts"), 1, "invalid_repo")
 
@@ -118,12 +133,11 @@ def test_a_corrupt_download_is_not_installed(voxx, hub):
     assert (voxx.home / "models" / "fake-tts" / "model.safetensors").read_bytes() == FAKE_FILES["model.safetensors"]
 
 
-def test_install_checks_free_disk_space_before_anything_else(voxx, hub):
-    hub.reported_sizes["model.safetensors"] = 10**18
+def test_install_checks_free_disk_space_before_downloading(voxx, hub):
+    error = assert_error(voxx("install", "fake-tts", env={"VOXX_TEST_FREE_BYTES": "4095"}), 1, "insufficient_disk_space")
 
-    error = assert_error(voxx("install", "fake-tts"), 1, "insufficient_disk_space")
-
-    assert error["details"]["required_bytes"] > error["details"]["free_bytes"]
+    assert error["details"]["required_bytes"] == 4096
+    assert error["details"]["free_bytes"] == 4095
     assert not any("/resolve/" in r.path for r in hub.requests)
 
 

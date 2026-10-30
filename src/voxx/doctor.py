@@ -15,13 +15,13 @@ PLATFORM_ENV = "VOXX_TEST_PLATFORM"
 def doctor():
     home = voxx_home()
     disk = nearest_existing(home)
-    listed = models()
+    installed = {m: is_installed(m) for m in models()}
     return {
         "platform": _platform(),
         "home": str(home),
         "disk": {"path": str(disk), "free_bytes": shutil.disk_usage(disk).free},
-        "models": {"installed": [m.id for m in listed if is_installed(m)],
-                   "not_installed": [m.install_summary() for m in listed if not is_installed(m)]},
+        "models": {"installed": [m.id for m, yes in installed.items() if yes],
+                   "not_installed": [m.install_summary() for m, yes in installed.items() if not yes]},
     }
 
 

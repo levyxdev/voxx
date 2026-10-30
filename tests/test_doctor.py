@@ -36,8 +36,9 @@ def test_doctor_reports_installed_models_and_free_disk_space(installed):
 
     assert data["home"] == str(installed.home)
     assert data["models"]["installed"] == ["fake-tts"]
-    not_installed = {m["model"]: m["size_bytes"] for m in data["models"]["not_installed"]}
-    assert not_installed["voxcpm2"] == 3_226_617_581
+    not_installed = {m["model"]: m for m in data["models"]["not_installed"]}
+    assert not_installed["voxcpm2"] == {"model": "voxcpm2", "size_bytes": 3_226_617_581, "license": "Apache-2.0",
+                                        "license_url": "https://huggingface.co/openbmb/VoxCPM2"}
     assert "fake-tts" not in not_installed
     assert 0 < data["disk"]["free_bytes"] <= shutil.disk_usage(installed.home).total
 

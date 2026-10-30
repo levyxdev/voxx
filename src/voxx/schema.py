@@ -161,6 +161,13 @@ COMMANDS = {
             "properties": {"model": _model_id, "path": {"type": "string"}, "size_bytes": {"type": "integer"},
                            "already_installed": {"type": "boolean", "description": "True if nothing was downloaded."}},
         },
+        "errors": {
+            "unknown_model": {"description": "Exit 2: no Model by that id; details.known_models lists them."},
+            "download_failed": {"description": "Exit 1: the network or the hub failed. Run the same install again to resume."},
+            "download_corrupt": {"description": "Exit 1: a file did not match the hub's checksum and was deleted. Run install again."},
+            "invalid_repo": {"description": "Exit 1: the hub at HF_ENDPOINT does not serve the pinned files. Check HF_ENDPOINT."},
+            "insufficient_disk_space": {"description": "Exit 1: details.required_bytes exceeds details.free_bytes; nothing was downloaded."},
+        },
     },
     "doctor": {
         "usage": "voxx doctor",
