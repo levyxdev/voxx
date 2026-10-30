@@ -3,7 +3,7 @@ name = "voxx"
 version = "0.1.0.dev0"
 description = "Local text-to-speech CLI for agents: narrate each Line to a WAV with word timings"
 license = "Apache-2.0"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 dependencies = ["numpy>=2"]
 
 [project.scripts]
