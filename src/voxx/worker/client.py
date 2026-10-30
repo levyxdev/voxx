@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 
-from voxx.output import INTERNAL, VoxxError, emit_event
+from voxx.output import BUG_HINT, INTERNAL, VoxxError, emit_event
 
 CRASH_HINT = "The worker process died, often because memory ran out. Close other apps or use a smaller Model, then retry."
 
@@ -40,10 +40,9 @@ class WorkerProcess:
         error = response["error"]
         data = error.get("data", {})
         if "voxx" in data:
-            e = data["voxx"]
-            raise VoxxError(e["code"], e["message"], e["hint"], e["details"], data["exit_code"])
-        raise VoxxError("worker_error", error["message"], "This is a bug in voxx; please report it with details.traceback.",
-                        {"traceback": data.get("traceback", "")}, INTERNAL)
+            voxx_error = data["voxx"]
+            raise VoxxError(voxx_error["code"], voxx_error["message"], voxx_error["hint"], voxx_error["details"], data["exit_code"])
+        raise VoxxError("worker_error", error["message"], BUG_HINT, {"traceback": data.get("traceback", "")}, INTERNAL)
 
     def __exit__(self, exc_type, exc, tb):
         try:
@@ -52,21 +51,21 @@ class WorkerProcess:
         finally:
             with contextlib.suppress(BrokenPipeError):
                 self.process.stdin.close()
-            try:
-                self.process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait()
-            self.stderr_thread.join()
+            self._reap()
             self.process.stdout.close()
 
-    def _crashed(self):
+    def _reap(self):
+        """Waits for the worker to exit, killing it if it will not, and drains its stderr."""
         try:
             code = self.process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.process.kill()
             code = self.process.wait()
         self.stderr_thread.join()
+        return code
+
+    def _crashed(self):
+        code = self._reap()
         details = {"worker_pid": self.process.pid, "exit_code": code, "stderr_tail": list(self.stderr_tail)}
         if code < 0:
             details["signal"] = signal.Signals(-code).name

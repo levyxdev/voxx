@@ -4,8 +4,9 @@ import json
 import secrets
 from pathlib import Path
 
+from voxx.files import replacing
 from voxx.models import resolve_voice
-from voxx.narration import load_narration
+from voxx.narration import line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.worker.client import WorkerProcess
 
@@ -18,13 +19,14 @@ def narrate(narration_path, out_dir):
     # Resolve every Line before starting the worker, so a bad Voice fails fast.
     plans = []
     for line in narration["lines"]:
-        model, voice = resolve_voice(line.get("voice", narration.get("voice")), narration["language"])
-        plans.append({"model": model, "voice": voice, "style": line.get("style", narration.get("style")),
+        model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"])
+        plans.append({"model": model, "voice": voice, "style": line_setting(narration, line, "style"),
                       "seed": secrets.randbelow(2**31)})
     try:
         out.mkdir(parents=True, exist_ok=True)
-    except (FileExistsError, NotADirectoryError):
-        raise VoxxError("invalid_out", f"{out} exists and is not a directory.", "Pass a directory for --out.", {"out": str(out)}, USAGE)
+    except OSError as e:
+        raise VoxxError("invalid_out", f"Cannot use {out} as the output directory: {e.strerror}.",
+                        "Pass a writable directory for --out.", {"out": str(out)}, USAGE)
 
     progress("narration_started", lines=len(plans))
     with WorkerProcess() as worker:
@@ -39,8 +41,7 @@ def narrate(narration_path, out_dir):
             progress("line_done", id=line["id"], index=index, total=len(plans))
 
     path = out / OUTPUT_NAME
-    partial = path.with_name(path.name + ".partial")
-    partial.write_text(json.dumps(narration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    partial.replace(path)
+    with replacing(path) as partial:
+        partial.write_text(json.dumps(narration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     progress("narration_done", path=str(path))
     return {"path": str(path), "narration": narration}

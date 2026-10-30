@@ -86,6 +86,16 @@ def test_missing_arguments_are_an_argument_error(voxx, write_narration):
     assert_error(voxx(), 2, "invalid_arguments")
 
 
+def test_an_unusable_out_is_an_argument_error(voxx, write_narration, tmp_path):
+    a_file = tmp_path / "a-file"
+    a_file.write_text("")
+    locked = tmp_path / "locked"
+    locked.mkdir(mode=0o500)
+
+    for out in (a_file, locked / "out"):
+        assert_error(voxx("narrate", write_narration(TWO_LINES), "--out", out), 2, "invalid_out")
+
+
 def test_an_unknown_voice_is_an_argument_error(voxx, write_narration, tmp_path):
     error = assert_error(voxx("narrate", write_narration({**TWO_LINES, "voice": "nobody"}), "--out", tmp_path / "out"), 2, "unknown_voice")
     assert "fake-alice" in error["details"]["known_voices"]

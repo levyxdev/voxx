@@ -36,13 +36,11 @@ def main():
     rpc = os.fdopen(os.dup(1), "w", encoding="utf-8")
     os.dup2(2, 1)
     worker = Worker()
-    methods = {"synthesize_line": worker.synthesize_line}
+    methods = {"synthesize_line": worker.synthesize_line, "shutdown": lambda: None}
     for line in sys.stdin:
         request = json.loads(line)
         response = {"jsonrpc": "2.0", "id": request.get("id")}
-        if request["method"] == "shutdown":
-            response["result"] = None
-        elif request["method"] not in methods:
+        if request["method"] not in methods:
             response["error"] = {"code": -32601, "message": f"Unknown method {request['method']}"}
         else:
             try:

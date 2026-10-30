@@ -9,7 +9,7 @@ from voxx.output import USAGE, VoxxError
 LANGUAGES = ("zh", "en")
 # A Line id names its audio file, so it must be a safe file name.
 LINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-HINT = "Run `voxx schema narrate` to see the Narration file format."
+NARRATION_HINT = "Run `voxx schema narrate` to see the Narration file format."
 
 
 def load_narration(path):
@@ -23,7 +23,7 @@ def load_narration(path):
     try:
         narration = json.loads(text)
     except json.JSONDecodeError as e:
-        raise VoxxError("invalid_narration", f"{path} is not valid JSON: {e}", HINT, {"path": str(path)}, USAGE)
+        raise VoxxError("invalid_narration", f"{path} is not valid JSON: {e}", NARRATION_HINT, {"path": str(path)}, USAGE)
     check_narration(narration)
     return narration
 
@@ -56,10 +56,15 @@ def check_narration(narration):
             _optional_string(line, field, where)
 
 
+def line_setting(narration, line, field):
+    """A Line's voice or style: its own, else the Narration's default, else None."""
+    return line.get(field, narration.get(field))
+
+
 def _optional_string(obj, field, where):
     if field in obj and not (isinstance(obj[field], str) and obj[field].strip()):
         _invalid(f"{where}.{field}", f"{field} must be a non-empty string when given.")
 
 
 def _invalid(where, message):
-    raise VoxxError("invalid_narration", f"{where}: {message}", HINT, {"at": where}, USAGE)
+    raise VoxxError("invalid_narration", f"{where}: {message}", NARRATION_HINT, {"at": where}, USAGE)

@@ -4,7 +4,7 @@ import argparse
 import sys
 import traceback
 
-from voxx.output import INTERNAL, OK, USAGE, VoxxError, print_error, print_result
+from voxx.output import BUG_HINT, INTERNAL, OK, USAGE, VoxxError, print_error, print_result
 
 ARGS_HINT = "Run `voxx schema` to see every command's arguments."
 
@@ -37,12 +37,11 @@ def main(argv=None):
         else:
             from voxx.schema import schema
             data = schema(args.name)
+        print_result(data)
     except VoxxError as e:
         print_error(e)
         return e.exit_code
     except Exception as e:
-        print_error(VoxxError("internal_error", f"{type(e).__name__}: {e}", "This is a bug in voxx; please report it with details.traceback.",
-                              {"traceback": traceback.format_exc()}, INTERNAL))
+        print_error(VoxxError("internal_error", f"{type(e).__name__}: {e}", BUG_HINT, {"traceback": traceback.format_exc()}, INTERNAL))
         return INTERNAL
-    print_result(data)
     return OK

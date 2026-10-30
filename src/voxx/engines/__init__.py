@@ -5,7 +5,7 @@ from typing import Protocol
 import numpy as np
 
 from voxx.models import fake_engine_enabled
-from voxx.output import VoxxError
+from voxx.output import BUG_HINT, VoxxError
 
 
 class Engine(Protocol):
@@ -20,4 +20,4 @@ def load_engine(name) -> Engine:
     if name == "fake" and fake_engine_enabled():
         from voxx.engines.fake import FakeEngine
         return FakeEngine()
-    raise VoxxError("unknown_engine", f"No Engine named {name!r}.", "This is a bug in voxx; please report it.", {"engine": name})
+    raise VoxxError("unknown_engine", f"No Engine named {name!r}.", BUG_HINT, {"engine": name})

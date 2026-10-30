@@ -5,6 +5,7 @@ import sys
 import threading
 
 OK, INTERNAL, USAGE, NOT_INSTALLED, UNSUPPORTED = 0, 1, 2, 3, 4
+BUG_HINT = "This is a bug in voxx; please report it with details."
 
 _stderr_lock = threading.Lock()
 
