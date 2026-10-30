@@ -46,7 +46,7 @@ agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + w
 - `language`：ISO 639-1 代码，一份旁白一种语言。能用哪些语言跟随念它的 Model（Qwen3-TTS 支持 zh、en、ja、ko、fr、de、it、pt、ru、es），voxx 不另设限制；Model 不念这种语言时退出码 4。
 - `voice`、`style`、`seed` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型；没有数值语速。不支持 `style` 的 Model（0.6B 快速档）照样念这个 Line，只在它的 `warnings` 里说明忽略了 `style`。
 - 没写 `voice` 时，用 Model 里第一个以这种语言为母语的音色（中文 vivian、英文 ryan），没有就用它的第一个音色。
-- 没写 `seed` 时由 voxx 随机生成。每个 Line 合成前都重新设 seed，所以同一个 Model、音色、`style`、文字和 seed 在同一台机器上念出逐字节相同的 WAV（真实模型测试验证过），也和 Line 的先后无关。输出的旁白文件原样当输入，就能复现上一次。
+- 没写 `seed` 时由 voxx 随机生成。每个 Line 合成前都重新设 seed，所以同一个 Model、音色、`style`、文字和 seed 在同一台机器上念出逐字节相同的 WAV（真实模型测试验证过），也和 Line 的先后无关。输出的旁白文件原样当输入、带上同样的 `--model`，就能复现上一次（输入不读 Line 上的 `model`）。
 
 输出在每个 Line 上补上：`audio`、`words`（`[{ text, start, end }]`，相对该 Line 音频起点；中文按字）、`model`、`voice`、`seed`、`sample_rate`、自检错字率、`warnings`。
 

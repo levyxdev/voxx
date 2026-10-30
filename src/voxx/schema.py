@@ -119,7 +119,7 @@ COMMANDS = {
     "narrate": {
         "usage": "voxx narrate <narration.json> --out <dir> [--model <model>]",
         "description": "Read every Line of a Narration, write <dir>/<id>.wav per Line and <dir>/narration.json. "
-                       "The completed Narration reads again to the same audio.",
+                       "The completed Narration, read again with the same --model, gives the same audio.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",

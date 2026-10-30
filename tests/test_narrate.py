@@ -240,3 +240,12 @@ def test_the_completed_narration_reads_again_to_the_same_audio(installed, write_
 
     for line_id in ("intro", "send"):
         assert audio_of(first, line_id) == audio_of(second, line_id)
+
+
+def test_the_completed_narration_reads_again_to_the_same_audio_with_the_same_model(installed, write_narration, tmp_path):
+    first, second = tmp_path / "first", tmp_path / "second"
+    installed("narrate", write_narration(TWO_LINES), "--out", first, "--model", "fake-tts-small")
+    installed("narrate", first / "narration.json", "--out", second, "--model", "fake-tts-small")
+
+    for line_id in ("intro", "send"):
+        assert audio_of(first, line_id) == audio_of(second, line_id)

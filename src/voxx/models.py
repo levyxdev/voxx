@@ -70,7 +70,7 @@ def _apache(url):
 QWEN3_TTS_CODE = _apache("https://github.com/QwenLM/Qwen3-TTS")
 # Languages as ISO 639-1 codes; mlx-audio's names for them are the Engine's business.
 QWEN3_TTS_LANGUAGES = ("zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es")
-# The CustomVoice speakers, named as in the Model's config; descriptions from the Qwen3-TTS README.
+# The CustomVoice Voices, named as in the Model's config; descriptions from the Qwen3-TTS README.
 QWEN3_TTS_VOICES = (
     PresetVoice("vivian", "zh", "Bright, slightly edgy young female voice."),
     PresetVoice("serena", "zh", "Warm, gentle young female voice."),

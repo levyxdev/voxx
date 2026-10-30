@@ -18,7 +18,7 @@ class MlxAudioEngine:
     def synthesize(self, text, *, model, voice, style, language, seed):
         # mlx samples from one global generator, so seeding it before each Line makes the Line independent of the others.
         mx.random.seed(seed)
-        # An empty split_pattern reads the whole Line in one pass instead of splitting it at newlines.
+        # CustomVoice Models never split a Line; an empty split_pattern keeps the Base ones from splitting it at newlines.
         results = list(self.model.generate(text=text, voice=voice, instruct=style, lang_code=LANGUAGE_NAMES[language],
                                            split_pattern="", verbose=False))
         if len(results) != 1:

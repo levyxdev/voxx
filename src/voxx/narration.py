@@ -45,7 +45,7 @@ def check_narration(narration):
         _invalid("$", "The Narration must be a JSON object.")
     if not (isinstance(narration.get("language"), str) and re.fullmatch(LANGUAGE_PATTERN, narration["language"])):
         _invalid("$.language", LANGUAGE_RULE)
-    _defaults(narration, "$")
+    _check_settings(narration, "$")
     lines = narration.get("lines")
     if not isinstance(lines, list) or not lines:
         _invalid("$.lines", "lines must be a non-empty array of Lines.")
@@ -63,7 +63,7 @@ def check_narration(narration):
         seen[key] = i
         if not isinstance(line.get("text"), str) or not line["text"].strip():
             _invalid(f"{where}.text", "text must be a non-empty string.")
-        _defaults(line, where)
+        _check_settings(line, where)
 
 
 def is_line_id(value):
@@ -82,7 +82,7 @@ def line_setting(narration, line, field):
     return line.get(field, narration.get(field))
 
 
-def _defaults(obj, where):
+def _check_settings(obj, where):
     """The settings a Narration gives every Line and a Line can override."""
     for field in ("voice", "style"):
         _optional_string(obj, field, where)
