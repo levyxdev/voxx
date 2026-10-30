@@ -1,0 +1,44 @@
+import os
+import subprocess
+import sys
+
+
+def test_schema_describes_narrate(voxx):
+    run = voxx("schema")
+
+    assert run.exit_code == 0
+    data = run.result["data"]
+    narrate = data["commands"]["narrate"]
+    assert set(narrate["arguments"]["required"]) == {"narration", "out"}
+    assert narrate["input"]["properties"]["language"]["enum"] == ["zh", "en"]
+    line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
+    assert {"audio", "model", "voice", "seed", "sample_rate"} <= set(line["required"])
+    assert set(data["exit_codes"]) == {"0", "1", "2", "3", "4"}
+
+
+def test_schema_describes_one_command(voxx):
+    run = voxx("schema", "narrate")
+
+    assert list(run.result["data"]) == ["narrate"]
+
+
+def test_schema_of_an_unknown_command_is_an_argument_error(voxx):
+    run = voxx("schema", "dance")
+
+    assert run.exit_code == 2
+    assert run.result["error"]["code"] == "unknown_command"
+
+
+def test_the_cli_does_not_import_mlx(voxx, tmp_path):
+    # A stand-in mlx package that leaves a mark if anything imports it.
+    marker = tmp_path / "mlx-imported"
+    (tmp_path / "shadow" / "mlx").mkdir(parents=True)
+    (tmp_path / "shadow" / "mlx" / "__init__.py").write_text(f"open({str(marker)!r}, 'w').close()\n")
+
+    run = voxx("schema", env={"PYTHONPATH": str(tmp_path / "shadow")})
+
+    assert run.exit_code == 0
+    assert not marker.exists()
+    # The stand-in works: importing mlx under the same environment leaves the mark.
+    subprocess.run([sys.executable, "-c", "import mlx"], env={**os.environ, "PYTHONPATH": str(tmp_path / "shadow")}, check=True)
+    assert marker.exists()
