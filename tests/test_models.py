@@ -17,17 +17,18 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
 
     assert run.exit_code == 0
     models = by_id(run)
-    assert set(REAL_MODELS) | {"fake-tts"} == set(models)
+    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small"} == set(models)
     for id, (capability, size) in REAL_MODELS.items():
         model = models[id]
         assert model["capabilities"] == [capability]
         assert model["size_bytes"] == size
-        assert model["languages"] == ["zh", "en"]
         assert model["installed"] is False
         assert model["weights_license"]["id"] == "Apache-2.0"
         assert model["weights_license"]["url"].startswith("https://huggingface.co/")
         assert model["code_license"]["url"].startswith("https://github.com/")
         assert model["verified"] == "2026-10-30"
+    # Each Model reads the languages it supports upstream.
+    assert models["qwen3-tts-1.7b-customvoice"]["languages"] == ["zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es"]
     assert models["qwen3-tts-1.7b-customvoice"]["sample_rate"] == 24_000
     assert models["voxcpm2"]["sample_rate"] == 48_000
 
@@ -52,7 +53,7 @@ def test_an_unknown_capability_is_an_argument_error(voxx):
 
 
 def test_models_can_be_filtered_by_install_state(installed):
-    assert set(by_id(installed("models", "--installed"))) == {"fake-tts"}
+    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small"}
     assert set(by_id(installed("models", "--not-installed"))) == set(REAL_MODELS)
     assert by_id(installed("models"))["fake-tts"]["installed"] is True
 

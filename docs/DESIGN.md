@@ -43,15 +43,17 @@ agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + w
 }
 ```
 
-- `language`：v0.1 只支持 `zh`（简体中文）和 `en`，一份旁白一种语言。
-- `voice`、`style` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型；没有数值语速。
+- `language`：ISO 639-1 代码，一份旁白一种语言。能用哪些语言跟随念它的 Model（Qwen3-TTS 支持 zh、en、ja、ko、fr、de、it、pt、ru、es），voxx 不另设限制；Model 不念这种语言时退出码 4。
+- `voice`、`style`、`seed` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型；没有数值语速。不支持 `style` 的 Model（0.6B 快速档）照样念这个 Line，只在它的 `warnings` 里说明忽略了 `style`。
+- 没写 `voice` 时，用 Model 里第一个以这种语言为母语的音色（中文 vivian、英文 ryan），没有就用它的第一个音色。
+- 没写 `seed` 时由 voxx 随机生成。每个 Line 合成前都重新设 seed，所以同一个 Model、音色、`style`、文字和 seed 在同一台机器上念出逐字节相同的 WAV（真实模型测试验证过），也和 Line 的先后无关。输出的旁白文件原样当输入，就能复现上一次。
 
 输出在每个 Line 上补上：`audio`、`words`（`[{ text, start, end }]`，相对该 Line 音频起点；中文按字）、`model`、`voice`、`seed`、`sample_rate`、自检错字率、`warnings`。
 
 ## 命令
 
 ```
-voxx narrate <narration.json> --out <dir> [--line <id>...]   # 合成整份旁白；--line 只重配指定 Line
+voxx narrate <narration.json> --out <dir> [--model <id>] [--line <id>...]   # 合成整份旁白；--model 选念它的 Model；--line 只重配指定 Line
 voxx voice add <name> --ref <录音>                             # 存一个 Cloned Voice
 voxx voices                                                   # 列出 Preset Voice 和 Cloned Voice
 voxx models                                                   # 注册表（只含可商用模型）
@@ -97,7 +99,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 
 ## 音色
 
-- Preset Voice 按名字选，来自模型自带的音色。
+- Preset Voice 按名字选，来自模型自带的音色。`voxx voices` 列出每个音色的母语、上游给的一句描述和能念它的 Model，agent 据此让用户挑。Qwen3-TTS CustomVoice 的 9 个音色全部登记，1.7B 和 0.6B 共用；不指定 `--model` 时由默认的 1.7B 念。
 - Cloned Voice 先存再用：`voice add` 把参考录音规范化、补好文字，存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以指向项目目录。
 - 代码不做授权校验，使用者对所克隆的声音负责，README 写免责声明（[ADR 0004](adr/0004-cloning-does-not-check-consent.md)）。不加水印。
 

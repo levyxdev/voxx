@@ -10,9 +10,13 @@ def test_schema_describes_narrate(voxx):
     data = run.result["data"]
     narrate = data["commands"]["narrate"]
     assert set(narrate["arguments"]["required"]) == {"narration", "out"}
-    assert narrate["input"]["properties"]["language"]["enum"] == ["zh", "en"]
+    assert "model" in narrate["arguments"]["properties"]
+    assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2}$"
+    assert {"voice", "style", "seed"} <= set(narrate["input"]["properties"]["lines"]["items"]["properties"])
     line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
-    assert {"audio", "model", "voice", "seed", "sample_rate"} <= set(line["required"])
+    assert {"audio", "model", "voice", "seed", "sample_rate", "warnings"} <= set(line["required"])
+    assert {"unknown_voice", "unknown_model", "capability_unsupported", "voice_unsupported",
+            "unsupported_language"} <= set(narrate["errors"])
     assert set(data["exit_codes"]) == {"0", "1", "2", "3", "4"}
 
 
@@ -25,6 +29,8 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert commands["install"]["arguments"]["required"] == ["model"]
     assert {"model", "path", "already_installed"} <= set(commands["install"]["result"]["required"])
     assert {"platform", "disk", "models"} <= set(commands["doctor"]["result"]["required"])
+    voice = commands["voices"]["result"]["properties"]["voices"]["items"]
+    assert {"name", "kind", "native_language", "description", "languages", "models"} <= set(voice["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
     assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
 

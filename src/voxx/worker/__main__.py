@@ -15,17 +15,17 @@ class Worker:
     def __init__(self):
         self.engines = {}
 
-    def synthesize_line(self, *, model, engine, text, voice, style, language, seed, path):
-        samples, sample_rate = self._engine(model, engine).synthesize(
+    def synthesize_line(self, *, model, engine, model_path, text, voice, style, language, seed, path):
+        samples, sample_rate = self._engine(model, engine, model_path).synthesize(
             text, model=model, voice=voice, style=style, language=language, seed=seed)
         write_wav(Path(path), samples, sample_rate)
         return {"sample_rate": sample_rate}
 
-    def _engine(self, model, engine):
+    def _engine(self, model, engine, model_path):
         if model not in self.engines:
             progress("model_loading", model=model)
             loaded = load_engine(engine)
-            loaded.load(model)
+            loaded.load(Path(model_path))
             self.engines[model] = loaded
             progress("model_loaded", model=model)
         return self.engines[model]

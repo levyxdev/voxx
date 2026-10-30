@@ -2,6 +2,7 @@
 
 import os
 import signal
+import zlib
 
 import numpy as np
 
@@ -15,12 +16,13 @@ CRASH_ENV = "VOXX_TEST_FAKE_CRASH"
 
 
 class FakeEngine:
-    def load(self, model):
+    def load(self, path):
         _crash_if("load")
 
     def synthesize(self, text, *, model, voice, style, language, seed):
         _crash_if("synthesize")
-        frequency = 200 + np.random.default_rng(seed).integers(0, 400)
+        # The tone's pitch follows the seed, the Voice and the style, so tests can tell what reached the Engine.
+        frequency = 200 + np.random.default_rng([seed, zlib.crc32(voice.encode()), zlib.crc32((style or "").encode())]).integers(0, 2000)
         t = np.arange(int(SAMPLE_RATE * max(0.3, len(text) * SECONDS_PER_CHAR))) / SAMPLE_RATE
         tone = AMPLITUDE * np.sin(2 * np.pi * frequency * t)
         lead, tail = np.zeros(int(SAMPLE_RATE * LEAD_SILENCE)), np.zeros(int(SAMPLE_RATE * TAIL_SILENCE))

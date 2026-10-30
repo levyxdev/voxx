@@ -3,6 +3,7 @@
 import collections
 import contextlib
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -10,6 +11,8 @@ import threading
 
 from voxx.output import BUG_HINT, INTERNAL, VoxxError, emit_event
 
+# Model libraries reach for Hugging Face on their own; only `voxx install` may download (ADR 0003).
+OFFLINE = {"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
 CRASH_HINT = "The worker process died, often because memory ran out. Close other apps or use a smaller Model, then retry."
 
 
@@ -17,7 +20,7 @@ class WorkerProcess:
     def __enter__(self):
         self.process = subprocess.Popen(
             [sys.executable, "-m", "voxx.worker"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, encoding="utf-8", bufsize=1)
+            stderr=subprocess.PIPE, encoding="utf-8", bufsize=1, env={**os.environ, **OFFLINE})
         self.stderr_tail = collections.deque(maxlen=40)
         self.stderr_thread = threading.Thread(target=self._forward_stderr, daemon=True)
         self.stderr_thread.start()

@@ -1,12 +1,14 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
 from voxx.models import CAPABILITIES
-from voxx.narration import LANGUAGES, LINE_ID_RULE
+from voxx.narration import LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
 from voxx.output import USAGE, VoxxError
 
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
 
 _non_empty_string = {"type": "string", "minLength": 1}
+_language = {"type": "string", "pattern": LANGUAGE_PATTERN, "description": "ISO 639-1 code, such as zh or en."}
+_seed = {"type": "integer", "minimum": 0, "maximum": MAX_SEED}
 
 NARRATION_INPUT = {
     "$schema": DRAFT,
@@ -15,9 +17,13 @@ NARRATION_INPUT = {
     "type": "object",
     "required": ["language", "lines"],
     "properties": {
-        "language": {"enum": list(LANGUAGES)},
-        "voice": {**_non_empty_string, "description": "Default Voice for every Line. Omit for the default Preset Voice."},
-        "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an instruction."},
+        "language": {**_language, "description": f"{LANGUAGE_RULE} The Model must read it; see `voxx models`."},
+        "voice": {**_non_empty_string, "description": "Default Voice for every Line, from `voxx voices`. Omit for the "
+                                                      "Model's first Voice native to the language."},
+        "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
+                                                      "instruction. Ignored, with a warning, by a Model that cannot follow it."},
+        "seed": {**_seed, "description": "Default seed for every Line. Omit for a random one per Line; the same seed, "
+                                         "Model, Voice, style and text read the same way again."},
         "lines": {
             "type": "array",
             "minItems": 1,
@@ -31,6 +37,7 @@ NARRATION_INPUT = {
                     "text": _non_empty_string,
                     "voice": {**_non_empty_string, "description": "Overrides the Narration's voice for this Line."},
                     "style": {**_non_empty_string, "description": "Overrides the Narration's style for this Line."},
+                    "seed": {**_seed, "description": "Overrides the Narration's seed for this Line."},
                 },
             },
         },
@@ -43,6 +50,9 @@ LINE_OUTPUT_FIELDS = {
     "voice": {"type": "string"},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
+    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored.",
+                 "items": {"type": "object", "required": ["code", "message"],
+                           "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
 }
 
 NARRATION_OUTPUT = {
@@ -73,7 +83,7 @@ MODEL = {
     "properties": {
         "id": _model_id,
         "capabilities": {"type": "array", "items": {"enum": list(CAPABILITIES)}},
-        "languages": {"type": "array", "items": {"enum": list(LANGUAGES)}},
+        "languages": {"type": "array", "items": _language},
         "size_bytes": {"type": "integer", "description": "Download size."},
         "sample_rate": {"type": ["integer", "null"], "description": "Native output sample rate in Hz; null if the Model does not speak."},
         "weights_license": {**_license, "description": "License of the weights; every listed Model allows commercial use."},
@@ -107,8 +117,9 @@ MODEL_NOT_INSTALLED = {
 
 COMMANDS = {
     "narrate": {
-        "usage": "voxx narrate <narration.json> --out <dir>",
-        "description": "Read every Line of a Narration, write <dir>/<id>.wav per Line and <dir>/narration.json.",
+        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>]",
+        "description": "Read every Line of a Narration, write <dir>/<id>.wav per Line and <dir>/narration.json. "
+                       "The completed Narration reads again to the same audio.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
@@ -116,6 +127,8 @@ COMMANDS = {
             "properties": {
                 "narration": {"type": "string", "description": "Path to the Narration file (positional)."},
                 "out": {"type": "string", "description": "Output directory (--out); created if missing."},
+                "model": {**_model_id, "description": "The Model that reads every Line (--model). Omit for the Model "
+                                                      "that has each Line's Voice, or the default Model."},
             },
         },
         "input": NARRATION_INPUT,
@@ -128,7 +141,38 @@ COMMANDS = {
                 "narration": NARRATION_OUTPUT,
             },
         },
-        "errors": {"model_not_installed": MODEL_NOT_INSTALLED},
+        "errors": {
+            "model_not_installed": MODEL_NOT_INSTALLED,
+            "invalid_narration": {"description": "Exit 2: details.at points at what is wrong in the Narration file."},
+            "unknown_voice": {"description": "Exit 2: no Model has this Voice; details.known_voices lists them."},
+            "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
+            "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot read Preset Voices."},
+            "voice_unsupported": {"description": "Exit 4: the Model given to --model lacks this Voice; details.voices lists its own."},
+            "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
+        },
+    },
+    "voices": {
+        "usage": "voxx voices",
+        "description": "List the Preset Voices and the Models that read them.",
+        "arguments": {"$schema": DRAFT, "type": "object", "properties": {}},
+        "result": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["voices"],
+            "properties": {"voices": {"type": "array", "items": {
+                "type": "object",
+                "required": ["name", "kind", "native_language", "description", "languages", "models"],
+                "properties": {
+                    "name": {"type": "string", "description": "What a Narration's voice names."},
+                    "kind": {"enum": ["preset"]},
+                    "native_language": _language,
+                    "description": {"type": "string", "description": "How the Voice sounds, from the Model's makers."},
+                    "languages": {"type": "array", "items": _language, "description": "Languages a Model reads this Voice in."},
+                    "models": {"type": "array", "items": {"type": "object", "required": ["model", "installed"],
+                                                          "properties": {"model": _model_id, "installed": {"type": "boolean"}}}},
+                },
+            }}},
+        },
     },
     "models": {
         "usage": "voxx models [--capability <capability>] [--installed | --not-installed]",
