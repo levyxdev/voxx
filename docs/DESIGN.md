@@ -1,141 +1,135 @@
-# voxx 设计草案
+# voxx v0.1 设计
 
-> 状态：草案（2026-10-24）。用作 `/grill-with-docs` 的输入，拷问后沉淀为 `GLOSSARY.md` + ADR，再 `/to-spec` → `/to-tickets` → `/implement`。
+> 状态：已拷问定稿（2026-10-30）。术语见 [GLOSSARY.md](../GLOSSARY.md)，关键决策见 [docs/adr/](adr/)，模型调研见 [research/tts-models-2026-10.md](research/tts-models-2026-10.md)。下一步：`/to-spec` → `/to-tickets`。
 
 ## 一句话
 
-voxx 是一个**只给 agent 用**的本地语音 CLI + 一个 skill：CLI 提供确定性的原子能力（列模型、下载、内置音色、克隆、合成、对齐），skill 提供方法论（怎么选模型、怎么切句、怎么自检、什么时候问用户）。
+voxx 是**只给 agent 用**的本地语音 CLI 加一个 skill：agent 给它一份旁白（Narration），它把每个 Line 一次连续念完，交回每句一个音频文件和词级时间戳。主要用途是给 CueTake 录屏配音：先有口播，再按口播录屏，画面跟着声音走。
 
-## 核心原则：确定性写死，判断交给 agent
+## 核心原则：确定的写死在 CLI，判断交给 agent
 
-| 写死在 CLI（确定、可测试） | 交给 agent（靠 skill 指导） |
+| 写死在 CLI（同样输入总得到同样结果） | 交给 agent（skill 指导） |
 |---|---|
-| 模型注册表：repo id、许可证、能力、语言、大小、采样率 | 选哪个模型、哪个尺寸 |
-| “能否商用”的判定（基于注册表里核实过的许可证） | 文本怎么切段、怎么写 instruct/风格描述 |
-| 下载前的同意门（consent gate） | 什么时候向用户请求下载同意、怎么解释 |
-| 任务 → 具体 checkpoint 的映射（例：内置音色→CustomVoice，克隆→Base） | 合成质量好不好、要不要换 seed 重试 |
-| 音色档案的存储格式、参考音频规范化 | 拼接、混音、响度（agent 自己调 ffmpeg） |
-| JSON 输出、错误码、退出码 | 整体工作流编排 |
+| 模型注册表、许可证、任务到 checkpoint 的映射 | 选模型、选音色、写 `style` |
+| 合成、响度归一、静音裁剪、强制对齐、自检打分 | 看错字率决定要不要换 seed 重配 |
+| 旁白文件格式、JSON 输出、退出码 | 下载前把大小和许可证告诉用户、等用户同意 |
+| 不隐式下载、不在 Line 内拼接音频 | 克隆前提醒用户确认有权使用这段声音；发布时提醒声明 AI 生成 |
+| | 句子之间停多久（在 CueTake 的 Scenario 里定） |
 
-判断标准：**同样输入是否总该得到同样结果**。是 → CLI；否 → skill。
+## 和 CueTake 的关系
 
-## 模型（v0.1 已核实）
+```
+agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + words）+ 每句 WAV
+                                         │
+                                         ▼
+                         cuetake record --narration <文件>
+```
 
-| 族 | 许可证（权重+代码） | Mac/mlx-audio | 能力 |
-|---|---|---|---|
-| Qwen3-TTS 0.6B/1.7B | Apache-2.0 | ✅ 上游已支持 | 内置音色（CustomVoice，9 个）、3 秒克隆（Base）、音色设计（1.7B VoiceDesign）、情绪 instruct、10 语言 |
-| VoxCPM2 2B | Apache-2.0 | ✅ 上游已支持（bf16/8bit/4bit） | 克隆、可控克隆、音色设计、48kHz、30 语言 |
-| Fun-CosyVoice3 0.5B | Apache-2.0 | ⚠️ 上游 PR [Blaizzy/mlx-audio#861](https://github.com/Blaizzy/mlx-audio/pull/861) 未合并；只有 mlx-audio-plus 分叉支持 | 克隆、跨语种、instruct、9 语言 |
-| Qwen3-ForcedAligner 0.6B（对齐） | Apache-2.0 | ✅ | 词/字级时间戳，11 语言，≤300 秒 |
-| Qwen3-ASR 0.6B（转写参考音频） | Apache-2.0 | ✅ | 克隆时自动补 ref_text |
+两个工具只靠文件交接，不互相调用（[ADR 0001](adr/0001-narration-file-is-the-contract.md)）。旁白格式与 levyxdev/cuetake#7 一致，但由 voxx 自己定义，代码里不依赖 CueTake。
 
-注意：
-- **“可商用”只针对权重许可证**。克隆他人声音需要本人授权，这是使用方的责任（VoxCPM 官方在 [OpenBMB/VoxCPM#238](https://github.com/OpenBMB/VoxCPM/issues/238) 里也这么说）。voxx 在音色档案里记录来源和授权声明，skill 要求 agent 确认。
-- 非商用模型（如 F5-TTS 的 CC-BY-NC 权重、Fish Speech 的 CC-BY-NC-SA）也可以进注册表，但 `voxx models` 默认隐藏，`--all` 才显示，并标 `commercial: false`。
-- CosyVoice3 在 Mac 上的路线二选一（待 grill）：等 #861 合并；或先走 torch(MPS) worker。**不依赖 mlx-audio-plus 分叉**（维护者关系紧张，长期风险大）。
-- 注册表里每条许可证都带 `source_url` + `verified_at`，CI 里跑脚本对比 HF 的 `cardData.license`，变了就报警。
+## 旁白文件
+
+输入：
+
+```json
+{
+  "language": "zh",
+  "voice": "my-voice",
+  "style": "语气轻松，语速稍慢",
+  "lines": [
+    { "id": "intro", "text": "这是一个新的发送流程。" },
+    { "id": "send",  "text": "点一下发送就完成了。", "style": "语气兴奋" }
+  ]
+}
+```
+
+- `language`：v0.1 只支持 `zh`（简体中文）和 `en`，一份旁白一种语言。
+- `voice`、`style` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型；没有数值语速。
+
+输出在每个 Line 上补上：`audio`、`words`（`[{ text, start, end }]`，相对该 Line 音频起点；中文按字）、`model`、`voice`、`seed`、`sample_rate`、自检错字率、`warnings`。
+
+## 命令
+
+```
+voxx narrate <narration.json> --out <dir> [--line <id>...]   # 合成整份旁白；--line 只重配指定 Line
+voxx voice add <name> --ref <录音>                             # 存一个 Cloned Voice
+voxx voices                                                   # 列出 Preset Voice 和 Cloned Voice
+voxx models                                                   # 注册表（只含可商用模型）
+voxx install <model>                                          # 唯一会下载的命令
+voxx doctor                                                   # 平台、已装模型、磁盘
+voxx schema                                                   # 所有命令的参数和返回结构
+```
+
+不对外提供 `align`、`transcribe`、`batch`：它们都只是 `narrate` 的内部步骤。
+
+## 一份旁白的处理流程
+
+1. CLI 校验旁白文件、确认所需模型已安装，然后启动 worker。
+2. worker 加载一次模型。
+3. 逐个 Line：整句一次合成 → 响度归一到 -18 LUFS → 首尾静音裁到 50 ms → 强制对齐得到 `words`（失败则不带 `words`，只加警告）→ ASR 听写回来算错字率 → 写单声道 WAV（保留模型原生采样率）。
+4. worker 退出，CLI 写出补全的旁白文件，在 stdout 打印一个 JSON 结果。
+
+## CLI 和 worker
+
+agent 只运行 `voxx` 这个 CLI，永远看不到 worker。
+
+- CLI 是轻的：解析参数、读注册表和旁白文件、管理音色、输出 JSON。它不 import mlx，所以 `models`、`schema` 这类命令立刻返回。
+- 需要合成时，CLI 把 `python -m voxx.worker` 作为**子进程**启动，通过它的 stdin/stdout 收发 JSON-RPC 消息（「加载模型」「合成这一句」「对齐这一句」……），stderr 用来转发进度。
+- 旁白念完，worker 退出，模型占用的内存随之释放。worker 崩溃（比如显存不够）时，CLI 仍然能给 agent 返回一个结构化的 JSON 错误。
+
+JSON-RPC over stdio 和 MCP、LSP 用的是同一种传输方式，但这里它只是 voxx 内部两半之间的私有管道，不是给 agent 的接口。对 agent 的接口只有 CLI，和 CueTake 一样不做 MCP。决策见 [ADR 0002](adr/0002-synthesis-runs-in-a-worker-process.md)。
+
+v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突的引擎（比如 PyTorch 系的 CosyVoice 官方包）进来时，再给它单独建一个 venv，协议不变。
+
+## 模型
+
+只登记权重许可证允许商用的模型（[ADR 0003](adr/0003-models-are-installed-only-by-an-explicit-command.md)），全部用 mlx 8bit，通过 mlx-audio 运行：
+
+| 用途 | 模型 |
+|---|---|
+| Preset Voice（默认） | Qwen3-TTS-12Hz-1.7B-CustomVoice；0.6B 为快速档 |
+| Cloned Voice（默认） | VoxCPM2 |
+| Cloned Voice（对比项） | Qwen3-TTS-12Hz-1.7B-Base |
+| 强制对齐 | Qwen3-ForcedAligner-0.6B |
+| 自检听写、补参考录音文字 | Qwen3-ASR-0.6B |
+
+中文听感没有任何第三方评测，默认值等实际试听后再调整。理由和数据见调研报告。
+
+## 音色
+
+- Preset Voice 按名字选，来自模型自带的音色。
+- Cloned Voice 先存再用：`voice add` 把参考录音规范化、补好文字，存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以指向项目目录。
+- 代码不做授权校验，使用者对所克隆的声音负责，README 写免责声明（[ADR 0004](adr/0004-cloning-does-not-check-consent.md)）。不加水印。
 
 ## CLI 契约
 
-### 输出
-- stdout 永远是**一个 JSON 对象**：`{"ok": true, "data": {...}}` 或 `{"ok": false, "error": {"code", "message", "hint", "details"}}`。
-- 进度事件写 stderr，NDJSON（下载进度、加载中）。
-- 不做彩色、表格、交互式提示——没有人类用户。
-- `voxx schema` 输出所有命令的参数和返回结构（JSON Schema），agent 用它自我发现，skill 不必复述每个参数。
+- stdout 永远是一个 JSON 对象：`{"ok": true, "data": {...}}` 或 `{"ok": false, "error": {"code", "message", "hint", "details"}}`。
+- stderr 输出 NDJSON 进度。没有彩色、表格和交互式提示。
 
-### 退出码
-| 码 | 含义 | agent 该做什么 |
+| 退出码 | 含义 | agent 该做什么 |
 |---|---|---|
 | 0 | 成功 | — |
 | 1 | 内部错误 | 报告 |
 | 2 | 参数错误 | 改参数 |
-| 3 | 需要用户同意 | **停下来问用户** |
-| 4 | 模型未安装 | 走 `pull`（会触发 3） |
-| 5 | 模型不支持该能力 | 换模型 |
+| 3 | 模型未安装 | 把大小和许可证告诉用户，同意后 `voxx install` |
+| 4 | 模型不支持该能力 | 换模型 |
 
-### 命令
-```
-voxx doctor                       # 平台、后端(mlx/cuda/cpu)、磁盘、已装模型
-voxx models [--all] [--installed] [--capability clone|design|builtin|align]
-voxx pull <model> [--consent <token>]
-voxx voices [--model <m>]         # 内置音色 + 用户音色档案
-voxx voice clone <name> --ref a.wav [--ref-text ...] [--attest "本人授权/自有素材"]
-voxx voice design <name> --describe "低沉的中年男声，语速偏慢" --model ...
-voxx speak --model <m> --voice <v> (--text|--text-file|-) --out x.wav
-           [--instruct ...] [--lang ...] [--seed N] [--align]
-voxx align --audio x.wav --text ... [--lang ...] [--format json|srt|vtt]
-voxx transcribe --audio x.wav
-voxx batch jobs.jsonl             # 模型只加载一次，逐行输出结果
-```
-
-`speak` 返回：`path, duration_s, sample_rate, model, checkpoint, voice, seed, alignment?`。所有让结果可复现的东西都回传。
-
-### 下载同意门
-1. agent 调 `voxx pull qwen3-tts-1.7b`（或 `speak` 时发现未安装）。
-2. CLI 不下载，退出码 3，返回 `{model, checkpoints, total_bytes, license, license_url, commercial, consent_token}`。
-3. skill 规定：agent 必须把大小和许可证原样告诉用户，得到明确同意后才能 `voxx pull ... --consent <token>`。
-4. token 绑定 `model + 文件清单哈希`，短期有效；清单变了 token 失效。
-5. 人类可以设 `VOXX_ALLOW_DOWNLOAD=qwen3-tts-*,voxcpm2`（CI、已授权场景）。
-6. **任何命令都不会隐式下载**，包括克隆时缺 ASR 模型——同样返回 3。
-
-诚实地说：CLI 无法验证“真的有人类点头”，token 的作用是让绕过成为一个显式、可审计的动作，而不是默认行为。
-
-### 音色设计 → 固化
-音色设计的结果每次不同。`voice design` 先生成一段样本，再把样本当参考音频存成克隆档案，此后用克隆路径合成，音色稳定。这是写死的流程。
-
-## 架构
+## 存储
 
 ```
-voxx (轻量核心：CLI、注册表、同意门、音色库、JSON 契约；不依赖 torch/mlx)
-  │  JSON-RPC over stdio
-  ├─ worker: mlx    (mlx-audio；Qwen3-TTS / VoxCPM2 / 对齐 / ASR)
-  ├─ worker: torch  (v0.2：CUDA/MPS，官方 qwen-tts / voxcpm / cosyvoice)
-  └─ ...
+$VOXX_HOME（默认 ~/.voxx）
+  models/            # 模型文件
+  voices/<name>/     # voice.json（来源、参考文字、创建模型）+ 规范化后的参考录音
 ```
 
-- **核心与引擎分进程**：各模型官方包的依赖（transformers 版本等）互相冲突，CosyVoice 尤其重。每个 worker 有自己的 uv 管理的 venv（`~/.voxx/envs/<worker>`），`pull` 时连同 env 一起建，大小计入同意门。
-- 核心不 import 任何重依赖，`voxx models` / `schema` 秒回。
-- worker 协议从第一天就定好，`batch` 和未来的 `voxx serve --stdio`（常驻、给 CueTake 这类长期运行的 agent 用）都是同一协议，只是生命周期不同。
-- 每个引擎一个 adapter，实现 `capabilities()`、`synthesize(req)`、`align(req)`；“任务→checkpoint”映射在核心注册表，不在 adapter。
+## 平台与分发
 
-### 存储
-```
-$VOXX_HOME (默认 ~/.voxx)
-  models/          # HF 缓存
-  envs/            # worker venv
-  voices/<name>/   # voice.json（来源、授权声明、ref_text、创建模型）+ ref.wav（规范化为 24k/16k mono）
-  consent.log      # 每次同意下载的记录
-```
-项目可以用 `VOXX_HOME` 或 `--voices-dir` 指向项目内目录，CueTake 这类工具可以把音色跟项目走。
+- v0.1 只支持 Apple Silicon Mac。
+- Python 实现，发布为 PyPI 上的 `voxx`。skill 里一行启动脚本运行 `uvx voxx@<固定版本>`，skill 和 CLI 从同一个 tag 发布。
+- 本项目 Apache-2.0；不分发任何权重，依赖的上游项目见 `NOTICE`。
 
-## Skill（方法论，非参数手册）
-`skills/voxx/SKILL.md`，随 CLI 发布，同时用 `npx skills add` 可装。内容：
-- 先 `voxx doctor` + `voxx schema`，不要猜参数。
-- 选型决策：中文/方言 → Qwen3-TTS；48kHz 或冷门语言 → VoxCPM2；需要稳定内置音色 → Qwen3 CustomVoice。
-- 遇到退出码 3：怎么向用户说明（大小、许可证、用途）。
-- 长文本：按句切、每段 ≤ N 秒，`batch` 合成。
-- 自检回路：`speak --align` 或 `transcribe` 对比原文，偏差大就换 seed 重试，最多 K 次。
-- 克隆前确认参考音频的授权；5–15 秒干净人声。
+## 待定 / 以后
 
-## 本项目许可证：Apache-2.0
-- 上游三个模型和对齐/ASR 全是 Apache-2.0，风格一致；mlx-audio 是 MIT，兼容。
-- 比 MIT 多了专利授权，语音合成领域有专利风险，这一条有价值。
-- voxx 不分发任何权重，只从 HF 拉取，所以不受权重许可证传染；注册表和同意门负责把许可证展示给用户。
-- 仓库放 `LICENSE` + `NOTICE`（注明依赖的上游项目）。
-
-## 开发流程（Matt Pocock skills）
-1. `git init`，装 skills：`claude plugin install mattpocock-skills@claude-plugins-official`
-2. `/setup-matt-pocock-skills`：issue tracker 选 GitHub（或本地 markdown），生成 `docs/agents/`
-3. `/grill-with-docs`：拿这份文档拷问，产出 `GLOSSARY.md`（model / checkpoint / voice / engine / worker / consent token 等术语）和 ADR（分进程架构、同意门、许可证）
-4. `/to-spec` → `/to-tickets`：按 tracer bullet 切票
-5. `/implement` 逐票走 `/tdd`，收尾 `/code-review`
-
-建议的第一颗 tracer bullet：`voxx models` + `voxx pull`（同意门）+ `voxx speak` 用 Qwen3-TTS 0.6B CustomVoice 内置音色出一个 wav——贯通注册表、同意门、worker 协议、JSON 契约四层。
-
-## 待拷问的问题
-1. CosyVoice3 在 Mac 上：等上游 #861，还是 v0.1 就上 torch(MPS) worker？
-2. 是否把 Linux/CUDA 放进 v0.1，还是 v0.1 只做 Mac？
-3. consent token 的有效期和作用域（单模型？单次？）
-4. `serve --stdio` 进 v0.1 吗？CueTake 的调用频率决定。
-5. 注册表格式：TOML 文件 vs Python 数据类（后者类型安全，前者便于 agent/贡献者编辑）。
-6. 包名：PyPI 上 `voxx` 是否可用，要先查。
+- **发音处理**：模型念错产品名、缩写时怎么办。候选方案是发音词典加句内 `{原文|读法}` 标注，在合成前替换文字（整句仍一次念完），词级时间戳映射回原文。先试实际效果再决定。
+- **Ming-3.0-tts-0.5B**：第三方英文评分最高，有显式语速和情绪参数，等 mlx-audio 移植补完整再加。
+- 数值语速、常驻服务模式、每个引擎独立 venv、Linux/CUDA、CosyVoice3。
