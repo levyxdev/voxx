@@ -10,7 +10,7 @@ from voxx.output import BUG_HINT, VoxxError
 
 class Engine(Protocol):
     def load(self, model: str) -> None:
-        """Load a Model's weights. Called once per Model per worker."""
+        """Load a Model. Called once per Model per worker."""
 
     def synthesize(self, text: str, *, model: str, voice: str, style: str | None, language: str, seed: int) -> tuple[np.ndarray, int]:
         """Read one whole Line in one pass. Returns mono float32 samples in [-1, 1] and the native sample rate."""

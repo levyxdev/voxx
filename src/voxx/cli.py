@@ -41,6 +41,9 @@ def main(argv=None):
     except VoxxError as e:
         print_error(e)
         return e.exit_code
+    except KeyboardInterrupt:
+        print_error(VoxxError("interrupted", "voxx was interrupted.", "Run the command again.", {}, INTERNAL))
+        return INTERNAL
     except Exception as e:
         print_error(VoxxError("internal_error", f"{type(e).__name__}: {e}", BUG_HINT, {"traceback": traceback.format_exc()}, INTERNAL))
         return INTERNAL

@@ -5,7 +5,7 @@ from voxx.output import USAGE, VoxxError
 
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
 
-_text = {"type": "string", "minLength": 1}
+_non_empty_string = {"type": "string", "minLength": 1}
 
 NARRATION_INPUT = {
     "$schema": DRAFT,
@@ -15,8 +15,8 @@ NARRATION_INPUT = {
     "required": ["language", "lines"],
     "properties": {
         "language": {"enum": list(LANGUAGES)},
-        "voice": {**_text, "description": "Default Voice for every Line. Omit for the default Preset Voice."},
-        "style": {**_text, "description": "Default delivery, in natural language; passed to the Model as an instruction."},
+        "voice": {**_non_empty_string, "description": "Default Voice for every Line. Omit for the default Preset Voice."},
+        "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an instruction."},
         "lines": {
             "type": "array",
             "minItems": 1,
@@ -26,9 +26,9 @@ NARRATION_INPUT = {
                 "properties": {
                     "id": {"type": "string", "pattern": LINE_ID.pattern,
                            "description": "Unique within the Narration, ignoring case; names the Line's audio file."},
-                    "text": _text,
-                    "voice": {**_text, "description": "Overrides the Narration's voice for this Line."},
-                    "style": {**_text, "description": "Overrides the Narration's style for this Line."},
+                    "text": _non_empty_string,
+                    "voice": {**_non_empty_string, "description": "Overrides the Narration's voice for this Line."},
+                    "style": {**_non_empty_string, "description": "Overrides the Narration's style for this Line."},
                 },
             },
         },

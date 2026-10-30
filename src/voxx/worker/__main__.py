@@ -33,8 +33,9 @@ class Worker:
 
 def main():
     # Model libraries print to stdout; keep the protocol on a private copy of it and send their prints to stderr.
-    rpc = os.fdopen(os.dup(1), "w", encoding="utf-8")
+    rpc_out = os.fdopen(os.dup(1), "w", encoding="utf-8")
     os.dup2(2, 1)
+    sys.stderr.reconfigure(encoding="utf-8")
     worker = Worker()
     methods = {"synthesize_line": worker.synthesize_line, "shutdown": lambda: None}
     for line in sys.stdin:
@@ -49,8 +50,8 @@ def main():
                 response["error"] = {"code": -32000, "message": e.message, "data": {"voxx": e.to_json(), "exit_code": e.exit_code}}
             except Exception as e:
                 response["error"] = {"code": -32603, "message": f"{type(e).__name__}: {e}", "data": {"traceback": traceback.format_exc()}}
-        rpc.write(dumps(response) + "\n")
-        rpc.flush()
+        rpc_out.write(dumps(response) + "\n")
+        rpc_out.flush()
         if request["method"] == "shutdown":
             return
 

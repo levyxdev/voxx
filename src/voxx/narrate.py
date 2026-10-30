@@ -1,6 +1,8 @@
 """`voxx narrate`: read every Line of a Narration in one worker, then write the completed Narration."""
 
+import errno
 import json
+import os
 import secrets
 from pathlib import Path
 
@@ -24,6 +26,8 @@ def narrate(narration_path, out_dir):
                       "seed": secrets.randbelow(2**31)})
     try:
         out.mkdir(parents=True, exist_ok=True)
+        if not os.access(out, os.W_OK):
+            raise PermissionError(errno.EACCES, "Permission denied")
     except OSError as e:
         raise VoxxError("invalid_out", f"Cannot use {out} as the output directory: {e.strerror}.",
                         "Pass a writable directory for --out.", {"out": str(out)}, USAGE)

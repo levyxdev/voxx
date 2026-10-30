@@ -92,7 +92,7 @@ def test_an_unusable_out_is_an_argument_error(voxx, write_narration, tmp_path):
     locked = tmp_path / "locked"
     locked.mkdir(mode=0o500)
 
-    for out in (a_file, locked / "out"):
+    for out in (a_file, locked / "out", locked):
         assert_error(voxx("narrate", write_narration(TWO_LINES), "--out", out), 2, "invalid_out")
 
 
