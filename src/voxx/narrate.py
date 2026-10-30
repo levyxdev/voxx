@@ -7,7 +7,7 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing
-from voxx.models import resolve_voice
+from voxx.models import require_installed, resolve_voice
 from voxx.narration import line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.worker.client import WorkerProcess
@@ -24,6 +24,7 @@ def narrate(narration_path, out_dir):
         model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"])
         plans.append({"model": model, "voice": voice, "style": line_setting(narration, line, "style"),
                       "seed": secrets.randbelow(2**31)})
+    require_installed(dict.fromkeys(plan["model"] for plan in plans))
     try:
         out.mkdir(parents=True, exist_ok=True)
         if not os.access(out, os.W_OK):

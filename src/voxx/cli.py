@@ -4,6 +4,7 @@ import argparse
 import sys
 import traceback
 
+from voxx.models import CAPABILITIES, list_models
 from voxx.output import BUG_HINT, INTERNAL, OK, USAGE, VoxxError, print_error, print_result
 
 ARGS_HINT = "Run `voxx schema` to see every command's arguments."
@@ -21,6 +22,14 @@ def _parser():
     narrate = commands.add_parser("narrate", add_help=False)
     narrate.add_argument("narration")
     narrate.add_argument("--out", required=True)
+    models = commands.add_parser("models", add_help=False)
+    models.add_argument("--capability", choices=CAPABILITIES)
+    installed = models.add_mutually_exclusive_group()
+    installed.add_argument("--installed", dest="installed", action="store_const", const=True)
+    installed.add_argument("--not-installed", dest="installed", action="store_const", const=False)
+    install = commands.add_parser("install", add_help=False)
+    install.add_argument("model")
+    commands.add_parser("doctor", add_help=False)
     schema = commands.add_parser("schema", add_help=False)
     schema.add_argument("name", nargs="?")
     return parser
@@ -34,6 +43,14 @@ def main(argv=None):
         if args.command == "narrate":
             from voxx.narrate import narrate
             data = narrate(args.narration, args.out)
+        elif args.command == "install":
+            from voxx.install import install
+            data = install(args.model)
+        elif args.command == "doctor":
+            from voxx.doctor import doctor
+            data = doctor()
+        elif args.command == "models":
+            data = list_models(args.capability, args.installed)
         else:
             from voxx.schema import schema
             data = schema(args.name)

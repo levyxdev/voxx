@@ -16,6 +16,19 @@ def test_schema_describes_narrate(voxx):
     assert set(data["exit_codes"]) == {"0", "1", "2", "3", "4"}
 
 
+def test_schema_describes_models_install_and_doctor(voxx):
+    commands = voxx("schema").result["data"]["commands"]
+
+    assert set(commands["models"]["arguments"]["properties"]["capability"]["enum"]) == {"preset_voice", "clone", "align", "transcribe"}
+    model = commands["models"]["result"]["properties"]["models"]["items"]
+    assert {"id", "capabilities", "size_bytes", "weights_license", "installed"} <= set(model["required"])
+    assert commands["install"]["arguments"]["required"] == ["model"]
+    assert {"model", "path", "already_installed"} <= set(commands["install"]["result"]["required"])
+    assert {"platform", "disk", "models"} <= set(commands["doctor"]["result"]["required"])
+    assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
+    assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
+
+
 def test_schema_describes_one_command(voxx):
     run = voxx("schema", "narrate")
 

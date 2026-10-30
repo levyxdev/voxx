@@ -2,14 +2,31 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from fake_hub import FakeHub
+
+from voxx.models import FAKE_MODEL
 
 VOXX = Path(sys.executable).with_name("voxx")
+FAKE_CONFIG = b'{"model_type": "fake"}'
+# The fake Model's files add up to the size its registry entry declares.
+FAKE_FILES = {"config.json": FAKE_CONFIG,
+              "model.safetensors": bytes(i % 251 for i in range(FAKE_MODEL.size_bytes - len(FAKE_CONFIG)))}
+
+
+def assert_error(run, exit_code, code):
+    assert run.exit_code == exit_code
+    assert run.result["ok"] is False
+    error = run.result["error"]
+    assert error["code"] == code
+    assert error["message"] and error["hint"]
+    return error
 
 
 @dataclass
@@ -19,14 +36,11 @@ class Run:
     events: list
 
 
-@pytest.fixture
-def voxx(tmp_path):
-    home = tmp_path / "voxx-home"
-
+def runner(home, hub):
     def run(*args, env=None):
         process = subprocess.run(
             [str(VOXX), *map(str, args)], capture_output=True, encoding="utf-8", timeout=60,
-            env={**os.environ, "VOXX_HOME": str(home), "VOXX_TEST_FAKE_ENGINE": "1", **(env or {})})
+            env={**os.environ, "VOXX_HOME": str(home), "VOXX_TEST_FAKE_ENGINE": "1", "HF_ENDPOINT": hub.url, **(env or {})})
         # stdout is exactly one JSON object; stderr is only NDJSON events.
         result = json.loads(process.stdout)
         assert process.stdout.count("\n") == 1, process.stdout
@@ -34,7 +48,41 @@ def voxx(tmp_path):
         assert all(isinstance(e, dict) and "event" in e for e in events), process.stderr
         return Run(process.returncode, result, events)
 
+    run.home = home
     return run
+
+
+def fake_hub():
+    return FakeHub({(FAKE_MODEL.repo, FAKE_MODEL.revision): FAKE_FILES}).start()
+
+
+@pytest.fixture
+def hub():
+    hub = fake_hub()
+    yield hub
+    hub.stop()
+
+
+@pytest.fixture
+def voxx(tmp_path, hub):
+    return runner(tmp_path / "voxx-home", hub)
+
+
+@pytest.fixture(scope="session")
+def installed_home(tmp_path_factory):
+    """A VOXX_HOME with the fake Model installed, made once and copied into each test that needs it."""
+    hub = fake_hub()
+    home = tmp_path_factory.mktemp("installed") / "voxx-home"
+    assert runner(home, hub)("install", "fake-tts").exit_code == 0
+    hub.stop()
+    return home
+
+
+@pytest.fixture
+def installed(voxx, installed_home):
+    """voxx with the fake Model installed, as `voxx narrate` needs."""
+    shutil.copytree(installed_home, voxx.home)
+    return voxx
 
 
 @pytest.fixture

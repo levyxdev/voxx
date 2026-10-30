@@ -1,5 +1,6 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
+from voxx.models import CAPABILITIES
 from voxx.narration import LANGUAGES, LINE_ID_RULE
 from voxx.output import USAGE, VoxxError
 
@@ -61,6 +62,49 @@ NARRATION_OUTPUT = {
     },
 }
 
+_license = {"type": "object", "required": ["id", "url"],
+            "properties": {"id": {"type": "string", "description": "SPDX id."}, "url": {"type": "string"}}}
+_model_id = {"type": "string", "description": "A Model id from `voxx models`."}
+
+MODEL = {
+    "type": "object",
+    "required": ["id", "capabilities", "languages", "size_bytes", "sample_rate", "weights_license", "code_license",
+                 "verified", "repo", "revision", "installed"],
+    "properties": {
+        "id": _model_id,
+        "capabilities": {"type": "array", "items": {"enum": list(CAPABILITIES)}},
+        "languages": {"type": "array", "items": {"enum": list(LANGUAGES)}},
+        "size_bytes": {"type": "integer", "description": "Download size."},
+        "sample_rate": {"type": ["integer", "null"], "description": "Native output sample rate in Hz; null if the Model does not speak."},
+        "weights_license": {**_license, "description": "License of the weights; every listed Model allows commercial use."},
+        "code_license": {**_license, "description": "License of the upstream code."},
+        "verified": {"type": "string", "format": "date", "description": "When the licenses were last checked."},
+        "repo": {"type": "string", "description": "Hugging Face repo `voxx install` downloads."},
+        "revision": {"type": "string", "description": "The pinned commit of that repo."},
+        "installed": {"type": "boolean"},
+    },
+}
+
+INSTALL_SUMMARY = {
+    "type": "object",
+    "description": "What to tell the user before running `voxx install <model>`.",
+    "required": ["model", "size_bytes", "license", "license_url"],
+    "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
+                   "license": {"type": "string", "description": "SPDX id of the weights license."},
+                   "license_url": {"type": "string"}},
+}
+
+MODEL_NOT_INSTALLED = {
+    "$schema": DRAFT,
+    "description": "details of a model_not_installed error (exit code 3).",
+    "type": "object",
+    "required": ["missing", "total_bytes"],
+    "properties": {
+        "missing": {"type": "array", "items": INSTALL_SUMMARY},
+        "total_bytes": {"type": "integer"},
+    },
+}
+
 COMMANDS = {
     "narrate": {
         "usage": "voxx narrate <narration.json> --out <dir>",
@@ -82,6 +126,76 @@ COMMANDS = {
             "properties": {
                 "path": {"type": "string", "description": "Absolute path of the written Narration file."},
                 "narration": NARRATION_OUTPUT,
+            },
+        },
+        "errors": {"model_not_installed": MODEL_NOT_INSTALLED},
+    },
+    "models": {
+        "usage": "voxx models [--capability <capability>] [--installed | --not-installed]",
+        "description": "List the registered Models: only Models whose weights allow commercial use.",
+        "arguments": {
+            "$schema": DRAFT,
+            "type": "object",
+            "properties": {
+                "capability": {"enum": list(CAPABILITIES), "description": "Only Models with this capability (--capability)."},
+                "installed": {"type": "boolean", "description": "Only installed (--installed) or not installed (--not-installed) Models."},
+            },
+        },
+        "result": {"$schema": DRAFT, "type": "object", "required": ["models"],
+                   "properties": {"models": {"type": "array", "items": MODEL}}},
+    },
+    "install": {
+        "usage": "voxx install <model>",
+        "description": "Download a Model into $VOXX_HOME/models. The only command that downloads; ask the user first. "
+                       "Resumes an interrupted download; honors HF_ENDPOINT for a Hugging Face mirror.",
+        "arguments": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["model"],
+            "properties": {"model": {**_model_id, "description": "Model id (positional)."}},
+        },
+        "result": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["model", "path", "size_bytes", "already_installed"],
+            "properties": {"model": _model_id, "path": {"type": "string"}, "size_bytes": {"type": "integer"},
+                           "already_installed": {"type": "boolean", "description": "True if nothing was downloaded."}},
+        },
+        "errors": {
+            "unknown_model": {"description": "Exit 2: no Model by that id; details.known_models lists them."},
+            "download_failed": {"description": "Exit 1: the network or the hub failed. Run the same install again to resume."},
+            "download_corrupt": {"description": "Exit 1: a file did not match the hub's checksum and was deleted. Run install again."},
+            "invalid_repo": {"description": "Exit 1: the hub at HF_ENDPOINT does not serve the pinned files. Check HF_ENDPOINT."},
+            "insufficient_disk_space": {"description": "Exit 1: details.required_bytes exceeds details.free_bytes; nothing was downloaded."},
+        },
+    },
+    "doctor": {
+        "usage": "voxx doctor",
+        "description": "Check the platform, the installed Models and free disk space before narrating. Always exits 0.",
+        "arguments": {"$schema": DRAFT, "type": "object", "properties": {}},
+        "result": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["platform", "home", "disk", "models"],
+            "properties": {
+                "platform": {
+                    "type": "object",
+                    "required": ["system", "machine", "apple_silicon", "supported"],
+                    "properties": {"system": {"type": "string"}, "machine": {"type": "string"},
+                                   "apple_silicon": {"type": "boolean"}, "supported": {"type": "boolean"},
+                                   "reason": {"type": "string", "description": "Why voxx cannot run here; only when unsupported."}},
+                },
+                "home": {"type": "string", "description": "$VOXX_HOME."},
+                "disk": {"type": "object", "required": ["path", "free_bytes"],
+                         "properties": {"path": {"type": "string"}, "free_bytes": {"type": "integer"}}},
+                "models": {
+                    "type": "object",
+                    "required": ["installed", "not_installed"],
+                    "properties": {
+                        "installed": {"type": "array", "items": _model_id},
+                        "not_installed": {"type": "array", "items": INSTALL_SUMMARY},
+                    },
+                },
             },
         },
     },
