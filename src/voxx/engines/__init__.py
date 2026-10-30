@@ -1,5 +1,6 @@
 """Engine adapters. Worker-side only: an Engine may import heavy inference libraries."""
 
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -9,15 +10,19 @@ from voxx.output import BUG_HINT, VoxxError
 
 
 class Engine(Protocol):
-    def load(self, model: str) -> None:
-        """Load a Model. Called once per Model per worker."""
+    def load(self, path: Path) -> None:
+        """Load the Model installed at path. Called once per Model per worker; never downloads (ADR 0003)."""
 
     def synthesize(self, text: str, *, model: str, voice: str, style: str | None, language: str, seed: int) -> tuple[np.ndarray, int]:
-        """Read one whole Line in one pass. Returns mono float32 samples in [-1, 1] and the native sample rate."""
+        """Read one whole Line in one pass, the same way every time for the same seed. language is an ISO 639-1 code.
+        Returns mono float32 samples in [-1, 1] and the native sample rate."""
 
 
 def load_engine(name) -> Engine:
     if name == "fake" and fake_engine_enabled():
         from voxx.engines.fake import FakeEngine
         return FakeEngine()
+    if name == "mlx-audio":
+        from voxx.engines.mlx_audio import MlxAudioEngine
+        return MlxAudioEngine()
     raise VoxxError("unknown_engine", f"No Engine named {name!r}.", BUG_HINT, {"engine": name})

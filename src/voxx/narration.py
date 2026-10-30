@@ -1,12 +1,18 @@
 """Reading and checking a Narration file (ADR 0001)."""
 
 import json
+import re
 import unicodedata
 from pathlib import Path
 
 from voxx.output import USAGE, VoxxError
 
-LANGUAGES = ("zh", "en")
+# Which languages a Narration may use is up to the Model that reads it; here only the form is checked.
+LANGUAGE_RULE = "language must be an ISO 639-1 code in lowercase, such as zh or en."
+LANGUAGE_PATTERN = "^[a-z]{2}$"
+# Seeds fit in 31 bits, so every Engine can take them.
+MAX_SEED = 2**31 - 1
+SEED_RULE = f"seed must be an integer from 0 to {MAX_SEED}."
 # A Line id names its audio file, so it must be a safe, visible file name. Any other text works, such as "开场" or "step 1".
 # Control, formatting, surrogate, and line or paragraph separator characters.
 UNSAFE_CATEGORIES = {"Cc", "Cf", "Cs", "Zl", "Zp"}
@@ -37,10 +43,9 @@ def load_narration(path):
 def check_narration(narration):
     if not isinstance(narration, dict):
         _invalid("$", "The Narration must be a JSON object.")
-    if narration.get("language") not in LANGUAGES:
-        _invalid("$.language", f"language must be one of {', '.join(LANGUAGES)}.")
-    for field in ("voice", "style"):
-        _optional_string(narration, field, "$")
+    if not (isinstance(narration.get("language"), str) and re.fullmatch(LANGUAGE_PATTERN, narration["language"])):
+        _invalid("$.language", LANGUAGE_RULE)
+    _check_settings(narration, "$")
     lines = narration.get("lines")
     if not isinstance(lines, list) or not lines:
         _invalid("$.lines", "lines must be a non-empty array of Lines.")
@@ -58,8 +63,7 @@ def check_narration(narration):
         seen[key] = i
         if not isinstance(line.get("text"), str) or not line["text"].strip():
             _invalid(f"{where}.text", "text must be a non-empty string.")
-        for field in ("voice", "style"):
-            _optional_string(line, field, where)
+        _check_settings(line, where)
 
 
 def is_line_id(value):
@@ -74,8 +78,17 @@ def line_id_key(line_id):
 
 
 def line_setting(narration, line, field):
-    """A Line's voice or style: its own, else the Narration's default, else None."""
+    """A Line's voice, style or seed: its own, else the Narration's default, else None."""
     return line.get(field, narration.get(field))
+
+
+def _check_settings(obj, where):
+    """The settings a Narration gives every Line and a Line can override."""
+    for field in ("voice", "style"):
+        _optional_string(obj, field, where)
+    seed = obj.get("seed", 0)
+    if type(seed) is not int or not 0 <= seed <= MAX_SEED:
+        _invalid(f"{where}.seed", SEED_RULE)
 
 
 def _optional_string(obj, field, where):

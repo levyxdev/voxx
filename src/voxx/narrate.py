@@ -7,23 +7,29 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing
-from voxx.models import require_installed, resolve_voice
-from voxx.narration import line_setting, load_narration
+from voxx.models import find_model, model_dir, require_installed, resolve_voice
+from voxx.narration import MAX_SEED, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.worker.client import WorkerProcess
 
 OUTPUT_NAME = "narration.json"
 
 
-def narrate(narration_path, out_dir):
+def narrate(narration_path, out_dir, model_id=None):
     narration = load_narration(narration_path)
     out = Path(out_dir).resolve()
+    chosen = find_model(model_id) if model_id is not None else None
     # Resolve every Line before starting the worker, so a bad Voice fails fast.
     plans = []
     for line in narration["lines"]:
-        model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"])
-        plans.append({"model": model, "voice": voice, "style": line_setting(narration, line, "style"),
-                      "seed": secrets.randbelow(2**31)})
+        model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+        style, warnings = line_setting(narration, line, "style"), []
+        if style is not None and not model.reads_style:
+            style = None
+            warnings.append({"code": "style_ignored", "message": f"Model {model.id} cannot follow style; read the Line without it."})
+        seed = line_setting(narration, line, "seed")
+        plans.append({"model": model, "voice": voice, "style": style, "warnings": warnings,
+                      "seed": secrets.randbelow(MAX_SEED + 1) if seed is None else seed})
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
     try:
         out.mkdir(parents=True, exist_ok=True)
@@ -38,11 +44,12 @@ def narrate(narration_path, out_dir):
         for index, (line, plan) in enumerate(zip(narration["lines"], plans), start=1):
             progress("line_started", id=line["id"], index=index, total=len(plans))
             audio = f"{line['id']}.wav"
-            result = worker.call("synthesize_line", model=plan["model"].id, engine=plan["model"].engine, text=line["text"],
-                                 voice=plan["voice"], style=plan["style"], language=narration["language"],
+            model = plan["model"]
+            result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
+                                 text=line["text"], voice=plan["voice"], style=plan["style"], language=narration["language"],
                                  seed=plan["seed"], path=str(out / audio))
-            line.update(audio=audio, model=plan["model"].id, voice=plan["voice"], seed=plan["seed"],
-                        sample_rate=result["sample_rate"])
+            line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
+                        sample_rate=result["sample_rate"], warnings=plan["warnings"])
             progress("line_done", id=line["id"], index=index, total=len(plans))
 
     path = out / OUTPUT_NAME

@@ -11,11 +11,11 @@ from pathlib import Path
 import pytest
 from fake_hub import FakeHub
 
-from voxx.models import FAKE_MODEL
+from voxx.models import FAKE_MODEL, FAKE_SMALL_MODEL
 
 VOXX = Path(sys.executable).with_name("voxx")
 FAKE_CONFIG = b'{"model_type": "fake"}'
-# The fake Model's files add up to the size its registry entry declares.
+# Each fake Model's files add up to the size its registry entry declares.
 FAKE_FILES = {"config.json": FAKE_CONFIG,
               "model.safetensors": bytes(i % 251 for i in range(FAKE_MODEL.size_bytes - len(FAKE_CONFIG)))}
 
@@ -53,7 +53,7 @@ def runner(home, hub):
 
 
 def fake_hub():
-    return FakeHub({(FAKE_MODEL.repo, FAKE_MODEL.revision): FAKE_FILES}).start()
+    return FakeHub({(m.repo, m.revision): FAKE_FILES for m in (FAKE_MODEL, FAKE_SMALL_MODEL)}).start()
 
 
 @pytest.fixture
@@ -70,17 +70,18 @@ def voxx(tmp_path, hub):
 
 @pytest.fixture(scope="session")
 def installed_home(tmp_path_factory):
-    """A VOXX_HOME with the fake Model installed, made once and copied into each test that needs it."""
+    """A VOXX_HOME with both fake Models installed, made once and copied into each test that needs it."""
     hub = fake_hub()
     home = tmp_path_factory.mktemp("installed") / "voxx-home"
-    assert runner(home, hub)("install", "fake-tts").exit_code == 0
+    for model in (FAKE_MODEL, FAKE_SMALL_MODEL):
+        assert runner(home, hub)("install", model.id).exit_code == 0
     hub.stop()
     return home
 
 
 @pytest.fixture
 def installed(voxx, installed_home):
-    """voxx with the fake Model installed, as `voxx narrate` needs."""
+    """voxx with the fake Models installed, as `voxx narrate` needs."""
     shutil.copytree(installed_home, voxx.home)
     return voxx
 

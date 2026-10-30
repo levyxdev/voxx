@@ -91,9 +91,9 @@ def test_a_model_installed_at_another_revision_is_not_installed(installed):
     manifest = installed.home / "models" / "fake-tts" / "voxx-install.json"
     manifest.write_text(json.dumps({**json.loads(manifest.read_text()), "revision": "f" * 40}))
 
-    assert installed_ids(installed) == set()
+    assert installed_ids(installed) == {"fake-tts-small"}
     assert installed("install", "fake-tts").result["data"]["already_installed"] is False
-    assert installed_ids(installed) == {"fake-tts"}
+    assert installed_ids(installed) == {"fake-tts", "fake-tts-small"}
 
 
 @pytest.mark.parametrize("size", [len(FAKE_FILES["config.json"]) + 1, 10**18])

@@ -7,6 +7,7 @@ from conftest import assert_error
 
 TWO_LINES = {
     "language": "zh",
+    "voice": "fake-alice",
     "lines": [
         {"id": "intro", "text": "这是一个新的发送流程。"},
         {"id": "send", "text": "点一下发送就完成了。", "style": "语气兴奋"},
@@ -55,7 +56,8 @@ def test_a_line_voice_overrides_the_narration_voice(installed, write_narration, 
 def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_path):
     out = tmp_path / "out"
     longest = "开" * 81  # 243 bytes, so `<id>.wav.partial` is 255
-    narration = {"language": "zh", "lines": [{"id": "开场", "text": "一"}, {"id": "step 1", "text": "二"}, {"id": longest, "text": "三"}]}
+    narration = {"language": "zh", "voice": "fake-alice",
+                 "lines": [{"id": "开场", "text": "一"}, {"id": "step 1", "text": "二"}, {"id": longest, "text": "三"}]}
     run = installed("narrate", write_narration(narration), "--out", out)
 
     assert run.exit_code == 0
@@ -67,7 +69,13 @@ def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_pat
     {"language": "zh", "lines": []},
     {"language": "zh", "lines": [{"id": "a", "text": "一"}, {"id": "a", "text": "二"}]},
     {"language": "zh", "lines": [{"id": "Intro", "text": "一"}, {"id": "intro", "text": "二"}]},
-    {"language": "ja", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "japanese", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "ZH", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "seed": -1, "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "seed": 2**31, "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "seed": "7"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "seed": 7.5}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "seed": True}]},
     {"language": "zh", "lines": [{"id": "../a", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a\\b", "text": "一"}]},
     {"language": "zh", "lines": [{"id": ".hidden", "text": "一"}]},
@@ -144,3 +152,100 @@ def test_narrate_without_the_model_installed_fails_without_downloading(voxx, wri
     assert "voxx install fake-tts" in error["hint"]
     assert hub.requests == []
     assert not out.exists()
+
+
+def lines_of(run):
+    return run.result["data"]["narration"]["lines"]
+
+
+def audio_of(out, line_id):
+    return (out / f"{line_id}.wav").read_bytes()
+
+
+def test_model_picks_which_model_reads_the_narration(installed, write_narration, tmp_path):
+    run = installed("narrate", write_narration(TWO_LINES), "--out", tmp_path / "out", "--model", "fake-tts-small")
+
+    assert run.exit_code == 0
+    assert [l["model"] for l in lines_of(run)] == ["fake-tts-small", "fake-tts-small"]
+
+
+@pytest.mark.parametrize("language, voice", [("zh", "fake-alice"), ("en", "fake-bob"), ("fr", "fake-alice")])
+def test_without_a_voice_the_model_reads_with_a_native_voice_of_the_language(installed, write_narration, tmp_path,
+                                                                             language, voice):
+    narration = {"language": language, "lines": [{"id": "a", "text": "一"}]}
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", "--model", "fake-tts")
+
+    assert lines_of(run)[0]["voice"] == voice
+
+
+def test_without_a_voice_or_model_the_default_preset_model_reads(voxx, write_narration, tmp_path):
+    run = voxx("narrate", write_narration({"language": "en", "lines": [{"id": "a", "text": "Hi."}]}), "--out", tmp_path / "out")
+
+    error = assert_error(run, 3, "model_not_installed")
+    assert [m["model"] for m in error["details"]["missing"]] == ["qwen3-tts-1.7b-customvoice"]
+
+
+def test_an_unknown_model_is_an_argument_error(installed, write_narration, tmp_path):
+    error = assert_error(installed("narrate", write_narration(TWO_LINES), "--out", tmp_path / "out", "--model", "nope"),
+                         2, "unknown_model")
+    assert "fake-tts" in error["details"]["known_models"]
+
+
+@pytest.mark.parametrize("model, narration, code", [
+    ("qwen3-tts-1.7b-base", TWO_LINES, "capability_unsupported"),
+    ("fake-tts", {**TWO_LINES, "voice": "vivian"}, "voice_unsupported"),
+    ("fake-tts-small", {**TWO_LINES, "language": "fr"}, "unsupported_language"),
+])
+def test_asking_a_model_for_what_it_cannot_do_is_unsupported(voxx, write_narration, tmp_path, model, narration, code):
+    out = tmp_path / "out"
+    run = voxx("narrate", write_narration(narration), "--out", out, "--model", model)
+
+    error = assert_error(run, 4, code)
+    assert error["details"]["model"] == model
+    assert not out.exists()
+
+
+def test_a_model_that_ignores_style_reads_the_line_without_it_and_warns(installed, write_narration, tmp_path):
+    narration = {"language": "zh", "voice": "fake-alice", "seed": 7,
+                 "lines": [{"id": "plain", "text": "一样的话"}, {"id": "styled", "text": "一样的话", "style": "语气兴奋"}]}
+    small, full = tmp_path / "small", tmp_path / "full"
+    small_run = installed("narrate", write_narration(narration), "--out", small, "--model", "fake-tts-small")
+    full_run = installed("narrate", write_narration(narration), "--out", full, "--model", "fake-tts")
+
+    assert audio_of(small, "styled") == audio_of(small, "plain")
+    assert audio_of(full, "styled") != audio_of(full, "plain")
+    plain, styled = lines_of(small_run)
+    assert plain["warnings"] == []
+    assert [w["code"] for w in styled["warnings"]] == ["style_ignored"]
+    assert styled["style"] == "语气兴奋"
+    assert [l["warnings"] for l in lines_of(full_run)] == [[], []]
+
+
+def test_a_given_seed_is_used_and_reproduces_the_line(installed, write_narration, tmp_path):
+    narration = {"language": "zh", "voice": "fake-alice", "seed": 7,
+                 "lines": [{"id": "a", "text": "同一句话"}, {"id": "b", "text": "同一句话", "seed": 8}]}
+    first, second = tmp_path / "first", tmp_path / "second"
+    run = installed("narrate", write_narration(narration), "--out", first)
+    installed("narrate", write_narration(narration), "--out", second)
+
+    assert [l["seed"] for l in lines_of(run)] == [7, 8]
+    assert audio_of(first, "a") == audio_of(second, "a")
+    assert audio_of(first, "a") != audio_of(first, "b")
+
+
+def test_the_completed_narration_reads_again_to_the_same_audio(installed, write_narration, tmp_path):
+    first, second = tmp_path / "first", tmp_path / "second"
+    installed("narrate", write_narration(TWO_LINES), "--out", first)
+    installed("narrate", first / "narration.json", "--out", second)
+
+    for line_id in ("intro", "send"):
+        assert audio_of(first, line_id) == audio_of(second, line_id)
+
+
+def test_the_completed_narration_reads_again_to_the_same_audio_with_the_same_model(installed, write_narration, tmp_path):
+    first, second = tmp_path / "first", tmp_path / "second"
+    installed("narrate", write_narration(TWO_LINES), "--out", first, "--model", "fake-tts-small")
+    installed("narrate", first / "narration.json", "--out", second, "--model", "fake-tts-small")
+
+    for line_id in ("intro", "send"):
+        assert audio_of(first, line_id) == audio_of(second, line_id)
