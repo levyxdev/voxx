@@ -2,13 +2,15 @@
 
 import json
 import re
+import unicodedata
 from pathlib import Path
 
 from voxx.output import USAGE, VoxxError
 
 LANGUAGES = ("zh", "en")
-# A Line id names its audio file, so it must be a safe file name.
-LINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# A Line id names its audio file, so it must be a safe file name: no path separators, no control characters,
+# not hidden. Any other text works, such as "开场" or "step 1".
+LINE_ID = re.compile(r"^[^./\\\x00-\x1f\x7f-\x9f][^/\\\x00-\x1f\x7f-\x9f]*$")
 NARRATION_HINT = "Run `voxx schema narrate` to see the Narration file format."
 
 
@@ -44,12 +46,13 @@ def check_narration(narration):
         if not isinstance(line, dict):
             _invalid(where, "Each Line must be a JSON object.")
         line_id = line.get("id")
-        if not isinstance(line_id, str) or not LINE_ID.match(line_id):
-            _invalid(f"{where}.id", "id must start with a letter or digit and use only letters, digits, '.', '_' and '-'.")
-        # Audio files are named after ids, and macOS file names ignore case.
-        if line_id.lower() in seen:
-            _invalid(f"{where}.id", f"id {line_id!r} repeats the id of $.lines[{seen[line_id.lower()]}].")
-        seen[line_id.lower()] = i
+        if not isinstance(line_id, str) or not LINE_ID.fullmatch(line_id):
+            _invalid(f"{where}.id", "id must be non-empty, must not start with '.', and must not contain '/', '\\' or control characters.")
+        # Audio files are named after ids, and macOS file names ignore case and Unicode normalization.
+        key = unicodedata.normalize("NFC", line_id).casefold()
+        if key in seen:
+            _invalid(f"{where}.id", f"id {line_id!r} repeats the id of $.lines[{seen[key]}].")
+        seen[key] = i
         if not isinstance(line.get("text"), str) or not line["text"].strip():
             _invalid(f"{where}.text", "text must be a non-empty string.")
         for field in ("voice", "style"):

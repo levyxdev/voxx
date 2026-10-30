@@ -60,6 +60,15 @@ def test_a_line_voice_overrides_the_narration_voice(voxx, write_narration, tmp_p
     assert [l["voice"] for l in run.result["data"]["narration"]["lines"]] == ["fake-bob", "fake-alice"]
 
 
+def test_a_line_id_can_be_any_safe_file_name(voxx, write_narration, tmp_path):
+    out = tmp_path / "out"
+    narration = {"language": "zh", "lines": [{"id": "开场", "text": "一"}, {"id": "step 1", "text": "二"}]}
+    run = voxx("narrate", write_narration(narration), "--out", out)
+
+    assert run.exit_code == 0
+    assert (out / "开场.wav").exists() and (out / "step 1.wav").exists()
+
+
 @pytest.mark.parametrize("narration", [
     {"language": "zh"},
     {"language": "zh", "lines": []},
@@ -67,6 +76,11 @@ def test_a_line_voice_overrides_the_narration_voice(voxx, write_narration, tmp_p
     {"language": "zh", "lines": [{"id": "Intro", "text": "一"}, {"id": "intro", "text": "二"}]},
     {"language": "ja", "lines": [{"id": "a", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "../a", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a\\b", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": ".hidden", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a\n", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "caf\u00e9", "text": "一"}, {"id": "cafe\u0301", "text": "二"}]},
     {"language": "zh", "lines": [{"id": "a", "text": ""}]},
 ])
 def test_an_invalid_narration_is_an_argument_error(voxx, write_narration, tmp_path, narration):
