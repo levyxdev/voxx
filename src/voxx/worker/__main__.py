@@ -28,6 +28,14 @@ class Worker:
         return {"transcript": self._engine(model, engine, model_path, capability).transcribe(
             Path(path), model=model, language=language)}
 
+    def align_line(self, *, model, engine, model_path, capability, text, language, path):
+        """The Line's words as [word, start, end], or why the Model could not align them: that costs the Line only its words."""
+        aligner = self._engine(model, engine, model_path, capability)
+        try:
+            return {"words": aligner.align(Path(path), model=model, text=text, language=language)}
+        except Exception as e:
+            return {"failure": f"{type(e).__name__}: {e}"}
+
     def _engine(self, model, engine, model_path, capability):
         if model not in self.engines:
             progress("model_loading", model=model)
@@ -44,7 +52,8 @@ def main():
     os.dup2(2, 1)
     cast(io.TextIOWrapper, sys.stderr).reconfigure(encoding="utf-8")
     worker = Worker()
-    methods = {"synthesize_line": worker.synthesize_line, "transcribe_line": worker.transcribe_line, "shutdown": lambda: None}
+    methods = {"synthesize_line": worker.synthesize_line, "transcribe_line": worker.transcribe_line,
+               "align_line": worker.align_line, "shutdown": lambda: None}
     for line in sys.stdin:
         request = json.loads(line)
         response = {"jsonrpc": "2.0", "id": request.get("id")}

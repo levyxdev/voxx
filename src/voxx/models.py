@@ -128,7 +128,12 @@ FAKE_ASR_MODEL = Model("fake-asr", "fake", ("transcribe",), ("zh", "en", "yue"),
                        "voxx-test/fake-asr", "fedcba9876543210fedcba9876543210fedcba98", 4096,
                        _apache("https://huggingface.co/voxx-test/fake-asr"), _apache("https://github.com/levyxdev/voxx"),
                        VERIFIED)
-FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL)
+# Times the words of the fake Models' Lines, in the languages the real aligner reads.
+FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
+                         "voxx-test/fake-aligner", "76543210fedcba9876543210fedcba9876543210", 4096,
+                         _apache("https://huggingface.co/voxx-test/fake-aligner"),
+                         _apache("https://github.com/levyxdev/voxx"), VERIFIED)
+FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL)
 
 
 INSTALL_MANIFEST = "voxx-install.json"
@@ -205,7 +210,17 @@ def find_model(model_id):
 def transcriber_for(model, language):
     """The Model that transcribes a Line this Model read in this language: the first on the same Engine that can.
     None if no Model can."""
-    return next((m for m in models() if "transcribe" in m.capabilities and m.engine == model.engine
+    return _listener_for(model, language, "transcribe")
+
+
+def aligner_for(model, language):
+    """The Model that times the words of a Line this Model read in this language: the first on the same Engine that
+    can. None if no Model can."""
+    return _listener_for(model, language, "align")
+
+
+def _listener_for(model, language, capability):
+    return next((m for m in models() if capability in m.capabilities and m.engine == model.engine
                  and language in m.languages), None)
 
 

@@ -170,3 +170,30 @@ def test_a_new_line_must_be_read_with_line(installed, write_narration, tmp_path)
     assert [l["id"] for l in run.result["data"]["narration"]["lines"]] == ["intro", "send", "tip", "outro"]
     assert (out / "tip.wav").exists()
     assert (out / "send.wav").read_bytes() == files["send.wav"]
+
+
+def test_a_line_read_again_is_aligned_again(installed, write_narration, tmp_path):
+    out = tmp_path / "out"
+    before = lines_by_id(read_all(installed, write_narration, out))
+    aligned = [[c, 0.05 + i * 0.05, 0.1 + i * 0.05] for i, c in enumerate("点一下发送就完成了")]
+
+    run = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send",
+                    env={"VOXX_TEST_FAKE_ALIGNED": json.dumps({"点一下发送就完成了。": aligned}, ensure_ascii=False)})
+
+    after = lines_by_id(run)
+    assert after["send"]["words"] == [{"text": c, "start": round(s, 3), "end": round(e, 3)} for c, s, e in aligned]
+    assert after["send"]["words"] != before["send"]["words"]
+    assert after["intro"]["words"] == before["intro"]["words"]
+
+
+def test_a_line_read_again_that_cannot_be_aligned_drops_its_earlier_words(installed, write_narration, tmp_path):
+    # The completed Narration given back carries every Line's words from the earlier run.
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+
+    run = installed("narrate", out / "narration.json", "--out", out, "--line", "send",
+                    env={"VOXX_TEST_FAKE_ALIGNED": json.dumps({"点一下发送就完成了。": "out of memory"}, ensure_ascii=False)})
+
+    send = lines_by_id(run)["send"]
+    assert "words" not in send
+    assert [w["code"] for w in send["warnings"]] == ["not_aligned"]

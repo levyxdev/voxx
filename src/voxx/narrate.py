@@ -7,10 +7,11 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing
-from voxx.models import find_model, model_dir, require_installed, resolve_voice, transcriber_for
+from voxx.models import aligner_for, find_model, model_dir, require_installed, resolve_voice, transcriber_for
 from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
+from voxx.words import word_timings
 from voxx.worker.client import WorkerProcess
 
 OUTPUT_NAME = "narration.json"
@@ -30,7 +31,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
     # Plan every Line before starting the worker, so a bad Voice fails fast.
     plans = [_plan_line(narration, line, chosen, earlier_seeds.get(line["id"])) for line in to_read]
-    require_installed(dict.fromkeys(m for plan in plans for m in (plan["model"], plan["transcriber"]) if m))
+    require_installed(dict.fromkeys(m for plan in plans for m in (plan["model"], plan["aligner"], plan["transcriber"]) if m))
     try:
         out.mkdir(parents=True, exist_ok=True)
         if not os.access(out, os.W_OK):
@@ -55,7 +56,8 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
 
 
 def _plan_line(narration, line, chosen, earlier_seed=None):
-    """How a Line will be read: its Model, Voice, style and seed, and the Model that transcribes it back.
+    """How a Line will be read: its Model, Voice, style and seed, the Model that times its words, and the Model that
+    transcribes it back.
 
     A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
@@ -64,6 +66,10 @@ def _plan_line(narration, line, chosen, earlier_seed=None):
     if style is not None and not model.reads_style:
         style = None
         warnings.append({"code": "style_ignored", "message": f"Model {model.id} cannot follow style; read the Line without it."})
+    aligner = aligner_for(model, narration["language"])
+    if aligner is None:
+        warnings.append({"code": "not_aligned", "message": f"No Model can align {narration['language']!r}, "
+                                                           "so the Line has no words."})
     # The self-check: a Line is transcribed back, unless no Model can transcribe its language.
     transcriber = transcriber_for(model, narration["language"])
     if transcriber is None:
@@ -72,7 +78,8 @@ def _plan_line(narration, line, chosen, earlier_seed=None):
     seed = line_setting(narration, line, "seed")
     while seed is None or seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
-    return {"model": model, "voice": voice, "style": style, "warnings": warnings, "transcriber": transcriber, "seed": seed}
+    return {"model": model, "voice": voice, "style": style, "warnings": warnings, "aligner": aligner,
+            "transcriber": transcriber, "seed": seed}
 
 
 def _read_line(worker, narration, line, plan, out):
@@ -84,6 +91,18 @@ def _read_line(worker, narration, line, plan, out):
                          language=narration["language"], seed=plan["seed"], path=str(out / audio))
     line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
                 sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
+    # A Line given back from an earlier run may still carry the words of its earlier audio.
+    line.pop("words", None)
+    if aligner := plan["aligner"]:
+        aligned = worker.call("align_line", model=aligner.id, engine=aligner.engine, model_path=str(model_dir(aligner)),
+                              capability="align", text=line["text"], language=narration["language"], path=str(out / audio))
+        words = word_timings(line["text"], aligned["words"], out / audio) if "words" in aligned else None
+        if words is not None:
+            line["words"] = words
+        else:
+            why = (f"failed: {aligned['failure']}" if "failure" in aligned
+                   else "returned words that do not spell out the Line's text")
+            line["warnings"].append({"code": "not_aligned", "message": f"Model {aligner.id} {why}, so the Line has no words."})
     if transcriber := plan["transcriber"]:
         transcript = worker.call("transcribe_line", model=transcriber.id, engine=transcriber.engine,
                                  model_path=str(model_dir(transcriber)), capability="transcribe",
