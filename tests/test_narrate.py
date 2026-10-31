@@ -188,19 +188,39 @@ def test_narrate_without_the_model_installed_fails_without_downloading(voxx, wri
     out = tmp_path / "out"
     run = voxx("narrate", write_narration(TWO_LINES), "--out", out)
 
+    # Only the Model that reads is required; the aligner and transcriber are not installed either, but not listed.
     error = assert_error(run, 3, "model_not_installed")
     assert error["details"] == {
         "missing": [{"model": "fake-tts", "size_bytes": 4096, "license": "Apache-2.0",
-                     "license_url": "https://huggingface.co/voxx-test/fake-tts"},
-                    {"model": "fake-aligner", "size_bytes": 4096, "license": "Apache-2.0",
-                     "license_url": "https://huggingface.co/voxx-test/fake-aligner"},
-                    {"model": "fake-asr", "size_bytes": 4096, "license": "Apache-2.0",
-                     "license_url": "https://huggingface.co/voxx-test/fake-asr"}],
-        "total_bytes": 12288,
+                     "license_url": "https://huggingface.co/voxx-test/fake-tts"}],
+        "total_bytes": 4096,
     }
-    assert "`voxx install fake-tts` and `voxx install fake-aligner` and `voxx install fake-asr`" in error["hint"]
+    assert "`voxx install fake-tts`" in error["hint"]
+    assert "fake-asr" not in error["hint"] and "fake-aligner" not in error["hint"]
     assert hub.requests == []
     assert not out.exists()
+
+
+def test_narrate_with_only_the_model_that_reads_installed_reads_every_line_and_warns(voxx, write_narration, tmp_path, hub):
+    assert voxx("install", "fake-tts").exit_code == 0
+    hub.requests.clear()
+    out = tmp_path / "out"
+    run = voxx("narrate", write_narration(TWO_LINES), "--out", out)
+
+    assert run.exit_code == 0, run.result
+    for line in lines_of(run):
+        assert (out / line["audio"]).exists()
+        assert not {"words", "transcript", "error_rate"} & set(line)
+        warnings = {w["code"]: w for w in line["warnings"]}
+        assert list(warnings) == ["aligner_not_installed", "checker_not_installed"]
+        assert warnings["aligner_not_installed"]["details"] == {
+            "model": "fake-aligner", "size_bytes": 4096, "license": "Apache-2.0",
+            "license_url": "https://huggingface.co/voxx-test/fake-aligner", "command": "voxx install fake-aligner"}
+        assert warnings["checker_not_installed"]["details"] == {
+            "model": "fake-asr", "size_bytes": 4096, "license": "Apache-2.0",
+            "license_url": "https://huggingface.co/voxx-test/fake-asr", "command": "voxx install fake-asr"}
+        assert "`voxx install fake-asr`" in warnings["checker_not_installed"]["message"]
+    assert hub.requests == []
 
 
 def lines_of(run):
@@ -227,12 +247,11 @@ def test_without_a_voice_the_model_reads_with_a_native_voice_of_the_language(ins
     assert lines_of(run)[0]["voice"] == voice
 
 
-def test_without_a_voice_or_model_the_default_preset_model_reads_and_qwen3_models_listen(voxx, write_narration, tmp_path):
+def test_without_a_voice_or_model_the_default_preset_model_reads(voxx, write_narration, tmp_path):
     run = voxx("narrate", write_narration({"language": "en", "lines": [{"id": "a", "text": "Hi."}]}), "--out", tmp_path / "out")
 
     error = assert_error(run, 3, "model_not_installed")
-    assert [m["model"] for m in error["details"]["missing"]] == ["qwen3-tts-1.7b-customvoice", "qwen3-forcedaligner-0.6b",
-                                                                 "qwen3-asr-0.6b"]
+    assert [m["model"] for m in error["details"]["missing"]] == ["qwen3-tts-1.7b-customvoice"]
 
 
 def test_an_unknown_model_is_an_argument_error(installed, write_narration, tmp_path):

@@ -6,7 +6,6 @@ import shutil
 import wave
 
 import pytest
-from conftest import assert_error
 
 ALIGNED = "VOXX_TEST_FAKE_ALIGNED"
 
@@ -104,12 +103,20 @@ def test_a_line_in_a_language_no_model_aligns_has_no_words_and_does_not_need_the
     assert "not_aligned" in [w["code"] for w in line["warnings"]]
 
 
-def test_narrate_without_the_aligner_installed_fails_without_downloading(installed, write_narration, tmp_path, hub):
+def test_narrate_without_the_aligner_installed_reads_every_line_without_words_and_warns(installed, write_narration,
+                                                                                       tmp_path, hub):
     shutil.rmtree(installed.home / "models" / "fake-aligner")
-    out = tmp_path / "out"
-    run = installed("narrate", write_narration(one_line("一")), "--out", out)
+    narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "点一下"}, {"id": "b", "text": "就完成了"}]}
+    lines = narrate(installed, write_narration, tmp_path, narration)
 
-    error = assert_error(run, 3, "model_not_installed")
-    assert [m["model"] for m in error["details"]["missing"]] == ["fake-aligner"]
+    for line in lines:
+        assert (tmp_path / "out" / line["audio"]).exists()
+        assert "words" not in line
+        # The transcriber is installed, so the Line is still checked.
+        assert line["error_rate"] == 0
+        [warning] = line["warnings"]
+        assert warning["code"] == "aligner_not_installed"
+        assert warning["details"] == {"model": "fake-aligner", "size_bytes": 4096, "license": "Apache-2.0",
+                                      "license_url": "https://huggingface.co/voxx-test/fake-aligner",
+                                      "command": "voxx install fake-aligner"}
     assert hub.requests == []
-    assert not out.exists()

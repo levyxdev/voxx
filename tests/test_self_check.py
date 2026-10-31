@@ -82,17 +82,23 @@ def test_a_line_in_a_language_no_model_transcribes_does_not_need_the_transcriber
     assert "not_checked" in [w["code"] for w in narrate(installed, write_narration, tmp_path, narration)[0]["warnings"]]
 
 
-def test_narrate_without_the_transcriber_installed_fails_without_downloading(installed, write_narration, tmp_path, hub):
+def test_narrate_without_the_transcriber_installed_reads_every_line_unchecked_and_warns(installed, write_narration,
+                                                                                         tmp_path, hub):
     shutil.rmtree(installed.home / "models" / "fake-asr")
-    out = tmp_path / "out"
-    narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "一"}]}
-    run = installed("narrate", write_narration(narration), "--out", out)
+    narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "点一下"}, {"id": "b", "text": "就完成了"}]}
+    lines = narrate(installed, write_narration, tmp_path, narration)
 
-    error = assert_error(run, 3, "model_not_installed")
-    assert [m["model"] for m in error["details"]["missing"]] == ["fake-asr"]
-    assert "voxx install fake-asr" in error["hint"]
+    for line in lines:
+        assert (tmp_path / "out" / line["audio"]).exists()
+        assert "transcript" not in line and "error_rate" not in line
+        # The aligner is installed, so the Line still has its words.
+        assert line["words"]
+        [warning] = line["warnings"]
+        assert warning["code"] == "checker_not_installed"
+        assert warning["details"] == {"model": "fake-asr", "size_bytes": 4096, "license": "Apache-2.0",
+                                      "license_url": "https://huggingface.co/voxx-test/fake-asr",
+                                      "command": "voxx install fake-asr"}
     assert hub.requests == []
-    assert not out.exists()
 
 
 def test_a_high_error_rate_is_reported_not_retried(installed, write_narration, tmp_path):

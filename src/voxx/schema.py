@@ -10,6 +10,16 @@ _non_empty_string = {"type": "string", "minLength": 1}
 _language = {"type": "string", "pattern": LANGUAGE_PATTERN,
              "description": "BCP 47 tag in canonical case, such as zh, yue or en-US. Matches a Model's languages exactly."}
 _seed = {"type": "integer", "minimum": 0, "maximum": MAX_SEED}
+_model_id = {"type": "string", "description": "A Model id from `voxx models`."}
+
+INSTALL_SUMMARY = {
+    "type": "object",
+    "description": "What to tell the user before running `voxx install <model>`.",
+    "required": ["model", "size_bytes", "license", "license_url"],
+    "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
+                   "license": {"type": "string", "description": "SPDX id of the weights license."},
+                   "license_url": {"type": "string"}},
+}
 
 NARRATION_INPUT = {
     "$schema": DRAFT,
@@ -45,6 +55,16 @@ NARRATION_INPUT = {
     },
 }
 
+# Only on aligner_not_installed and checker_not_installed warnings.
+MISSING_MODEL = {
+    **INSTALL_SUMMARY,
+    "description": "The Model the Line was read without, because it is not installed. Tell the user its size and "
+                   "license; once they agree, run command, then read the Line again with --line.",
+    "required": [*INSTALL_SUMMARY["required"], "command"],
+    "properties": {**INSTALL_SUMMARY["properties"],
+                   "command": {"type": "string", "description": "The `voxx install` command that installs it."}},
+}
+
 LINE_OUTPUT_FIELDS = {
     "audio": {"type": "string", "description": "Mono WAV at the Model's native sample rate, at -18 LUFS with 50 ms of "
                                                "silence before and after the speech; relative to the output Narration file."},
@@ -55,16 +75,19 @@ LINE_OUTPUT_FIELDS = {
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
                                                   "that could not reach -18 LUFS without clipping, a Line without "
                                                   "words (not_aligned) because no Model aligns its language or the "
-                                                  "aligner failed, a Line not checked "
-                                                  "because no Model can transcribe its language, or a Line kept by "
+                                                  "aligner failed, a Line not checked (not_checked) "
+                                                  "because no Model can transcribe its language, a Line without words "
+                                                  "(aligner_not_installed) or not checked (checker_not_installed) "
+                                                  "because the Model that would do it is not installed, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
                                                   "gives it other text, another language, another Voice or another "
                                                   "style.",
                  "items": {"type": "object", "required": ["code", "message"],
-                           "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
+                           "properties": {"code": {"type": "string"}, "message": {"type": "string"},
+                                          "details": MISSING_MODEL}}},
 }
 
-# Only on Lines a Model aligned; any other Line has a not_aligned warning instead.
+# Only on Lines a Model aligned; any other Line has a not_aligned or aligner_not_installed warning instead.
 ALIGN_FIELDS = {
     "words": {"type": "array",
               "description": "Word Timing: each word of the text in order, without punctuation; each Chinese "
@@ -76,7 +99,7 @@ ALIGN_FIELDS = {
                                        "end": {"type": "number", "minimum": 0}}}},
 }
 
-# Only on Lines in a language a Model can transcribe; any other Line has a not_checked warning instead.
+# Only on Lines an installed Model transcribed; any other Line has a not_checked or checker_not_installed warning instead.
 SELF_CHECK_FIELDS = {
     "transcript": {"type": "string", "description": "The Line's audio, transcribed by the Model that transcribes its language."},
     "error_rate": {"type": "number", "minimum": 0,
@@ -106,7 +129,6 @@ NARRATION_OUTPUT = {
 
 _license = {"type": "object", "required": ["id", "url"],
             "properties": {"id": {"type": "string", "description": "SPDX id."}, "url": {"type": "string"}}}
-_model_id = {"type": "string", "description": "A Model id from `voxx models`."}
 
 MODEL = {
     "type": "object",
@@ -127,18 +149,10 @@ MODEL = {
     },
 }
 
-INSTALL_SUMMARY = {
-    "type": "object",
-    "description": "What to tell the user before running `voxx install <model>`.",
-    "required": ["model", "size_bytes", "license", "license_url"],
-    "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
-                   "license": {"type": "string", "description": "SPDX id of the weights license."},
-                   "license_url": {"type": "string"}},
-}
-
 MODEL_NOT_INSTALLED = {
     "$schema": DRAFT,
-    "description": "details of a model_not_installed error (exit code 3).",
+    "description": "details of a model_not_installed error (exit code 3): the Models that read the Lines. A missing "
+                   "aligner or transcriber is a warning on each Line instead.",
     "type": "object",
     "required": ["missing", "total_bytes"],
     "properties": {
@@ -152,7 +166,8 @@ COMMANDS = {
         "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]...",
         "description": "Read every Line of a Narration, time each word, transcribe each Line back to check it, and "
                        "write <dir>/<id>.wav per "
-                       "Line and <dir>/narration.json. "
+                       "Line and <dir>/narration.json. Only the Model that reads must be installed: without the "
+                       "aligner or the transcriber, the Lines are read without words or the check, with a warning. "
                        "The completed Narration, read again with the same --model, gives the same audio. "
                        "With --line, read only those Lines again and keep every other Line, and its audio file, "
                        "as <dir>/narration.json from the earlier run has it.",
