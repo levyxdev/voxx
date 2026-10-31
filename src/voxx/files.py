@@ -1,6 +1,9 @@
 """Files and directories: writing so a reader never sees a half-written file, and finding where a path would live."""
 
+import shutil
+import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 
 
 @contextmanager
@@ -13,6 +16,17 @@ def replacing(path):
         partial.unlink(missing_ok=True)
         raise
     partial.replace(path)
+
+
+@contextmanager
+def staging(directory):
+    """Yields a new hidden directory inside `directory`, so a file written there moves into `directory` with one atomic
+    rename; on the way out it is removed with whatever is still in it."""
+    stage = Path(tempfile.mkdtemp(prefix=".voxx-staging-", dir=directory))
+    try:
+        yield stage
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
 
 
 def nearest_existing(path):

@@ -29,6 +29,11 @@ def assert_error(run, exit_code, code):
     return error
 
 
+def snapshot(out):
+    """Every file in `out`, hidden ones too, by name."""
+    return {p.name: p.read_bytes() for p in out.iterdir()}
+
+
 @dataclass
 class Run:
     exit_code: int

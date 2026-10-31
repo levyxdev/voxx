@@ -1,4 +1,7 @@
-"""`voxx narrate`: read every Line of a Narration in one worker, then write the completed Narration."""
+"""`voxx narrate`: read every Line of a Narration in one worker, then write the completed Narration.
+
+The output directory changes only once every Line has been read: until then the new audio waits in a staging directory
+inside it, so a run that fails leaves the earlier output exactly as it was."""
 
 import errno
 import json
@@ -6,7 +9,7 @@ import os
 import secrets
 from pathlib import Path
 
-from voxx.files import replacing
+from voxx.files import replacing, staging
 from voxx.models import aligner_for, find_model, model_dir, require_installed, resolve_voice, transcriber_for
 from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
@@ -27,7 +30,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
     if line_ids:
         to_read = _lines_to_read_again(narration, list(dict.fromkeys(line_ids)))
         earlier = _earlier_output(out)
-        kept = _lines_to_keep(narration, earlier, to_read)
+        kept = _lines_to_keep(narration, earlier, to_read, chosen)
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
     # Plan every Line before starting the worker, so a bad Voice fails fast.
     plans = [_plan_line(narration, line, chosen, earlier_seeds.get(line["id"])) for line in to_read]
@@ -41,16 +44,19 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
                         "Pass a writable directory for --out.", {"out": str(out)}, USAGE)
 
     progress("narration_started", lines=len(plans))
-    with WorkerProcess() as worker:
-        for index, (line, plan) in enumerate(zip(to_read, plans), start=1):
-            progress("line_started", id=line["id"], index=index, total=len(plans))
-            _read_line(worker, narration, line, plan, out)
-            progress("line_done", id=line["id"], index=index, total=len(plans))
-    narration["lines"] = [kept.get(line["id"], line) for line in narration["lines"]]
-
     path = out / OUTPUT_NAME
-    with replacing(path) as partial:
-        partial.write_text(json.dumps(narration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    with staging(out) as stage:
+        with WorkerProcess() as worker:
+            for index, (line, plan) in enumerate(zip(to_read, plans), start=1):
+                progress("line_started", id=line["id"], index=index, total=len(plans))
+                _read_line(worker, narration, line, plan, stage)
+                progress("line_done", id=line["id"], index=index, total=len(plans))
+        narration["lines"] = [kept.get(line["id"], line) for line in narration["lines"]]
+        with replacing(path) as partial:
+            partial.write_text(json.dumps(narration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        # Only renames from here on, so the audio and the Narration disagree for as short a time as can be.
+        for line in to_read:
+            (stage / line["audio"]).replace(out / line["audio"])
     progress("narration_done", path=str(path))
     return {"path": str(path), "narration": narration}
 
@@ -82,21 +88,22 @@ def _plan_line(narration, line, chosen, earlier_seed=None):
             "transcriber": transcriber, "seed": seed}
 
 
-def _read_line(worker, narration, line, plan, out):
-    """Every step that turns one Line into its audio file and completes its fields, for a whole run and --line alike."""
+def _read_line(worker, narration, line, plan, stage):
+    """Every step that turns one Line into its audio file in `stage` and completes its fields, for a whole run and
+    --line alike."""
     audio = f"{line['id']}.wav"
     model = plan["model"]
     result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
                          capability="preset_voice", text=line["text"], voice=plan["voice"], style=plan["style"],
-                         language=narration["language"], seed=plan["seed"], path=str(out / audio))
+                         language=narration["language"], seed=plan["seed"], path=str(stage / audio))
     line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
                 sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
     # A Line given back from an earlier run may still carry the words of its earlier audio.
     line.pop("words", None)
     if aligner := plan["aligner"]:
         aligned = worker.call("align_line", model=aligner.id, engine=aligner.engine, model_path=str(model_dir(aligner)),
-                              capability="align", text=line["text"], language=narration["language"], path=str(out / audio))
-        words = word_timings(line["text"], aligned["words"], out / audio) if "words" in aligned else None
+                              capability="align", text=line["text"], language=narration["language"], path=str(stage / audio))
+        words = word_timings(line["text"], aligned["words"], stage / audio) if "words" in aligned else None
         if words is not None:
             line["words"] = words
         else:
@@ -106,7 +113,7 @@ def _read_line(worker, narration, line, plan, out):
     if transcriber := plan["transcriber"]:
         transcript = worker.call("transcribe_line", model=transcriber.id, engine=transcriber.engine,
                                  model_path=str(model_dir(transcriber)), capability="transcribe",
-                                 language=narration["language"], path=str(out / audio))["transcript"]
+                                 language=narration["language"], path=str(stage / audio))["transcript"]
         line.update(transcript=transcript, error_rate=error_rate(line["text"], transcript))
 
 
@@ -133,8 +140,8 @@ def _earlier_output(out):
     return earlier
 
 
-def _lines_to_keep(narration, earlier, to_read):
-    """The earlier run's Line for every Line not read again, each warned if the Narration now asks it to say something else."""
+def _lines_to_keep(narration, earlier, to_read, chosen):
+    """The earlier run's Line for every Line not read again, each warned if the Narration now asks it to sound otherwise."""
     earlier_lines = {line["id"]: line for line in earlier["lines"]}
     reading = {line["id"] for line in to_read}
     unread = [line["id"] for line in narration["lines"] if line["id"] not in reading and line["id"] not in earlier_lines]
@@ -153,8 +160,19 @@ def _lines_to_keep(narration, earlier, to_read):
             changes.append(f"its text is now {line['text']!r}")
         if narration["language"] != earlier["language"]:
             changes.append(f"the Narration's language is now {narration['language']!r}")
+        # The Voice this run would read the Line with, as _plan_line resolves it.
+        _, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+        if voice != old.get("voice"):
+            changes.append(f"its voice is now {voice!r}, not {old.get('voice')!r}")
+        style, old_style = line_setting(narration, line, "style"), line_setting(earlier, old, "style")
+        if style != old_style:
+            changes.append(f"its style is now {_or_none(style)}, not {_or_none(old_style)}")
         if changes:
             warnings.append({"code": "stale_audio", "message": f"The audio reads {old['text']!r} in {earlier['language']!r}, "
                                                                f"but {' and '.join(changes)}. Pass --line {line['id']} to read it again."})
         kept[line["id"]] = {**old, "warnings": warnings}
     return kept
+
+
+def _or_none(value):
+    return "none" if value is None else repr(value)

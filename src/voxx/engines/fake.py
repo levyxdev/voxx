@@ -6,6 +6,7 @@ import signal
 import unicodedata
 import wave
 import zlib
+from collections import Counter
 from typing import NamedTuple
 
 import numpy as np
@@ -13,6 +14,7 @@ import numpy as np
 SAMPLE_RATE = 24_000
 SECONDS_PER_CHAR = 0.06
 # "load", "synthesize", "transcribe" or "align": the worker is killed at that step, as the OS does when memory runs out.
+# "synthesize:2" kills it the second time it reaches that step, such as at the second Line it reads.
 CRASH_ENV = "VOXX_TEST_FAKE_CRASH"
 # A JSON object from a Line's text to what the fake Engine transcribes instead; any other Line is transcribed as written.
 HEARD_ENV = "VOXX_TEST_FAKE_HEARD"
@@ -94,6 +96,12 @@ def _words(text):
     return words + [word] if word else words
 
 
+# How many times this worker has reached each step.
+_reached = Counter()
+
+
 def _crash_if(step):
-    if os.environ.get(CRASH_ENV) == step:
+    _reached[step] += 1
+    crash_step, _, nth = os.environ.get(CRASH_ENV, "").partition(":")
+    if crash_step == step and _reached[step] == int(nth or 1):
         os.kill(os.getpid(), signal.SIGKILL)

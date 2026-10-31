@@ -58,7 +58,8 @@ LINE_OUTPUT_FIELDS = {
                                                   "aligner failed, a Line not checked "
                                                   "because no Model can transcribe its language, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
-                                                  "gives it other text or another language.",
+                                                  "gives it other text, another language, another Voice or another "
+                                                  "style.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
 }
