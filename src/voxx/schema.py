@@ -53,8 +53,10 @@ LINE_OUTPUT_FIELDS = {
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
-                                                  "that could not reach -18 LUFS without clipping, or a Line not checked "
-                                                  "because no Model can transcribe its language.",
+                                                  "that could not reach -18 LUFS without clipping, a Line not checked "
+                                                  "because no Model can transcribe its language, or a Line kept by "
+                                                  "--line whose audio is stale (stale_audio) because the Narration now "
+                                                  "gives it other text or another language.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
 }
@@ -132,10 +134,12 @@ MODEL_NOT_INSTALLED = {
 
 COMMANDS = {
     "narrate": {
-        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>]",
+        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]...",
         "description": "Read every Line of a Narration, transcribe each back to check it, and write <dir>/<id>.wav per "
                        "Line and <dir>/narration.json. "
-                       "The completed Narration, read again with the same --model, gives the same audio.",
+                       "The completed Narration, read again with the same --model, gives the same audio. "
+                       "With --line, read only those Lines again and keep every other Line, and its audio file, "
+                       "as <dir>/narration.json from the earlier run has it.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
@@ -145,6 +149,11 @@ COMMANDS = {
                 "out": {"type": "string", "description": "Output directory (--out); created if missing."},
                 "model": {**_model_id, "description": "The Model that reads every Line (--model). Omit for the Model "
                                                       "that has each Line's Voice, or the default Model."},
+                "line": {"type": "array", "items": _non_empty_string,
+                         "description": "Ids of Lines to read again (--line, once per id), after a whole run into the "
+                                        "same --out. Each is read with a new seed: the one the Narration file gives it, "
+                                        "if that differs from the seed it was read with before, else a random one. "
+                                        "Every other Line keeps its audio file and fields from the earlier run."},
             },
         },
         "input": NARRATION_INPUT,
@@ -165,6 +174,12 @@ COMMANDS = {
             "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot read Preset Voices."},
             "voice_unsupported": {"description": "Exit 4: the Model given to --model lacks this Voice; details.voices lists its own."},
             "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
+            "unknown_line": {"description": "Exit 2: no Line has an id given to --line; details.known_lines lists them."},
+            "no_earlier_output": {"description": "Exit 2: --line needs <dir>/narration.json from a whole run first."},
+            "invalid_earlier_output": {"description": "Exit 2: <dir>/narration.json from the earlier run cannot be read; "
+                                                       "read the whole Narration again."},
+            "line_not_read": {"description": "Exit 2: details.unread lists Lines the earlier run did not read and "
+                                             "--line does not name."},
         },
     },
     "voices": {

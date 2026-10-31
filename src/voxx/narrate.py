@@ -8,34 +8,28 @@ from pathlib import Path
 
 from voxx.files import replacing
 from voxx.models import find_model, model_dir, require_installed, resolve_voice, transcriber_for
-from voxx.narration import MAX_SEED, line_setting, load_narration
+from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
 from voxx.worker.client import WorkerProcess
 
 OUTPUT_NAME = "narration.json"
+READ_ALL_HINT = "Read the whole Narration first: run `voxx narrate` without --line."
 
 
-def narrate(narration_path, out_dir, model_id=None):
+def narrate(narration_path, out_dir, model_id=None, line_ids=()):
+    """Read every Line, or with `line_ids` only those Lines, keeping every other Line of the earlier output as it is."""
     narration = load_narration(narration_path)
     out = Path(out_dir).resolve()
     chosen = find_model(model_id) if model_id is not None else None
-    # Resolve every Line before starting the worker, so a bad Voice fails fast.
-    plans = []
-    for line in narration["lines"]:
-        model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
-        style, warnings = line_setting(narration, line, "style"), []
-        if style is not None and not model.reads_style:
-            style = None
-            warnings.append({"code": "style_ignored", "message": f"Model {model.id} cannot follow style; read the Line without it."})
-        # The self-check: a Line is transcribed back, unless no Model can transcribe its language.
-        transcriber = transcriber_for(model, narration["language"])
-        if transcriber is None:
-            warnings.append({"code": "not_checked", "message": f"No Model can transcribe {narration['language']!r}, "
-                                                               "so the Line has no transcript or error_rate."})
-        seed = line_setting(narration, line, "seed")
-        plans.append({"model": model, "voice": voice, "style": style, "warnings": warnings, "transcriber": transcriber,
-                      "seed": secrets.randbelow(MAX_SEED + 1) if seed is None else seed})
+    to_read, kept, earlier_seeds = narration["lines"], {}, {}
+    if line_ids:
+        to_read = _lines_to_read_again(narration, list(dict.fromkeys(line_ids)))
+        earlier = _earlier_output(out)
+        kept = _lines_to_keep(narration, earlier, to_read)
+        earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
+    # Plan every Line before starting the worker, so a bad Voice fails fast.
+    plans = [_plan_line(narration, line, chosen, earlier_seeds.get(line["id"])) for line in to_read]
     require_installed(dict.fromkeys(m for plan in plans for m in (plan["model"], plan["transcriber"]) if m))
     try:
         out.mkdir(parents=True, exist_ok=True)
@@ -47,24 +41,101 @@ def narrate(narration_path, out_dir, model_id=None):
 
     progress("narration_started", lines=len(plans))
     with WorkerProcess() as worker:
-        for index, (line, plan) in enumerate(zip(narration["lines"], plans), start=1):
+        for index, (line, plan) in enumerate(zip(to_read, plans), start=1):
             progress("line_started", id=line["id"], index=index, total=len(plans))
-            audio = f"{line['id']}.wav"
-            model = plan["model"]
-            result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
-                                 capability="preset_voice", text=line["text"], voice=plan["voice"], style=plan["style"],
-                                 language=narration["language"], seed=plan["seed"], path=str(out / audio))
-            line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
-                        sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
-            if transcriber := plan["transcriber"]:
-                transcript = worker.call("transcribe_line", model=transcriber.id, engine=transcriber.engine,
-                                         model_path=str(model_dir(transcriber)), capability="transcribe",
-                                         language=narration["language"], path=str(out / audio))["transcript"]
-                line.update(transcript=transcript, error_rate=error_rate(line["text"], transcript))
+            _read_line(worker, narration, line, plan, out)
             progress("line_done", id=line["id"], index=index, total=len(plans))
+    narration["lines"] = [kept.get(line["id"], line) for line in narration["lines"]]
 
     path = out / OUTPUT_NAME
     with replacing(path) as partial:
         partial.write_text(json.dumps(narration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     progress("narration_done", path=str(path))
     return {"path": str(path), "narration": narration}
+
+
+def _plan_line(narration, line, chosen, earlier_seed=None):
+    """How a Line will be read: its Model, Voice, style and seed, and the Model that transcribes it back.
+
+    A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
+    """
+    model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+    style, warnings = line_setting(narration, line, "style"), []
+    if style is not None and not model.reads_style:
+        style = None
+        warnings.append({"code": "style_ignored", "message": f"Model {model.id} cannot follow style; read the Line without it."})
+    # The self-check: a Line is transcribed back, unless no Model can transcribe its language.
+    transcriber = transcriber_for(model, narration["language"])
+    if transcriber is None:
+        warnings.append({"code": "not_checked", "message": f"No Model can transcribe {narration['language']!r}, "
+                                                           "so the Line has no transcript or error_rate."})
+    seed = line_setting(narration, line, "seed")
+    while seed is None or seed == earlier_seed:
+        seed = secrets.randbelow(MAX_SEED + 1)
+    return {"model": model, "voice": voice, "style": style, "warnings": warnings, "transcriber": transcriber, "seed": seed}
+
+
+def _read_line(worker, narration, line, plan, out):
+    """Every step that turns one Line into its audio file and completes its fields, for a whole run and --line alike."""
+    audio = f"{line['id']}.wav"
+    model = plan["model"]
+    result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
+                         capability="preset_voice", text=line["text"], voice=plan["voice"], style=plan["style"],
+                         language=narration["language"], seed=plan["seed"], path=str(out / audio))
+    line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
+                sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
+    if transcriber := plan["transcriber"]:
+        transcript = worker.call("transcribe_line", model=transcriber.id, engine=transcriber.engine,
+                                 model_path=str(model_dir(transcriber)), capability="transcribe",
+                                 language=narration["language"], path=str(out / audio))["transcript"]
+        line.update(transcript=transcript, error_rate=error_rate(line["text"], transcript))
+
+
+def _lines_to_read_again(narration, line_ids):
+    by_id = {line["id"]: line for line in narration["lines"]}
+    unknown = [i for i in line_ids if i not in by_id]
+    if unknown:
+        raise VoxxError("unknown_line", f"The Narration has no Line with id {', '.join(map(repr, unknown))}.",
+                        "Pass the id of a Line in the Narration to --line.", {"unknown": unknown, "known_lines": list(by_id)}, USAGE)
+    return [by_id[i] for i in line_ids]
+
+
+def _earlier_output(out):
+    path = out / OUTPUT_NAME
+    try:
+        earlier = json.loads(path.read_text(encoding="utf-8"))
+        check_narration(earlier)
+    except FileNotFoundError:
+        raise VoxxError("no_earlier_output", f"--line reads Lines again, but {out} has no {OUTPUT_NAME} from an "
+                                              "earlier run.", READ_ALL_HINT, {"path": str(path)}, USAGE)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, VoxxError) as e:
+        raise VoxxError("invalid_earlier_output", f"Cannot use {path} from the earlier run: {e}", READ_ALL_HINT,
+                        {"path": str(path)}, USAGE)
+    return earlier
+
+
+def _lines_to_keep(narration, earlier, to_read):
+    """The earlier run's Line for every Line not read again, each warned if the Narration now asks it to say something else."""
+    earlier_lines = {line["id"]: line for line in earlier["lines"]}
+    reading = {line["id"] for line in to_read}
+    unread = [line["id"] for line in narration["lines"] if line["id"] not in reading and line["id"] not in earlier_lines]
+    if unread:
+        raise VoxxError("line_not_read", f"Line {', '.join(map(repr, unread))} has no audio from the earlier run.",
+                        "Pass every new Line to --line as well, or read the whole Narration again.", {"unread": unread}, USAGE)
+    kept = {}
+    for line in narration["lines"]:
+        if line["id"] in reading:
+            continue
+        old = earlier_lines[line["id"]]
+        # A warning from an earlier --line run is judged again against this Narration.
+        warnings = [w for w in old.get("warnings", []) if w.get("code") != "stale_audio"]
+        changes = []
+        if line["text"] != old["text"]:
+            changes.append(f"its text is now {line['text']!r}")
+        if narration["language"] != earlier["language"]:
+            changes.append(f"the Narration's language is now {narration['language']!r}")
+        if changes:
+            warnings.append({"code": "stale_audio", "message": f"The audio reads {old['text']!r} in {earlier['language']!r}, "
+                                                               f"but {' and '.join(changes)}. Pass --line {line['id']} to read it again."})
+        kept[line["id"]] = {**old, "warnings": warnings}
+    return kept
