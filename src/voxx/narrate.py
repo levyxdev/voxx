@@ -49,7 +49,7 @@ def narrate(narration_path, out_dir, model_id=None):
                                  text=line["text"], voice=plan["voice"], style=plan["style"], language=narration["language"],
                                  seed=plan["seed"], path=str(out / audio))
             line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
-                        sample_rate=result["sample_rate"], warnings=plan["warnings"])
+                        sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
             progress("line_done", id=line["id"], index=index, total=len(plans))
 
     path = out / OUTPUT_NAME
