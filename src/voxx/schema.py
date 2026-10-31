@@ -7,7 +7,8 @@ from voxx.output import USAGE, VoxxError
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
 
 _non_empty_string = {"type": "string", "minLength": 1}
-_language = {"type": "string", "pattern": LANGUAGE_PATTERN, "description": "ISO 639-1 code, such as zh or en."}
+_language = {"type": "string", "pattern": LANGUAGE_PATTERN,
+             "description": "BCP 47 tag in canonical case, such as zh, yue or en-US. Matches a Model's languages exactly."}
 _seed = {"type": "integer", "minimum": 0, "maximum": MAX_SEED}
 
 NARRATION_INPUT = {

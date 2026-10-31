@@ -9,12 +9,13 @@ from mlx_audio.tts.utils import load as load_tts
 
 from voxx.output import BUG_HINT, VoxxError
 
-# Narrations name languages by ISO 639-1 code; mlx-audio names them in English.
+# Narrations name languages by BCP 47 tag; mlx-audio names them in English.
 LANGUAGE_NAMES = {"zh": "chinese", "en": "english", "ja": "japanese", "ko": "korean", "fr": "french", "de": "german",
                   "it": "italian", "pt": "portuguese", "ru": "russian", "es": "spanish", "ar": "arabic", "id": "indonesian",
                   "th": "thai", "vi": "vietnamese", "tr": "turkish", "hi": "hindi", "ms": "malay", "nl": "dutch",
                   "sv": "swedish", "da": "danish", "fi": "finnish", "pl": "polish", "cs": "czech", "fa": "persian",
-                  "el": "greek", "ro": "romanian", "hu": "hungarian", "mk": "macedonian"}
+                  "el": "greek", "ro": "romanian", "hu": "hungarian", "mk": "macedonian", "yue": "cantonese",
+                  "fil": "filipino"}
 
 
 class MlxAudioEngine:

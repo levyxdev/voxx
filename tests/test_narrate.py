@@ -71,6 +71,10 @@ def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_pat
     {"language": "zh", "lines": [{"id": "Intro", "text": "一"}, {"id": "intro", "text": "二"}]},
     {"language": "japanese", "lines": [{"id": "a", "text": "一"}]},
     {"language": "ZH", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh-hk", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh-HANT", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh_CN", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "en-", "lines": [{"id": "a", "text": "一"}]},
     {"language": "zh", "seed": -1, "lines": [{"id": "a", "text": "一"}]},
     {"language": "zh", "seed": 2**31, "lines": [{"id": "a", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a", "text": "一", "seed": "7"}]},
@@ -95,6 +99,33 @@ def test_an_invalid_narration_is_an_argument_error(installed, write_narration, t
 
     assert_error(run, 2, "invalid_narration")
     assert not out.exists()
+
+
+def test_a_language_in_another_case_names_its_canonical_form(installed, write_narration, tmp_path):
+    narration = {"language": "zh-hant-hk", "voice": "fake-alice", "lines": [{"id": "a", "text": "一"}]}
+    error = assert_error(installed("narrate", write_narration(narration), "--out", tmp_path / "out"), 2, "invalid_narration")
+
+    assert "zh-Hant-HK" in error["message"]
+
+
+@pytest.mark.parametrize("language", ["en-US", "zh-Hant-HK", "zh-CN"])
+def test_a_language_tag_a_model_has_not_registered_is_unsupported_even_if_its_language_is(installed, write_narration,
+                                                                                            tmp_path, language):
+    narration = {"language": language, "voice": "fake-alice", "lines": [{"id": "a", "text": "一"}]}
+    error = assert_error(installed("narrate", write_narration(narration), "--out", tmp_path / "out"), 4, "unsupported_language")
+
+    assert error["details"]["language"] == language
+    assert "zh" in error["details"]["languages"]
+
+
+def test_a_language_can_be_any_tag_a_model_registers(installed, write_narration, tmp_path):
+    narration = {"language": "yue", "voice": "fake-alice", "lines": [{"id": "a", "text": "撳一下發送"}]}
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out")
+
+    assert run.exit_code == 0, run.result
+    [line] = lines_of(run)
+    assert run.result["data"]["narration"]["language"] == "yue"
+    assert line["error_rate"] == 0
 
 
 def test_a_line_id_that_is_not_valid_unicode_is_an_argument_error(installed, tmp_path):

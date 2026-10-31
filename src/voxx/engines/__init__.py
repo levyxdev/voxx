@@ -16,12 +16,12 @@ class Engine(Protocol):
         ...
 
     def synthesize(self, text: str, *, model: str, voice: str, style: str | None, language: str, seed: int) -> tuple[np.ndarray, int]:
-        """Read one whole Line in one pass, the same way every time for the same seed. language is an ISO 639-1 code.
+        """Read one whole Line in one pass, the same way every time for the same seed. language is a BCP 47 tag.
         Returns mono float32 samples in [-1, 1] and the native sample rate."""
         ...
 
     def transcribe(self, path: Path, *, model: str, language: str) -> str:
-        """The words spoken in the WAV at path, in language, an ISO 639-1 code."""
+        """The words spoken in the WAV at path, in language, a BCP 47 tag."""
         ...
 
 

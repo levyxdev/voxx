@@ -11,7 +11,7 @@ def test_schema_describes_narrate(voxx):
     narrate = data["commands"]["narrate"]
     assert set(narrate["arguments"]["required"]) == {"narration", "out"}
     assert "model" in narrate["arguments"]["properties"]
-    assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2}$"
+    assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
     assert {"voice", "style", "seed"} <= set(narrate["input"]["properties"]["lines"]["items"]["properties"])
     line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
     assert {"audio", "model", "voice", "seed", "sample_rate", "warnings"} <= set(line["required"])
