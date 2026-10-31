@@ -79,7 +79,8 @@ class FakeEngine:
 
 
 def _words(text):
-    """As the real aligner splits a Line: each Chinese character, and each run of other letters, digits and apostrophes."""
+    """As the real aligner splits a Chinese Line: each Chinese character, and each run of other letters, digits and
+    apostrophes."""
     words, word = [], ""
     for c in text:
         if unicodedata.name(c, "").startswith("CJK UNIFIED"):

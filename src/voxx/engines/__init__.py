@@ -26,8 +26,8 @@ class Engine(Protocol):
 
     def align(self, path: Path, *, model: str, text: str, language: str) -> list[tuple[str, float, float]]:
         """Each word of text, in order and without punctuation, with the seconds into the WAV at path where it starts
-        and ends. Chinese, Japanese and Korean count each character as a word. language is a BCP 47 tag. Raises if it
-        cannot align text with the WAV."""
+        and ends. Each Chinese character counts as a word. language is a BCP 47 tag. Raises if it cannot align text
+        with the WAV."""
         ...
 
 

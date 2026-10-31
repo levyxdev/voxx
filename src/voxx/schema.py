@@ -55,7 +55,7 @@ LINE_OUTPUT_FIELDS = {
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
                                                   "that could not reach -18 LUFS without clipping, a Line without "
                                                   "words (not_aligned) because no Model aligns its language or the "
-                                                  "alignment failed, a Line not checked "
+                                                  "aligner failed, a Line not checked "
                                                   "because no Model can transcribe its language, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
                                                   "gives it other text or another language.",
@@ -66,8 +66,8 @@ LINE_OUTPUT_FIELDS = {
 # Only on Lines a Model aligned; any other Line has a not_aligned warning instead.
 ALIGN_FIELDS = {
     "words": {"type": "array",
-              "description": "Word Timing: each word of the text in order, without punctuation; each Chinese, "
-                             "Japanese or Korean character is a word. start and end are seconds into the Line's "
+              "description": "Word Timing: each word of the text in order, without punctuation; each Chinese "
+                             "character is a word. start and end are seconds into the Line's "
                              "audio file, silence included, in whole milliseconds; 0 <= start <= end <= the audio's "
                              "length, and no word starts before the one before it ends.",
               "items": {"type": "object", "required": ["text", "start", "end"],
