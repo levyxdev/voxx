@@ -2,7 +2,8 @@
 
 import json
 
-from conftest import assert_error
+import pytest
+from conftest import assert_error, snapshot
 
 THREE_LINES = {
     "language": "zh",
@@ -24,10 +25,6 @@ def read_all(installed, write_narration, out, narration=THREE_LINES):
     run = installed("narrate", write_narration(narration), "--out", out)
     assert run.exit_code == 0, run.result
     return run
-
-
-def snapshot(out):
-    return {p.name: p.read_bytes() for p in out.iterdir()}
 
 
 def lines_by_id(run):
@@ -153,6 +150,59 @@ def test_a_line_whose_text_changed_but_is_not_read_again_is_warned_stale(install
     fixed = installed("narrate", write_narration(changed), "--out", out, "--line", "outro")
     assert lines_by_id(fixed)["outro"]["text"] == "就是这么简单。"
     assert lines_by_id(fixed)["outro"]["warnings"] == []
+
+
+@pytest.mark.parametrize("change, said", [
+    ({"voice": "fake-bob"}, "its voice is now 'fake-bob', not 'fake-alice'"),
+    ({"style": "语气平静"}, "its style is now '语气平静', not none"),
+])
+def test_a_line_whose_voice_or_style_changed_but_is_not_read_again_is_warned_stale(installed, write_narration, tmp_path,
+                                                                                    change, said):
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+
+    run = installed("narrate", write_narration(with_line(THREE_LINES, "outro", **change)), "--out", out, "--line", "send")
+
+    outro = lines_by_id(run)["outro"]
+    assert [w["code"] for w in outro["warnings"]] == ["stale_audio"]
+    assert said in outro["warnings"][0]["message"]
+    assert lines_by_id(run)["intro"]["warnings"] == []
+
+
+def test_a_narration_style_a_line_overrides_does_not_make_it_stale(installed, write_narration, tmp_path):
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+
+    run = installed("narrate", write_narration({**THREE_LINES, "style": "语气平静"}), "--out", out, "--line", "intro")
+
+    lines = lines_by_id(run)
+    assert lines["send"]["warnings"] == []
+    assert "its style is now '语气平静', not none" in lines["outro"]["warnings"][0]["message"]
+
+
+def test_a_voice_that_resolves_to_the_one_the_line_was_read_with_is_not_stale(installed, write_narration, tmp_path):
+    # Without a Voice, fake-tts reads Chinese with fake-alice, the Voice THREE_LINES names.
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+    unvoiced = {k: v for k, v in THREE_LINES.items() if k != "voice"}
+
+    run = installed("narrate", write_narration(unvoiced), "--out", out, "--line", "send", "--model", "fake-tts")
+
+    assert lines_by_id(run)["outro"]["warnings"] == []
+
+
+@pytest.mark.parametrize("step", ["synthesize:2", "align:2", "transcribe:2"])
+def test_line_that_fails_leaves_the_earlier_output_as_it_was(installed, write_narration, tmp_path, step):
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+    files = snapshot(out)
+
+    run = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "intro", "--line", "send",
+                    env={"VOXX_TEST_FAKE_CRASH": step})
+
+    assert_error(run, 1, "worker_crashed")
+    assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["intro"]
+    assert snapshot(out) == files
 
 
 def test_a_new_line_must_be_read_with_line(installed, write_narration, tmp_path):

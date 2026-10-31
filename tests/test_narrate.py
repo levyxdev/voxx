@@ -3,7 +3,7 @@ import os
 import wave
 
 import pytest
-from conftest import assert_error
+from conftest import assert_error, snapshot
 
 TWO_LINES = {
     "language": "zh",
@@ -167,7 +167,21 @@ def test_a_crashed_worker_is_a_structured_internal_error(installed, write_narrat
     assert error["details"]["signal"] == "SIGKILL"
     with pytest.raises(ProcessLookupError):
         os.kill(error["details"]["worker_pid"], 0)
-    assert not (tmp_path / "out" / "narration.json").exists()
+    assert list((tmp_path / "out").iterdir()) == []
+
+
+@pytest.mark.parametrize("step", ["synthesize:2", "align:2", "transcribe:2"])
+def test_a_run_that_fails_at_a_later_line_leaves_the_earlier_output_as_it_was(installed, write_narration, tmp_path, step):
+    out = tmp_path / "out"
+    assert installed("narrate", write_narration(TWO_LINES), "--out", out).exit_code == 0
+    files = snapshot(out)
+
+    # The first Line is read in full before the worker dies at the second.
+    run = installed("narrate", write_narration(TWO_LINES), "--out", out, env={"VOXX_TEST_FAKE_CRASH": step})
+
+    assert_error(run, 1, "worker_crashed")
+    assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["intro"]
+    assert snapshot(out) == files
 
 
 def test_narrate_without_the_model_installed_fails_without_downloading(voxx, write_narration, tmp_path, hub):
