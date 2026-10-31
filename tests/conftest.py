@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from fake_hub import FakeHub
 
-from voxx.models import FAKE_MODEL, FAKE_SMALL_MODEL
+from voxx.models import FAKE_MODEL, FAKE_MODELS
 
 VOXX = Path(sys.executable).with_name("voxx")
 FAKE_CONFIG = b'{"model_type": "fake"}'
@@ -36,11 +36,17 @@ class Run:
     events: list
 
 
-def runner(home, hub):
-    def run(*args, env=None):
+@dataclass
+class Voxx:
+    """Runs `voxx` with its own VOXX_HOME, the fake Engine, and the fake hub."""
+    home: Path
+    hub: FakeHub
+
+    def __call__(self, *args, env=None):
         process = subprocess.run(
             [str(VOXX), *map(str, args)], capture_output=True, encoding="utf-8", timeout=60,
-            env={**os.environ, "VOXX_HOME": str(home), "VOXX_TEST_FAKE_ENGINE": "1", "HF_ENDPOINT": hub.url, **(env or {})})
+            env={**os.environ, "VOXX_HOME": str(self.home), "VOXX_TEST_FAKE_ENGINE": "1", "HF_ENDPOINT": self.hub.url,
+                 **(env or {})})
         # stdout is exactly one JSON object; stderr is only NDJSON events.
         result = json.loads(process.stdout)
         assert process.stdout.count("\n") == 1, process.stdout
@@ -48,12 +54,9 @@ def runner(home, hub):
         assert all(isinstance(e, dict) and "event" in e for e in events), process.stderr
         return Run(process.returncode, result, events)
 
-    run.home = home
-    return run
-
 
 def fake_hub():
-    return FakeHub({(m.repo, m.revision): FAKE_FILES for m in (FAKE_MODEL, FAKE_SMALL_MODEL)}).start()
+    return FakeHub({(m.repo, m.revision): FAKE_FILES for m in FAKE_MODELS}).start()
 
 
 @pytest.fixture
@@ -65,16 +68,16 @@ def hub():
 
 @pytest.fixture
 def voxx(tmp_path, hub):
-    return runner(tmp_path / "voxx-home", hub)
+    return Voxx(tmp_path / "voxx-home", hub)
 
 
 @pytest.fixture(scope="session")
 def installed_home(tmp_path_factory):
-    """A VOXX_HOME with both fake Models installed, made once and copied into each test that needs it."""
+    """A VOXX_HOME with every fake Model installed, made once and copied into each test that needs it."""
     hub = fake_hub()
     home = tmp_path_factory.mktemp("installed") / "voxx-home"
-    for model in (FAKE_MODEL, FAKE_SMALL_MODEL):
-        assert runner(home, hub)("install", model.id).exit_code == 0
+    for model in FAKE_MODELS:
+        assert Voxx(home, hub)("install", model.id).exit_code == 0
     hub.stop()
     return home
 

@@ -68,7 +68,7 @@ def _apache(url):
 # Only Models whose weights allow commercial use (ADR 0003). Weights licenses are the upstream repo's; the mlx
 # conversions downloaded here carry the same license. Sizes are the repo's total at the pinned revision.
 QWEN3_TTS_CODE = _apache("https://github.com/QwenLM/Qwen3-TTS")
-# Languages as ISO 639-1 codes; mlx-audio's names for them are the Engine's business.
+# Languages as BCP 47 tags (ADR 0005); mlx-audio's names for them are the Engine's business.
 QWEN3_TTS_LANGUAGES = ("zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es")
 # The CustomVoice Voices, named as in the Model's config; descriptions from the Qwen3-TTS README.
 QWEN3_TTS_VOICES = (
@@ -83,6 +83,9 @@ QWEN3_TTS_VOICES = (
     PresetVoice("sohee", "ko", "Warm Korean female voice with rich emotion."),
 )
 QWEN3_ASR_CODE = _apache("https://github.com/QwenLM/Qwen3-ASR")
+# Every language in the pinned revision's config.json (support_languages).
+QWEN3_ASR_LANGUAGES = ("zh", "en", "yue", "ar", "de", "fr", "es", "pt", "id", "it", "ko", "ru", "th", "vi", "ja", "tr", "hi",
+                       "ms", "nl", "sv", "da", "fi", "pl", "cs", "fil", "fa", "el", "ro", "hu", "mk")
 VERIFIED = "2026-10-30"
 REGISTRY = (
     # The first Model with Preset Voices is the default one.
@@ -104,7 +107,7 @@ REGISTRY = (
     Model("qwen3-forcedaligner-0.6b", "mlx-audio", ("align",), ("zh", "en"),
           "mlx-community/Qwen3-ForcedAligner-0.6B-8bit", "0e1a68e91d815300c7c9754b2a7639378b23db15", 1_276_475_979,
           _apache("https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B"), QWEN3_ASR_CODE, VERIFIED),
-    Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), ("zh", "en"),
+    Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
 )
@@ -112,7 +115,7 @@ REGISTRY = (
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice
 # Models, the two fake ones share their Voices, and only the first follows style.
 FAKE_VOICES = (PresetVoice("fake-alice", "zh", "A test tone."), PresetVoice("fake-bob", "en", "A lower test tone."))
-FAKE_MODEL = Model("fake-tts", "fake", ("preset_voice",), ("zh", "en", "fr"),
+FAKE_MODEL = Model("fake-tts", "fake", ("preset_voice",), ("zh", "en", "fr", "yue"),
                    "voxx-test/fake-tts", "0123456789abcdef0123456789abcdef01234567", 4096,
                    _apache("https://huggingface.co/voxx-test/fake-tts"), _apache("https://github.com/levyxdev/voxx"),
                    VERIFIED, 24_000, FAKE_VOICES, reads_style=True)
@@ -120,6 +123,12 @@ FAKE_SMALL_MODEL = Model("fake-tts-small", "fake", ("preset_voice",), ("zh", "en
                          "voxx-test/fake-tts-small", "89abcdef0123456789abcdef0123456789abcdef", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-tts-small"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000, FAKE_VOICES)
+# Transcribes the fake Models' Lines. It cannot transcribe every language they read.
+FAKE_ASR_MODEL = Model("fake-asr", "fake", ("transcribe",), ("zh", "en", "yue"),
+                       "voxx-test/fake-asr", "fedcba9876543210fedcba9876543210fedcba98", 4096,
+                       _apache("https://huggingface.co/voxx-test/fake-asr"), _apache("https://github.com/levyxdev/voxx"),
+                       VERIFIED)
+FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL)
 
 
 INSTALL_MANIFEST = "voxx-install.json"
@@ -162,7 +171,7 @@ def fake_engine_enabled():
 
 
 def models():
-    return [*REGISTRY, FAKE_MODEL, FAKE_SMALL_MODEL] if fake_engine_enabled() else list(REGISTRY)
+    return [*REGISTRY, *FAKE_MODELS] if fake_engine_enabled() else list(REGISTRY)
 
 
 def list_models(capability=None, installed=None):
@@ -191,6 +200,13 @@ def find_model(model_id):
         raise VoxxError("unknown_model", f"No Model named {model_id!r}.", "Use one of the Models in details.known_models.",
                         {"model": model_id, "known_models": [m.id for m in models()]}, USAGE)
     return model
+
+
+def transcriber_for(model, language):
+    """The Model that transcribes a Line this Model read in this language: the first on the same Engine that can.
+    None if no Model can."""
+    return next((m for m in models() if "transcribe" in m.capabilities and m.engine == model.engine
+                 and language in m.languages), None)
 
 
 def resolve_voice(voice, language, model=None):

@@ -4,12 +4,14 @@ import json
 import re
 import unicodedata
 from pathlib import Path
+from typing import NoReturn
 
 from voxx.output import USAGE, VoxxError
 
-# Which languages a Narration may use is up to the Model that reads it; here only the form is checked.
-LANGUAGE_RULE = "language must be an ISO 639-1 code in lowercase, such as zh or en."
-LANGUAGE_PATTERN = "^[a-z]{2}$"
+# Which languages a Narration may use is up to the Model that reads it; here only the form is checked (ADR 0005).
+LANGUAGE_RULE = ("language must be a BCP 47 tag in canonical case: a language, then optionally a script and a region, "
+                 "such as zh, yue, en-US or zh-Hant-HK.")
+LANGUAGE_PATTERN = "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
 # Seeds fit in 31 bits, so every Engine can take them.
 MAX_SEED = 2**31 - 1
 SEED_RULE = f"seed must be an integer from 0 to {MAX_SEED}."
@@ -43,8 +45,10 @@ def load_narration(path):
 def check_narration(narration):
     if not isinstance(narration, dict):
         _invalid("$", "The Narration must be a JSON object.")
-    if not (isinstance(narration.get("language"), str) and re.fullmatch(LANGUAGE_PATTERN, narration["language"])):
-        _invalid("$.language", LANGUAGE_RULE)
+    language = narration.get("language")
+    if not (isinstance(language, str) and re.fullmatch(LANGUAGE_PATTERN, language)):
+        canonical = _canonical_case(language) if isinstance(language, str) else None
+        _invalid("$.language", LANGUAGE_RULE + (f" Write it as {canonical!r}." if canonical else ""))
     _check_settings(narration, "$")
     lines = narration.get("lines")
     if not isinstance(lines, list) or not lines:
@@ -77,6 +81,13 @@ def line_id_key(line_id):
     return unicodedata.normalize("NFD", unicodedata.normalize("NFD", line_id).casefold())
 
 
+def _canonical_case(tag):
+    """The tag in canonical case if only its case is wrong, else None: zh-hant-hk is zh-Hant-HK."""
+    first, *rest = tag.split("-")
+    canonical = "-".join([first.lower(), *(s.title() if len(s) == 4 else s.upper() for s in rest)])
+    return canonical if re.fullmatch(LANGUAGE_PATTERN, canonical) else None
+
+
 def line_setting(narration, line, field):
     """A Line's voice, style or seed: its own, else the Narration's default, else None."""
     return line.get(field, narration.get(field))
@@ -96,5 +107,5 @@ def _optional_string(obj, field, where):
         _invalid(f"{where}.{field}", f"{field} must be a non-empty string when given.")
 
 
-def _invalid(where, message):
+def _invalid(where, message) -> NoReturn:
     raise VoxxError("invalid_narration", f"{where}: {message}", NARRATION_HINT, {"at": where}, USAGE)

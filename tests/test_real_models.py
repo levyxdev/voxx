@@ -36,8 +36,10 @@ def installed_models():
 
 @pytest.fixture(params=["qwen3-tts-1.7b-customvoice", "qwen3-tts-0.6b-customvoice"])
 def model(request, installed_models):
-    if request.param not in installed_models:
-        pytest.skip(f"{request.param} is not installed")
+    # Every narrate transcribes its Lines back with Qwen3-ASR.
+    for needed in (request.param, "qwen3-asr-0.6b"):
+        if needed not in installed_models:
+            pytest.skip(f"{needed} is not installed")
     return request.param
 
 
@@ -62,6 +64,16 @@ def test_a_real_model_reads_every_line_to_an_audible_wav(model, language, tmp_pa
         assert 1 < seconds < 15, f"{line['id']} is {seconds:.1f} s long"
         assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
         assert abs(pyloudnorm.Meter(line["sample_rate"]).integrated_loudness(samples) - -18) <= 0.5, line["warnings"]
+
+
+@pytest.mark.parametrize("language", ["zh", "en"])
+def test_a_real_model_reads_short_lines_that_qwen3_asr_transcribes_almost_word_for_word(model, language, tmp_path):
+    # A Model sometimes reads a Line badly, and catching that is the self-check's job; a fixed seed keeps this test
+    # about the pipeline, so it fails only when the pipeline or a pinned Model changes.
+    for line in narrate(model, {**NARRATIONS[language], "seed": 42}, tmp_path / "out"):
+        assert line["transcript"].strip(), line["id"]
+        # One slip in a short Line is allowed; broken audio or the wrong language is not.
+        assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
 
 
 def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):

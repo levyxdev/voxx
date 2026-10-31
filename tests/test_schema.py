@@ -11,7 +11,7 @@ def test_schema_describes_narrate(voxx):
     narrate = data["commands"]["narrate"]
     assert set(narrate["arguments"]["required"]) == {"narration", "out"}
     assert "model" in narrate["arguments"]["properties"]
-    assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2}$"
+    assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
     assert {"voice", "style", "seed"} <= set(narrate["input"]["properties"]["lines"]["items"]["properties"])
     line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
     assert {"audio", "model", "voice", "seed", "sample_rate", "warnings"} <= set(line["required"])
@@ -61,3 +61,12 @@ def test_the_cli_does_not_import_mlx(voxx, tmp_path):
     # The stand-in works: importing mlx under the same environment leaves the mark.
     subprocess.run([sys.executable, "-c", "import mlx"], env={**os.environ, "PYTHONPATH": str(tmp_path / "shadow")}, check=True)
     assert marker.exists()
+
+
+def test_schema_describes_the_self_check(voxx):
+    line = voxx("schema", "narrate").result["data"]["narrate"]["result"]["properties"]["narration"]["properties"]["lines"]["items"]
+
+    assert line["properties"]["transcript"]["type"] == "string"
+    assert line["properties"]["error_rate"]["type"] == "number"
+    # A Line in a language the transcriber cannot hear has neither.
+    assert not {"transcript", "error_rate"} & set(line["required"])

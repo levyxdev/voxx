@@ -1,8 +1,10 @@
 """The `voxx` command. Never imports an inference library: synthesis runs in the worker (ADR 0002)."""
 
 import argparse
+import io
 import sys
 import traceback
+from typing import cast
 
 from voxx.models import CAPABILITIES, list_models, list_voices
 from voxx.output import BUG_HINT, INTERNAL, OK, USAGE, VoxxError, print_error, print_result
@@ -38,8 +40,8 @@ def _parser():
 
 
 def main(argv=None):
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+    for stream in (sys.stdout, sys.stderr):
+        cast(io.TextIOWrapper, stream).reconfigure(encoding="utf-8")
     try:
         args = _parser().parse_args(argv)
         if args.command == "narrate":

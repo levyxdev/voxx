@@ -17,7 +17,7 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
 
     assert run.exit_code == 0
     models = by_id(run)
-    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small"} == set(models)
+    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr"} == set(models)
     for id, (capability, size) in REAL_MODELS.items():
         model = models[id]
         assert model["capabilities"] == [capability]
@@ -29,6 +29,8 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
         assert model["verified"] == "2026-10-30"
     # Each Model reads the languages it supports upstream.
     assert models["qwen3-tts-1.7b-customvoice"]["languages"] == ["zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es"]
+    # Qwen3-ASR transcribes every language Qwen3-TTS reads, so each of their Lines is checked.
+    assert set(models["qwen3-tts-1.7b-customvoice"]["languages"]) <= set(models["qwen3-asr-0.6b"]["languages"])
     assert models["qwen3-tts-1.7b-customvoice"]["sample_rate"] == 24_000
     assert models["voxcpm2"]["sample_rate"] == 48_000
 
@@ -53,7 +55,7 @@ def test_an_unknown_capability_is_an_argument_error(voxx):
 
 
 def test_models_can_be_filtered_by_install_state(installed):
-    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small"}
+    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr"}
     assert set(by_id(installed("models", "--not-installed"))) == set(REAL_MODELS)
     assert by_id(installed("models"))["fake-tts"]["installed"] is True
 

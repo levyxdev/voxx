@@ -38,7 +38,7 @@ class FakeHub:
                 hub.requests.append(Request(self.path, self.headers.get("Range")))
                 hub._handle(self)
 
-            def log_message(self, *args):
+            def log_message(self, format, *args):
                 pass
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
