@@ -12,6 +12,9 @@ voxx builds on the following third-party projects:
 - mlx-audio (MIT License)
   https://github.com/Blaizzy/mlx-audio
 
+- pyloudnorm (MIT License)
+  https://github.com/csteinmetz1/pyloudnorm
+
 - Qwen3-TTS, Qwen3-ASR, Qwen3-ForcedAligner (Apache License 2.0)
   Copyright Alibaba Cloud
   https://github.com/QwenLM/Qwen3-TTS

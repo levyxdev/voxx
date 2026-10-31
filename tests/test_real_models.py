@@ -7,6 +7,7 @@ import subprocess
 import wave
 
 import numpy as np
+import pyloudnorm
 import pytest
 from conftest import VOXX
 
@@ -60,6 +61,7 @@ def test_a_real_model_reads_every_line_to_an_audible_wav(model, language, tmp_pa
         seconds = len(samples) / line["sample_rate"]
         assert 1 < seconds < 15, f"{line['id']} is {seconds:.1f} s long"
         assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
+        assert abs(pyloudnorm.Meter(line["sample_rate"]).integrated_loudness(samples) - -18) <= 0.5, line["warnings"]
 
 
 def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):

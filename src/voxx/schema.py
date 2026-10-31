@@ -45,12 +45,14 @@ NARRATION_INPUT = {
 }
 
 LINE_OUTPUT_FIELDS = {
-    "audio": {"type": "string", "description": "Mono WAV, relative to the output Narration file."},
+    "audio": {"type": "string", "description": "Mono WAV at the Model's native sample rate, at -18 LUFS with 50 ms of "
+                                               "silence before and after the speech; relative to the output Narration file."},
     "model": {"type": "string"},
     "voice": {"type": "string"},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
-    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored.",
+    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored or a Line "
+                                                  "that could not reach -18 LUFS without clipping.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
 }

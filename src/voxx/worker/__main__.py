@@ -6,7 +6,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from voxx.audio import write_wav
+from voxx.audio import finish, write_wav
 from voxx.engines import load_engine
 from voxx.output import VoxxError, dumps, progress
 
@@ -18,8 +18,9 @@ class Worker:
     def synthesize_line(self, *, model, engine, model_path, text, voice, style, language, seed, path):
         samples, sample_rate = self._engine(model, engine, model_path).synthesize(
             text, model=model, voice=voice, style=style, language=language, seed=seed)
+        samples, warnings = finish(samples, sample_rate)
         write_wav(Path(path), samples, sample_rate)
-        return {"sample_rate": sample_rate}
+        return {"sample_rate": sample_rate, "warnings": warnings}
 
     def _engine(self, model, engine, model_path):
         if model not in self.engines:
