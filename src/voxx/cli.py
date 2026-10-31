@@ -25,6 +25,7 @@ def _parser():
     narrate.add_argument("narration")
     narrate.add_argument("--out", required=True)
     narrate.add_argument("--model")
+    narrate.add_argument("--line", dest="lines", action="append", default=[])
     models = commands.add_parser("models", add_help=False)
     models.add_argument("--capability", choices=CAPABILITIES)
     installed = models.add_mutually_exclusive_group()
@@ -46,7 +47,7 @@ def main(argv=None):
         args = _parser().parse_args(argv)
         if args.command == "narrate":
             from voxx.narrate import narrate
-            data = narrate(args.narration, args.out, args.model)
+            data = narrate(args.narration, args.out, args.model, args.lines)
         elif args.command == "install":
             from voxx.install import install
             data = install(args.model)
