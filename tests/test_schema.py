@@ -80,3 +80,15 @@ def test_schema_describes_word_timing(voxx):
     # A Line the aligner could not time has a not_aligned warning instead.
     assert "words" not in line["required"]
     assert "not_aligned" in line["properties"]["warnings"]["description"]
+
+
+def test_schema_describes_the_warnings_for_a_missing_aligner_or_transcriber(voxx):
+    narrate = voxx("schema", "narrate").result["data"]["narrate"]
+    warnings = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]["properties"]["warnings"]
+
+    assert "aligner_not_installed" in warnings["description"]
+    assert "checker_not_installed" in warnings["description"]
+    # The Model to offer the user, as model_not_installed lists it, and how to install it.
+    details = warnings["items"]["properties"]["details"]
+    assert set(narrate["errors"]["model_not_installed"]["properties"]["missing"]["items"]["required"]) < set(details["required"])
+    assert "command" in details["required"]

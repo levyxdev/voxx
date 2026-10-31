@@ -10,7 +10,7 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing, staging
-from voxx.models import aligner_for, find_model, model_dir, require_installed, resolve_voice, transcriber_for
+from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, resolve_voice, transcriber_for
 from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
@@ -32,9 +32,10 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
         earlier = _earlier_output(out)
         kept = _lines_to_keep(narration, earlier, to_read, chosen)
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
-    # Plan every Line before starting the worker, so a bad Voice fails fast.
+    # Plan every Line before starting the worker, so a bad Voice fails fast. Only the Models that read are required
+    # (ADR 0006): a Line whose aligner or transcriber is not installed is read without it.
     plans = [_plan_line(narration, line, chosen, earlier_seeds.get(line["id"])) for line in to_read]
-    require_installed(dict.fromkeys(m for plan in plans for m in (plan["model"], plan["aligner"], plan["transcriber"]) if m))
+    require_installed(dict.fromkeys(plan["model"] for plan in plans))
     try:
         out.mkdir(parents=True, exist_ok=True)
         if not os.access(out, os.W_OK):
@@ -76,16 +77,30 @@ def _plan_line(narration, line, chosen, earlier_seed=None):
     if aligner is None:
         warnings.append({"code": "not_aligned", "message": f"No Model can align {narration['language']!r}, "
                                                            "so the Line has no words."})
+    elif not is_installed(aligner):
+        warnings.append(_not_installed("aligner_not_installed", aligner, "words"))
+        aligner = None
     # The self-check: a Line is transcribed back, unless no Model can transcribe its language.
     transcriber = transcriber_for(model, narration["language"])
     if transcriber is None:
         warnings.append({"code": "not_checked", "message": f"No Model can transcribe {narration['language']!r}, "
                                                            "so the Line has no transcript or error_rate."})
+    elif not is_installed(transcriber):
+        warnings.append(_not_installed("checker_not_installed", transcriber, "transcript or error_rate"))
+        transcriber = None
     seed = line_setting(narration, line, "seed")
     while seed is None or seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
     return {"model": model, "voice": voice, "style": style, "warnings": warnings, "aligner": aligner,
             "transcriber": transcriber, "seed": seed}
+
+
+def _not_installed(code, model, fields):
+    """The warning on a Line read without a Model that only completes it, because that Model is not installed."""
+    return {"code": code, "message": f"Model {model.id} is not installed, so the Line has no {fields}. Tell the user "
+                                     f"its size and license from details; once they agree, run `voxx install {model.id}` "
+                                     "and read the Line again with --line.",
+            "details": {**model.install_summary(), "command": f"voxx install {model.id}"}}
 
 
 def _read_line(worker, narration, line, plan, stage):
@@ -98,8 +113,9 @@ def _read_line(worker, narration, line, plan, stage):
                          language=narration["language"], seed=plan["seed"], path=str(stage / audio))
     line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
                 sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
-    # A Line given back from an earlier run may still carry the words of its earlier audio.
-    line.pop("words", None)
+    # A Line given back from an earlier run may still carry the words and self-check of its earlier audio.
+    for field in ("words", "transcript", "error_rate"):
+        line.pop(field, None)
     if aligner := plan["aligner"]:
         aligned = worker.call("align_line", model=aligner.id, engine=aligner.engine, model_path=str(model_dir(aligner)),
                               capability="align", text=line["text"], language=narration["language"], path=str(stage / audio))

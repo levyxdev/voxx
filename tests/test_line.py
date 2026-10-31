@@ -1,6 +1,7 @@
 """`--line`: read chosen Lines again, and leave every other Line of the earlier run as it was."""
 
 import json
+import shutil
 
 import pytest
 from conftest import assert_error, snapshot
@@ -247,3 +248,25 @@ def test_a_line_read_again_that_cannot_be_aligned_drops_its_earlier_words(instal
     send = lines_by_id(run)["send"]
     assert "words" not in send
     assert [w["code"] for w in send["warnings"]] == ["not_aligned"]
+
+
+@pytest.mark.parametrize("removed, code, dropped, still", [("fake-asr", "checker_not_installed", {"transcript", "error_rate"}, "words"),
+                                                           ("fake-aligner", "aligner_not_installed", {"words"}, "error_rate")])
+def test_a_line_read_again_without_an_aligner_or_transcriber_installed_is_read_without_it(installed, write_narration,
+                                                                                          tmp_path, removed, code,
+                                                                                          dropped, still):
+    # The completed Narration given back carries every Line's words and self-check from the earlier run.
+    out = tmp_path / "out"
+    before = lines_by_id(read_all(installed, write_narration, out))
+    shutil.rmtree(installed.home / "models" / removed)
+
+    run = installed("narrate", out / "narration.json", "--out", out, "--line", "send")
+
+    assert run.exit_code == 0, run.result
+    after = lines_by_id(run)
+    assert not dropped & set(after["send"])
+    assert still in after["send"]
+    [warning] = [w for w in after["send"]["warnings"] if w["code"] == code]
+    assert warning["details"]["command"] == f"voxx install {removed}"
+    # A Line not read again keeps what the earlier run gave it.
+    assert after["intro"] == before["intro"]
