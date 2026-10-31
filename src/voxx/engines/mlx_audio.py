@@ -1,5 +1,7 @@
 """Runs Models through mlx-audio on Apple Silicon. Imported only inside the worker (ADR 0002)."""
 
+from typing import Any
+
 import mlx.core as mx
 import numpy as np
 from mlx_audio.stt.utils import load as load_stt
@@ -16,6 +18,9 @@ LANGUAGE_NAMES = {"zh": "chinese", "en": "english", "ja": "japanese", "ko": "kor
 
 
 class MlxAudioEngine:
+    # mlx-audio's Models share no typed interface.
+    model: Any
+
     def load(self, path, capability):
         # mlx-audio loads Models that speak and Models that transcribe through different loaders.
         self.model = load_stt(path) if capability == "transcribe" else load_tts(path)

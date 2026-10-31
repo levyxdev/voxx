@@ -1,10 +1,12 @@
 """`python -m voxx.worker`: JSON-RPC 2.0 requests on stdin, responses on stdout, NDJSON progress on stderr."""
 
+import io
 import json
 import os
 import sys
 import traceback
 from pathlib import Path
+from typing import cast
 
 from voxx.audio import finish, write_wav
 from voxx.engines import load_engine
@@ -40,7 +42,7 @@ def main():
     # Model libraries print to stdout; keep the protocol on a private copy of it and send their prints to stderr.
     rpc_out = os.fdopen(os.dup(1), "w", encoding="utf-8")
     os.dup2(2, 1)
-    sys.stderr.reconfigure(encoding="utf-8")
+    cast(io.TextIOWrapper, sys.stderr).reconfigure(encoding="utf-8")
     worker = Worker()
     methods = {"synthesize_line": worker.synthesize_line, "transcribe_line": worker.transcribe_line, "shutdown": lambda: None}
     for line in sys.stdin:

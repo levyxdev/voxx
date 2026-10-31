@@ -4,6 +4,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
+from typing import NoReturn
 
 from voxx.output import USAGE, VoxxError
 
@@ -96,5 +97,5 @@ def _optional_string(obj, field, where):
         _invalid(f"{where}.{field}", f"{field} must be a non-empty string when given.")
 
 
-def _invalid(where, message):
+def _invalid(where, message) -> NoReturn:
     raise VoxxError("invalid_narration", f"{where}: {message}", NARRATION_HINT, {"at": where}, USAGE)
