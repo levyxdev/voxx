@@ -56,7 +56,7 @@ LINE_OUTPUT_FIELDS = {
                                                   "that could not reach -18 LUFS without clipping, a Line not checked "
                                                   "because no Model can transcribe its language, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
-                                                  "gives it other text.",
+                                                  "gives it other text or another language.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
 }
@@ -149,10 +149,10 @@ COMMANDS = {
                 "out": {"type": "string", "description": "Output directory (--out); created if missing."},
                 "model": {**_model_id, "description": "The Model that reads every Line (--model). Omit for the Model "
                                                       "that has each Line's Voice, or the default Model."},
-                "line": {"type": "array", "items": _non_empty_string, "uniqueItems": True,
+                "line": {"type": "array", "items": _non_empty_string,
                          "description": "Ids of Lines to read again (--line, once per id), after a whole run into the "
-                                        "same --out. Each is read with its seed from the Narration file, or a new random "
-                                        "one if it has none: to change how a Line sounds, give it a new seed or none. "
+                                        "same --out. Each is read with a new seed: the one the Narration file gives it, "
+                                        "if that differs from the seed it was read with before, else a random one. "
                                         "Every other Line keeps its audio file and fields from the earlier run."},
             },
         },
@@ -175,8 +175,8 @@ COMMANDS = {
             "voice_unsupported": {"description": "Exit 4: the Model given to --model lacks this Voice; details.voices lists its own."},
             "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
             "unknown_line": {"description": "Exit 2: no Line has an id given to --line; details.known_lines lists them."},
-            "no_previous_output": {"description": "Exit 2: --line needs <dir>/narration.json from a whole run first."},
-            "invalid_previous_output": {"description": "Exit 2: <dir>/narration.json from the earlier run cannot be read; "
+            "no_earlier_output": {"description": "Exit 2: --line needs <dir>/narration.json from a whole run first."},
+            "invalid_earlier_output": {"description": "Exit 2: <dir>/narration.json from the earlier run cannot be read; "
                                                        "read the whole Narration again."},
             "line_not_read": {"description": "Exit 2: details.unread lists Lines the earlier run did not read and "
                                              "--line does not name."},

@@ -62,6 +62,31 @@ def test_a_line_read_again_without_a_seed_gets_a_new_one(installed, write_narrat
     assert lines_by_id(run)["intro"]["seed"] != before["intro"]["seed"]
 
 
+def test_a_line_read_again_with_the_seed_it_was_read_with_gets_a_new_one(installed, write_narration, tmp_path):
+    # THREE_LINES gives every Line seed 7, so reading it again as it is would sound the same.
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+
+    run = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send")
+
+    assert [l["seed"] for l in run.result["data"]["narration"]["lines"]][::2] == [7, 7]
+    assert lines_by_id(run)["send"]["seed"] != 7
+
+
+def test_the_completed_narration_can_be_given_back_with_line(installed, write_narration, tmp_path):
+    out = tmp_path / "out"
+    before = lines_by_id(read_all(installed, write_narration, out))
+    files = snapshot(out)
+
+    run = installed("narrate", out / "narration.json", "--out", out, "--line", "intro")
+
+    assert run.exit_code == 0, run.result
+    after = lines_by_id(run)
+    assert after["intro"]["seed"] != before["intro"]["seed"]
+    assert after["send"] == before["send"] and after["outro"] == before["outro"]
+    assert (out / "send.wav").read_bytes() == files["send.wav"]
+
+
 def test_line_can_be_given_more_than_once(installed, write_narration, tmp_path):
     out = tmp_path / "out"
     read_all(installed, write_narration, out)
@@ -91,7 +116,7 @@ def test_an_unknown_line_id_is_an_argument_error(installed, write_narration, tmp
 def test_line_without_an_earlier_run_is_an_argument_error(installed, write_narration, tmp_path):
     out = tmp_path / "out"
     error = assert_error(installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send"),
-                         2, "no_previous_output")
+                         2, "no_earlier_output")
 
     assert "without --line" in error["hint"]
     assert not out.exists()
@@ -103,7 +128,7 @@ def test_an_unreadable_earlier_run_is_an_argument_error(installed, write_narrati
     (out / "narration.json").write_text("{", encoding="utf-8")
 
     error = assert_error(installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send"),
-                         2, "invalid_previous_output")
+                         2, "invalid_earlier_output")
     assert "without --line" in error["hint"]
 
 
