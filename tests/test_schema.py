@@ -71,3 +71,12 @@ def test_schema_describes_the_self_check(voxx):
     assert line["properties"]["error_rate"]["type"] == "number"
     # A Line in a language the transcriber cannot hear has neither.
     assert not {"transcript", "error_rate"} & set(line["required"])
+
+
+def test_schema_describes_word_timing(voxx):
+    line = voxx("schema", "narrate").result["data"]["narrate"]["result"]["properties"]["narration"]["properties"]["lines"]["items"]
+
+    assert set(line["properties"]["words"]["items"]["required"]) == {"text", "start", "end"}
+    # A Line the aligner could not time has a not_aligned warning instead.
+    assert "words" not in line["required"]
+    assert "not_aligned" in line["properties"]["warnings"]["description"]

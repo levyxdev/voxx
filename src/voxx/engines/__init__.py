@@ -24,6 +24,12 @@ class Engine(Protocol):
         """The words spoken in the WAV at path, in language, a BCP 47 tag."""
         ...
 
+    def align(self, path: Path, *, model: str, text: str, language: str) -> list[tuple[str, float, float]]:
+        """Each word of text, in order and without punctuation, with the seconds into the WAV at path where it starts
+        and ends. Each Chinese character counts as a word. language is a BCP 47 tag. Raises if it cannot align text
+        with the WAV."""
+        ...
+
 
 def load_engine(name) -> Engine:
     if name == "fake" and fake_engine_enabled():

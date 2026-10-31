@@ -35,7 +35,7 @@ def test_doctor_reports_installed_models_and_free_disk_space(installed):
     data = doctor(installed, "Darwin arm64")
 
     assert data["home"] == str(installed.home)
-    assert data["models"]["installed"] == ["fake-tts", "fake-tts-small", "fake-asr"]
+    assert data["models"]["installed"] == ["fake-tts", "fake-tts-small", "fake-asr", "fake-aligner"]
     not_installed = {m["model"]: m for m in data["models"]["not_installed"]}
     assert not_installed["voxcpm2"] == {"model": "voxcpm2", "size_bytes": 3_226_617_581, "license": "Apache-2.0",
                                         "license_url": "https://huggingface.co/openbmb/VoxCPM2"}

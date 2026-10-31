@@ -53,12 +53,26 @@ LINE_OUTPUT_FIELDS = {
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
-                                                  "that could not reach -18 LUFS without clipping, a Line not checked "
+                                                  "that could not reach -18 LUFS without clipping, a Line without "
+                                                  "words (not_aligned) because no Model aligns its language or the "
+                                                  "aligner failed, a Line not checked "
                                                   "because no Model can transcribe its language, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
                                                   "gives it other text or another language.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
+}
+
+# Only on Lines a Model aligned; any other Line has a not_aligned warning instead.
+ALIGN_FIELDS = {
+    "words": {"type": "array",
+              "description": "Word Timing: each word of the text in order, without punctuation; each Chinese "
+                             "character is a word. start and end are seconds into the Line's "
+                             "audio file, silence included, in whole milliseconds; 0 <= start <= end <= the audio's "
+                             "length, and no word starts before the one before it ends.",
+              "items": {"type": "object", "required": ["text", "start", "end"],
+                        "properties": {"text": {"type": "string"}, "start": {"type": "number", "minimum": 0},
+                                       "end": {"type": "number", "minimum": 0}}}},
 }
 
 # Only on Lines in a language a Model can transcribe; any other Line has a not_checked warning instead.
@@ -83,7 +97,7 @@ NARRATION_OUTPUT = {
                 **NARRATION_INPUT["properties"]["lines"]["items"],
                 "required": ["id", "text", *LINE_OUTPUT_FIELDS],
                 "properties": {**NARRATION_INPUT["properties"]["lines"]["items"]["properties"], **LINE_OUTPUT_FIELDS,
-                               **SELF_CHECK_FIELDS},
+                               **ALIGN_FIELDS, **SELF_CHECK_FIELDS},
             },
         },
     },
@@ -135,7 +149,8 @@ MODEL_NOT_INSTALLED = {
 COMMANDS = {
     "narrate": {
         "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]...",
-        "description": "Read every Line of a Narration, transcribe each back to check it, and write <dir>/<id>.wav per "
+        "description": "Read every Line of a Narration, time each word, transcribe each Line back to check it, and "
+                       "write <dir>/<id>.wav per "
                        "Line and <dir>/narration.json. "
                        "The completed Narration, read again with the same --model, gives the same audio. "
                        "With --line, read only those Lines again and keep every other Line, and its audio file, "

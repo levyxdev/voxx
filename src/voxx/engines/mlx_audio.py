@@ -23,8 +23,8 @@ class MlxAudioEngine:
     model: Any
 
     def load(self, path, capability):
-        # mlx-audio loads Models that speak and Models that transcribe through different loaders.
-        self.model = load_stt(path) if capability == "transcribe" else load_tts(path)
+        # mlx-audio loads Models that speak and Models that listen through different loaders.
+        self.model = load_stt(path) if capability in ("transcribe", "align") else load_tts(path)
 
     def synthesize(self, text, *, model, voice, style, language, seed):
         # mlx samples from one global generator, so seeding it before each Line makes the Line independent of the others.
@@ -40,3 +40,8 @@ class MlxAudioEngine:
     def transcribe(self, path, *, model, language):
         # Greedy decoding, so the same Line is always heard the same way; the path lets mlx-audio resample to 16 kHz.
         return self.model.generate(str(path), language=LANGUAGE_NAMES[language], verbose=False).text
+
+    def align(self, path, *, model, text, language):
+        # The aligner splits the text into words itself: by character for Chinese, by space for English.
+        result = self.model.generate(str(path), text=text, language=LANGUAGE_NAMES[language])
+        return [(item.text, item.start_time, item.end_time) for item in result]

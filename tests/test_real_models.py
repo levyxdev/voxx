@@ -36,8 +36,8 @@ def installed_models():
 
 @pytest.fixture(params=["qwen3-tts-1.7b-customvoice", "qwen3-tts-0.6b-customvoice"])
 def model(request, installed_models):
-    # Every narrate transcribes its Lines back with Qwen3-ASR.
-    for needed in (request.param, "qwen3-asr-0.6b"):
+    # Every narrate times its Lines' words with Qwen3-ForcedAligner and transcribes them back with Qwen3-ASR.
+    for needed in (request.param, "qwen3-forcedaligner-0.6b", "qwen3-asr-0.6b"):
         if needed not in installed_models:
             pytest.skip(f"{needed} is not installed")
     return request.param
@@ -74,6 +74,27 @@ def test_a_real_model_reads_short_lines_that_qwen3_asr_transcribes_almost_word_f
         assert line["transcript"].strip(), line["id"]
         # One slip in a short Line is allowed; broken audio or the wrong language is not.
         assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
+
+
+@pytest.mark.parametrize("language", ["zh", "en"])
+def test_qwen3_forcedaligner_times_every_word_of_short_lines(model, language, tmp_path):
+    out = tmp_path / "out"
+    for line in narrate(model, {**NARRATIONS[language], "seed": 42}, out):
+        words = line["words"]
+        texts = [w["text"] for w in words]
+        if language == "zh":
+            assert texts == [c for c in line["text"] if c.isalnum()], texts
+        else:
+            assert " ".join(texts) == "".join(c for c in line["text"] if c.isalnum() or c in " '").strip(), texts
+        with wave.open(str(out / line["audio"])) as audio:
+            seconds = audio.getnframes() / audio.getframerate()
+        previous_end = 0
+        for word in words:
+            assert previous_end <= word["start"] <= word["end"] <= seconds, words
+            previous_end = word["end"]
+        # The speech fills the audio but for 50 ms of silence at each end, so the words should too, within the
+        # aligner's 80 ms steps.
+        assert words[0]["start"] < 0.4 and words[-1]["end"] > seconds - 0.4, (seconds, words)
 
 
 def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):

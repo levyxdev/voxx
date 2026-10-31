@@ -3,6 +3,7 @@
 import json
 import os
 import signal
+import unicodedata
 import wave
 import zlib
 from typing import NamedTuple
@@ -11,10 +12,13 @@ import numpy as np
 
 SAMPLE_RATE = 24_000
 SECONDS_PER_CHAR = 0.06
-# "load", "synthesize" or "transcribe": the worker is killed at that step, as the OS does when memory runs out.
+# "load", "synthesize", "transcribe" or "align": the worker is killed at that step, as the OS does when memory runs out.
 CRASH_ENV = "VOXX_TEST_FAKE_CRASH"
 # A JSON object from a Line's text to what the fake Engine transcribes instead; any other Line is transcribed as written.
 HEARD_ENV = "VOXX_TEST_FAKE_HEARD"
+# A JSON object from a Line's text to the [word, start, end] list the fake Engine aligns it to instead, or to the
+# error it fails with; any other Line's words are spread evenly over the sound in its WAV.
+ALIGNED_ENV = "VOXX_TEST_FAKE_ALIGNED"
 
 
 class Shape(NamedTuple):
@@ -56,6 +60,38 @@ class FakeEngine:
             if not any(audio.readframes(audio.getnframes())):
                 return ""
         return json.loads(os.environ.get(HEARD_ENV, "{}")).get(FakeEngine.last_read, FakeEngine.last_read)
+
+    def align(self, path, *, model, text, language):
+        _crash_if("align")
+        aligned = json.loads(os.environ.get(ALIGNED_ENV, "{}")).get(text)
+        if isinstance(aligned, str):
+            raise RuntimeError(aligned)
+        if aligned is not None:
+            return [tuple(word) for word in aligned]
+        with wave.open(str(path)) as audio:
+            rate = audio.getframerate()
+            samples = np.frombuffer(audio.readframes(audio.getnframes()), "<i2")
+        sound = np.flatnonzero(samples)
+        start, end = (sound[0], sound[-1] + 1) if len(sound) else (0, len(samples))
+        words = _words(text)
+        step = (end - start) / rate / max(len(words), 1)
+        return [(word, start / rate + i * step, start / rate + (i + 1) * step) for i, word in enumerate(words)]
+
+
+def _words(text):
+    """As the real aligner splits a Chinese Line: each Chinese character, and each run of other letters, digits and
+    apostrophes."""
+    words, word = [], ""
+    for c in text:
+        if unicodedata.name(c, "").startswith("CJK UNIFIED"):
+            words += [word, c] if word else [c]
+            word = ""
+        elif c == "'" or unicodedata.category(c)[0] in "LN":
+            word += c
+        elif word:
+            words.append(word)
+            word = ""
+    return words + [word] if word else words
 
 
 def _crash_if(step):

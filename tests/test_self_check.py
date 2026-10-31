@@ -72,14 +72,14 @@ def test_a_line_in_a_language_no_model_transcribes_is_read_but_not_checked(insta
 
     assert (tmp_path / "out" / "a.wav").exists()
     assert "transcript" not in line and "error_rate" not in line
-    assert [w["code"] for w in line["warnings"]] == ["not_checked"]
+    assert [w["code"] for w in line["warnings"]] == ["not_aligned", "not_checked"]
 
 
 def test_a_line_in_a_language_no_model_transcribes_does_not_need_the_transcriber_installed(installed, write_narration, tmp_path):
     shutil.rmtree(installed.home / "models" / "fake-asr")
     narration = {"language": "fr", "voice": "fake-alice", "lines": [{"id": "a", "text": "Bonjour."}]}
 
-    assert narrate(installed, write_narration, tmp_path, narration)[0]["warnings"][0]["code"] == "not_checked"
+    assert "not_checked" in [w["code"] for w in narrate(installed, write_narration, tmp_path, narration)[0]["warnings"]]
 
 
 def test_narrate_without_the_transcriber_installed_fails_without_downloading(installed, write_narration, tmp_path, hub):
