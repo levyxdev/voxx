@@ -61,3 +61,12 @@ def test_the_cli_does_not_import_mlx(voxx, tmp_path):
     # The stand-in works: importing mlx under the same environment leaves the mark.
     subprocess.run([sys.executable, "-c", "import mlx"], env={**os.environ, "PYTHONPATH": str(tmp_path / "shadow")}, check=True)
     assert marker.exists()
+
+
+def test_schema_describes_the_self_check(voxx):
+    line = voxx("schema", "narrate").result["data"]["narrate"]["result"]["properties"]["narration"]["properties"]["lines"]["items"]
+
+    assert line["properties"]["transcript"]["type"] == "string"
+    assert line["properties"]["error_rate"]["type"] == "number"
+    # A Line in a language the transcriber cannot hear has neither.
+    assert not {"transcript", "error_rate"} & set(line["required"])

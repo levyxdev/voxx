@@ -146,10 +146,12 @@ def test_narrate_without_the_model_installed_fails_without_downloading(voxx, wri
     error = assert_error(run, 3, "model_not_installed")
     assert error["details"] == {
         "missing": [{"model": "fake-tts", "size_bytes": 4096, "license": "Apache-2.0",
-                     "license_url": "https://huggingface.co/voxx-test/fake-tts"}],
-        "total_bytes": 4096,
+                     "license_url": "https://huggingface.co/voxx-test/fake-tts"},
+                    {"model": "fake-asr", "size_bytes": 4096, "license": "Apache-2.0",
+                     "license_url": "https://huggingface.co/voxx-test/fake-asr"}],
+        "total_bytes": 8192,
     }
-    assert "voxx install fake-tts" in error["hint"]
+    assert "`voxx install fake-tts` and `voxx install fake-asr`" in error["hint"]
     assert hub.requests == []
     assert not out.exists()
 
@@ -178,11 +180,11 @@ def test_without_a_voice_the_model_reads_with_a_native_voice_of_the_language(ins
     assert lines_of(run)[0]["voice"] == voice
 
 
-def test_without_a_voice_or_model_the_default_preset_model_reads(voxx, write_narration, tmp_path):
+def test_without_a_voice_or_model_the_default_preset_model_reads_and_qwen3_asr_listens(voxx, write_narration, tmp_path):
     run = voxx("narrate", write_narration({"language": "en", "lines": [{"id": "a", "text": "Hi."}]}), "--out", tmp_path / "out")
 
     error = assert_error(run, 3, "model_not_installed")
-    assert [m["model"] for m in error["details"]["missing"]] == ["qwen3-tts-1.7b-customvoice"]
+    assert [m["model"] for m in error["details"]["missing"]] == ["qwen3-tts-1.7b-customvoice", "qwen3-asr-0.6b"]
 
 
 def test_an_unknown_model_is_an_argument_error(installed, write_narration, tmp_path):

@@ -51,10 +51,21 @@ LINE_OUTPUT_FIELDS = {
     "voice": {"type": "string"},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
-    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored or a Line "
-                                                  "that could not reach -18 LUFS without clipping.",
+    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
+                                                  "that could not reach -18 LUFS without clipping, or a Line not checked "
+                                                  "because no Model can transcribe its language.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}},
+}
+
+# Only on Lines in a language a Model can transcribe; any other Line has a not_checked warning instead.
+SELF_CHECK_FIELDS = {
+    "transcript": {"type": "string", "description": "The Line's audio, transcribed by the Model that transcribes its language."},
+    "error_rate": {"type": "number", "minimum": 0,
+                   "description": "Edits from text to transcript per unit of text: each Chinese, Japanese or Korean "
+                                  "character is a unit (CER), and so is each run of other letters and digits (WER). "
+                                  "Punctuation, spacing and case do not count; words heard but not written do, so it "
+                                  "can exceed 1. voxx only reports it: decide yourself whether to read the Line again."},
 }
 
 NARRATION_OUTPUT = {
@@ -68,7 +79,8 @@ NARRATION_OUTPUT = {
             "items": {
                 **NARRATION_INPUT["properties"]["lines"]["items"],
                 "required": ["id", "text", *LINE_OUTPUT_FIELDS],
-                "properties": {**NARRATION_INPUT["properties"]["lines"]["items"]["properties"], **LINE_OUTPUT_FIELDS},
+                "properties": {**NARRATION_INPUT["properties"]["lines"]["items"]["properties"], **LINE_OUTPUT_FIELDS,
+                               **SELF_CHECK_FIELDS},
             },
         },
     },
@@ -120,7 +132,8 @@ MODEL_NOT_INSTALLED = {
 COMMANDS = {
     "narrate": {
         "usage": "voxx narrate <narration.json> --out <dir> [--model <model>]",
-        "description": "Read every Line of a Narration, write <dir>/<id>.wav per Line and <dir>/narration.json. "
+        "description": "Read every Line of a Narration, transcribe each back to check it, and write <dir>/<id>.wav per "
+                       "Line and <dir>/narration.json. "
                        "The completed Narration, read again with the same --model, gives the same audio.",
         "arguments": {
             "$schema": DRAFT,
