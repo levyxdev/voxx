@@ -53,9 +53,9 @@ agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + w
 ## 命令
 
 ```
-voxx narrate <narration.json> --out <dir> [--model <id>] [--line <id>...]   # 合成整份旁白；--model 选念它的 Model；--line 只重配指定 Line
-voxx voice add <name> --ref <录音>                             # 存一个 Cloned Voice
-voxx voices                                                   # 列出 Preset Voice 和 Cloned Voice
+voxx narrate <narration.json> --out <dir> [--model <id>] [--line <id>...] [--voices-dir <dir>]   # 合成整份旁白；--model 选念它的 Model；--line 只重配指定 Line
+voxx voice add <name> --ref <录音> [--ref-text <文字>] [--model <id>] [--voices-dir <dir>] [--overwrite]   # 存一个 Cloned Voice
+voxx voices [--voices-dir <dir>]                              # 列出 Preset Voice 和 Cloned Voice
 voxx models                                                   # 注册表（只含可商用模型）
 voxx install <model>                                          # 唯一会下载的命令
 voxx doctor                                                   # 平台、已装模型、磁盘
@@ -100,7 +100,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 ## 音色
 
 - Preset Voice 按名字选，来自模型自带的音色。`voxx voices` 列出每个音色的母语、上游给的一句描述和能念它的 Model，agent 据此让用户挑。Qwen3-TTS CustomVoice 的 9 个音色全部登记，1.7B 和 0.6B 共用；不指定 `--model` 时由默认的 1.7B 念。
-- Cloned Voice 先存再用：`voice add` 把参考录音规范化、补好文字，存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以指向项目目录。
+- Cloned Voice 先存再用：`voice add` 把参考录音规范化（单声道、24 kHz、-18 LUFS、首尾静音 50 ms）、补好文字（没给 `--ref-text` 时用 Qwen3-ASR 听写，这时它必须已安装），存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以用 `--voices-dir` 指向项目目录，`narrate` 和 `voices` 传同一个目录。`voice.json` 记下 `voice add --model` 选的克隆 Model（默认 VoxCPM2），`narrate` 默认用它念，`narrate --model` 可以换成另一个克隆 Model。两个克隆 Model 都不跟随 `style`。
 - 代码不做授权校验，使用者对所克隆的声音负责，README 写免责声明（[ADR 0004](adr/0004-cloning-does-not-check-consent.md)）。不加水印。
 
 ## CLI 契约
@@ -121,7 +121,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 ```
 $VOXX_HOME（默认 ~/.voxx）
   models/            # 模型文件
-  voices/<name>/     # voice.json（来源、参考文字、创建模型）+ 规范化后的参考录音
+  voices/<name>/     # voice.json（来源、参考文字、念它的克隆 Model、听写它的 Model、创建时间）+ reference.wav（规范化后的参考录音）
 ```
 
 ## 平台与分发

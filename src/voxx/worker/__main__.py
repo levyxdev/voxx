@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 from typing import cast
 
-from voxx.audio import finish, write_wav
+from voxx.audio import finish, prepare_reference, write_wav
 from voxx.engines import load_engine
 from voxx.output import VoxxError, dumps, progress
 
@@ -17,12 +17,22 @@ class Worker:
     def __init__(self):
         self.engines = {}
 
-    def synthesize_line(self, *, model, engine, model_path, capability, text, voice, style, language, seed, path):
-        samples, sample_rate = self._engine(model, engine, model_path, capability).synthesize(
-            text, model=model, voice=voice, style=style, language=language, seed=seed)
+    def synthesize_line(self, *, model, engine, model_path, capability, text, language, seed, path, **voice):
+        """Reads a Line in a Preset Voice, given as voice and style, or with capability "clone" in a Cloned Voice,
+        given as reference: the path of its Reference Recording (audio) and that recording's words (text)."""
+        reader = self._engine(model, engine, model_path, capability)
+        if capability == "clone":
+            samples, sample_rate = reader.clone(text, model=model, reference=Path(voice["reference"]["audio"]),
+                                                reference_text=voice["reference"]["text"], language=language, seed=seed)
+        else:
+            samples, sample_rate = reader.synthesize(text, model=model, voice=voice["voice"], style=voice["style"],
+                                                     language=language, seed=seed)
         samples, warnings = finish(samples, sample_rate)
         write_wav(Path(path), samples, sample_rate)
         return {"sample_rate": sample_rate, "warnings": warnings}
+
+    def prepare_reference(self, *, source, path):
+        return {"warnings": prepare_reference(Path(source), Path(path))}
 
     def transcribe_line(self, *, model, engine, model_path, capability, language, path):
         return {"transcript": self._engine(model, engine, model_path, capability).transcribe(
@@ -53,7 +63,7 @@ def main():
     cast(io.TextIOWrapper, sys.stderr).reconfigure(encoding="utf-8")
     worker = Worker()
     methods = {"synthesize_line": worker.synthesize_line, "transcribe_line": worker.transcribe_line,
-               "align_line": worker.align_line, "shutdown": lambda: None}
+               "align_line": worker.align_line, "prepare_reference": worker.prepare_reference, "shutdown": lambda: None}
     for line in sys.stdin:
         request = json.loads(line)
         response = {"jsonrpc": "2.0", "id": request.get("id")}

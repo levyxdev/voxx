@@ -71,9 +71,14 @@ def check_narration(narration):
 
 
 def is_line_id(value):
+    return is_file_name(value, LONGEST_SUFFIX)
+
+
+def is_file_name(value, suffix=""):
+    """Whether `value`, followed by `suffix`, is a safe, visible file name."""
     return (isinstance(value, str) and bool(value.strip()) and not value.startswith(".")
             and not any(c in "/\\" or unicodedata.category(c) in UNSAFE_CATEGORIES for c in value)
-            and len((value + LONGEST_SUFFIX).encode("utf-8")) <= FILE_NAME_BYTES)
+            and len((value + suffix).encode("utf-8")) <= FILE_NAME_BYTES)
 
 
 def line_id_key(line_id):

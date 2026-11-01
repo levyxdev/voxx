@@ -1,13 +1,16 @@
-"""Finishing and writing a Line's audio. Worker-side only."""
+"""Finishing and writing a Line's audio and a Reference Recording. Worker-side only."""
 
+import math
 import warnings
 import wave
 
 import numpy as np
 import pyloudnorm
 from scipy.ndimage import minimum_filter1d, uniform_filter1d
+from scipy.signal import resample_poly
 
 from voxx.files import replacing
+from voxx.output import USAGE, VoxxError
 
 LOUDNESS = -18.0  # LUFS, integrated
 TOLERANCE = 0.5  # LU a Line may fall short of LOUDNESS before it warns
@@ -16,6 +19,9 @@ QUIET = 10 ** (-50 / 20)  # a sample this far below the Line's peak counts as si
 BLOCK = 0.4  # seconds: the loudness meter's gating block
 CEILING = 10 ** (-1 / 20)  # the highest peak a Line may reach, a little below full scale so it never clips
 REACH = 0.01  # seconds either side of a peak over which the limiter turns the Line down and back up
+# Every Reference Recording is stored at one rate: as high as any cloning Model hears (Qwen3-TTS Base hears 24 kHz,
+# VoxCPM2 16 kHz), so storing more would keep nothing a Model uses.
+REFERENCE_SAMPLE_RATE = 24_000
 
 
 def finish(samples, sample_rate):
@@ -31,6 +37,31 @@ def finish(samples, sample_rate):
         return samples, []
     return samples, [{"code": "loudness_below_target",
                       "message": f"The Line peaks too often to reach {LOUDNESS:g} LUFS without clipping; it is {reached:.1f} LUFS."}]
+
+
+def prepare_reference(source, path):
+    """Normalizes the Reference Recording at `source` into a WAV at `path`, as a Line is finished: mono, at
+    REFERENCE_SAMPLE_RATE, at the same loudness and with the same short silences. Returns its warnings."""
+    # mlx-audio's reader decodes WAV, MP3 and FLAC itself, and M4A, Ogg, AIFF and more through ffmpeg if installed.
+    from mlx_audio.audio_io import read
+
+    try:
+        samples, sample_rate = read(str(source), always_2d=True, dtype="float64")
+    except Exception as e:
+        raise VoxxError("unreadable_reference", f"Cannot decode {source}: {type(e).__name__}: {e}",
+                        "Pass a WAV, MP3 or FLAC file to --ref, or install ffmpeg for other formats.",
+                        {"ref": str(source)}, USAGE)
+    samples = samples.mean(axis=1)
+    if not len(samples):
+        raise VoxxError("silent_reference", f"{source} has no audio.", "Pass a recording of the voice to --ref.",
+                        {"ref": str(source)}, USAGE)
+    gcd = math.gcd(REFERENCE_SAMPLE_RATE, sample_rate)
+    samples, found = finish(resample_poly(samples, REFERENCE_SAMPLE_RATE // gcd, sample_rate // gcd), REFERENCE_SAMPLE_RATE)
+    if any(w["code"] == "silent" for w in found):
+        raise VoxxError("silent_reference", f"{source} is silent.", "Pass a recording of the voice to --ref.",
+                        {"ref": str(source)}, USAGE)
+    write_wav(path, samples, REFERENCE_SAMPLE_RATE)
+    return found
 
 
 def _loudness(samples, sample_rate):
