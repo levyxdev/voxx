@@ -1,0 +1,20 @@
+{
+  "name": "voxx",
+  "displayName": "voxx",
+  "version": "0.1.0",
+  "description": "Voice narration locally on Apple Silicon: one WAV and word timings per Line, in a preset or cloned voice, ready for CueTake.",
+  "author": {
+    "name": "levyxdev",
+    "url": "https://github.com/levyxdev"
+  },
+  "homepage": "https://github.com/levyxdev/voxx",
+  "repository": "https://github.com/levyxdev/voxx",
+  "license": "Apache-2.0",
+  "keywords": [
+    "text-to-speech",
+    "tts",
+    "narration",
+    "voice-cloning",
+    "mlx"
+  ]
+}

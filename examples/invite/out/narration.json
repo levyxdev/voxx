@@ -1,0 +1,249 @@
+{
+  "language": "zh",
+  "style": "语气亲切自然，语速适中，像在给同事演示一个新功能",
+  "lines": [
+    {
+      "id": "intro",
+      "text": "这是新的邀请流程，只要三步。",
+      "audio": "intro.wav",
+      "model": "qwen3-tts-1.7b-customvoice",
+      "voice": "vivian",
+      "seed": 146783700,
+      "sample_rate": 24000,
+      "warnings": [],
+      "words": [
+        {
+          "text": "这",
+          "start": 0.0,
+          "end": 0.16
+        },
+        {
+          "text": "是",
+          "start": 0.16,
+          "end": 0.24
+        },
+        {
+          "text": "新",
+          "start": 0.24,
+          "end": 0.48
+        },
+        {
+          "text": "的",
+          "start": 0.48,
+          "end": 0.56
+        },
+        {
+          "text": "邀",
+          "start": 0.64,
+          "end": 0.8
+        },
+        {
+          "text": "请",
+          "start": 0.8,
+          "end": 0.96
+        },
+        {
+          "text": "流",
+          "start": 0.96,
+          "end": 1.12
+        },
+        {
+          "text": "程",
+          "start": 1.12,
+          "end": 1.52
+        },
+        {
+          "text": "只",
+          "start": 1.76,
+          "end": 1.84
+        },
+        {
+          "text": "要",
+          "start": 1.84,
+          "end": 2.0
+        },
+        {
+          "text": "三",
+          "start": 2.0,
+          "end": 2.32
+        },
+        {
+          "text": "步",
+          "start": 2.32,
+          "end": 2.56
+        }
+      ],
+      "transcript": "这是新的邀请流程，只要三步。",
+      "error_rate": 0.0
+    },
+    {
+      "id": "email",
+      "text": "先填上同事的邮箱，再选好对方的角色。",
+      "audio": "email.wav",
+      "model": "qwen3-tts-1.7b-customvoice",
+      "voice": "vivian",
+      "seed": 1550333671,
+      "sample_rate": 24000,
+      "warnings": [],
+      "words": [
+        {
+          "text": "先",
+          "start": 0.0,
+          "end": 0.24
+        },
+        {
+          "text": "填",
+          "start": 0.24,
+          "end": 0.48
+        },
+        {
+          "text": "上",
+          "start": 0.48,
+          "end": 0.72
+        },
+        {
+          "text": "同",
+          "start": 0.72,
+          "end": 1.04
+        },
+        {
+          "text": "事",
+          "start": 1.04,
+          "end": 1.2
+        },
+        {
+          "text": "的",
+          "start": 1.2,
+          "end": 1.28
+        },
+        {
+          "text": "邮",
+          "start": 1.28,
+          "end": 1.44
+        },
+        {
+          "text": "箱",
+          "start": 1.44,
+          "end": 1.84
+        },
+        {
+          "text": "再",
+          "start": 2.24,
+          "end": 2.4
+        },
+        {
+          "text": "选",
+          "start": 2.4,
+          "end": 2.72
+        },
+        {
+          "text": "好",
+          "start": 2.72,
+          "end": 2.88
+        },
+        {
+          "text": "对",
+          "start": 2.88,
+          "end": 3.12
+        },
+        {
+          "text": "方",
+          "start": 3.12,
+          "end": 3.28
+        },
+        {
+          "text": "的",
+          "start": 3.28,
+          "end": 3.36
+        },
+        {
+          "text": "角",
+          "start": 3.36,
+          "end": 3.6
+        },
+        {
+          "text": "色",
+          "start": 3.6,
+          "end": 3.84
+        }
+      ],
+      "transcript": "先填上同事的邮箱，再选好对方的角色。",
+      "error_rate": 0.0
+    },
+    {
+      "id": "send",
+      "text": "点一下发送，邀请就发出去了！",
+      "style": "语气轻快，带一点兴奋",
+      "audio": "send.wav",
+      "model": "qwen3-tts-1.7b-customvoice",
+      "voice": "vivian",
+      "seed": 108231541,
+      "sample_rate": 24000,
+      "warnings": [],
+      "words": [
+        {
+          "text": "点",
+          "start": 0.0,
+          "end": 0.24
+        },
+        {
+          "text": "一",
+          "start": 0.24,
+          "end": 0.32
+        },
+        {
+          "text": "下",
+          "start": 0.32,
+          "end": 0.48
+        },
+        {
+          "text": "发",
+          "start": 0.48,
+          "end": 0.72
+        },
+        {
+          "text": "送",
+          "start": 0.72,
+          "end": 1.04
+        },
+        {
+          "text": "邀",
+          "start": 1.44,
+          "end": 1.6
+        },
+        {
+          "text": "请",
+          "start": 1.6,
+          "end": 1.84
+        },
+        {
+          "text": "就",
+          "start": 1.84,
+          "end": 1.92
+        },
+        {
+          "text": "发",
+          "start": 1.92,
+          "end": 2.16
+        },
+        {
+          "text": "出",
+          "start": 2.16,
+          "end": 2.32
+        },
+        {
+          "text": "去",
+          "start": 2.32,
+          "end": 2.48
+        },
+        {
+          "text": "了",
+          "start": 2.48,
+          "end": 2.72
+        }
+      ],
+      "transcript": "点一下，发送邀请就发出去了。",
+      "error_rate": 0.0
+    }
+  ]
+}

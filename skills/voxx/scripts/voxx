@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the voxx CLI pinned to the version this skill was released with.
+# VOXX_BIN overrides the command, e.g. VOXX_BIN="uv run --project /path/to/voxx voxx" for a source checkout.
+exec ${VOXX_BIN:-uvx voxx@0.1.0} "$@"

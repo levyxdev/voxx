@@ -1,0 +1,17 @@
+{
+  "name": "voxx",
+  "owner": {
+    "name": "levyxdev",
+    "url": "https://github.com/levyxdev"
+  },
+  "description": "voxx: local narration for AI agents.",
+  "plugins": [
+    {
+      "name": "voxx",
+      "source": "./",
+      "description": "Skill for voicing narration with the voxx CLI.",
+      "category": "productivity",
+      "keywords": ["text-to-speech", "narration", "voice"]
+    }
+  ]
+}
