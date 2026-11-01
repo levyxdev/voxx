@@ -98,12 +98,13 @@ REGISTRY = (
           "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit", "049ef77fe8816b536193c0c25f9a214d17921282", 1_973_575_388,
           _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"), QWEN3_TTS_CODE, VERIFIED, 24_000,
           QWEN3_TTS_VOICES),
-    Model("qwen3-tts-1.7b-base", "mlx-audio", ("clone",), QWEN3_TTS_LANGUAGES,
-          "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit", "e7dd0585652209fa0d7783659aad4e8a324de11c", 3_104_158_788,
-          _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base"), QWEN3_TTS_CODE, VERIFIED, 24_000),
+    # The first Model that clones is the one a new Cloned Voice is read with; the other is there to compare by ear.
     Model("voxcpm2", "mlx-audio", ("clone",), ("zh", "en"),
           "mlx-community/VoxCPM2-8bit", "d52725898a0675703f7f9ddc5a4d1a3cdbb99032", 3_226_617_581,
           _apache("https://huggingface.co/openbmb/VoxCPM2"), _apache("https://github.com/OpenBMB/VoxCPM"), VERIFIED, 48_000),
+    Model("qwen3-tts-1.7b-base", "mlx-audio", ("clone",), QWEN3_TTS_LANGUAGES,
+          "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit", "e7dd0585652209fa0d7783659aad4e8a324de11c", 3_104_158_788,
+          _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base"), QWEN3_TTS_CODE, VERIFIED, 24_000),
     Model("qwen3-forcedaligner-0.6b", "mlx-audio", ("align",), ("zh", "en"),
           "mlx-community/Qwen3-ForcedAligner-0.6B-8bit", "0e1a68e91d815300c7c9754b2a7639378b23db15", 1_276_475_979,
           _apache("https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B"), QWEN3_ASR_CODE, VERIFIED),
@@ -133,7 +134,16 @@ FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
                          "voxx-test/fake-aligner", "76543210fedcba9876543210fedcba9876543210", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-aligner"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED)
-FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL)
+# Clone like the two real cloning Models: neither follows style, and they read at different sample rates.
+FAKE_CLONE_MODEL = Model("fake-clone", "fake", ("clone",), ("zh", "en"),
+                         "voxx-test/fake-clone", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c", 4096,
+                         _apache("https://huggingface.co/voxx-test/fake-clone"),
+                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000)
+FAKE_CLONE_ALT_MODEL = Model("fake-clone-alt", "fake", ("clone",), ("zh", "en"),
+                             "voxx-test/fake-clone-alt", "a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2", 4096,
+                             _apache("https://huggingface.co/voxx-test/fake-clone-alt"),
+                             _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000)
+FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL)
 
 
 INSTALL_MANIFEST = "voxx-install.json"
@@ -186,8 +196,8 @@ def list_models(capability=None, installed=None):
     return {"models": [m for m in listed if installed is None or m["installed"] == installed]}
 
 
-def list_voices():
-    """`voxx voices`: every Preset Voice, and the Models that read it."""
+def list_preset_voices():
+    """Every Preset Voice, and the Models that read it, as `voxx voices` lists them."""
     voices = {}
     for model in models():
         installed = is_installed(model)
@@ -196,7 +206,7 @@ def list_voices():
                                                    "description": voice.description, "languages": [], "models": []})
             entry["languages"] += [l for l in model.languages if l not in entry["languages"]]
             entry["models"].append({"model": model.id, "installed": installed})
-    return {"voices": list(voices.values())}
+    return list(voices.values())
 
 
 def find_model(model_id):
@@ -208,8 +218,8 @@ def find_model(model_id):
 
 
 def transcriber_for(model, language):
-    """The Model that transcribes a Line this Model read in this language: the first on the same Engine that can.
-    None if no Model can."""
+    """The Model that transcribes a Line this Model read in this language, or in any language if None: the first on
+    the same Engine that can. None if no Model can."""
     return _listener_for(model, language, "transcribe")
 
 
@@ -221,35 +231,46 @@ def aligner_for(model, language):
 
 def _listener_for(model, language, capability):
     return next((m for m in models() if capability in m.capabilities and m.engine == model.engine
-                 and language in m.languages), None)
+                 and (language is None or language in m.languages)), None)
 
 
-def resolve_voice(voice, language, model=None):
-    """The Model that reads this Voice in this language, and the Voice's name.
+def preset_voice_names():
+    return list(dict.fromkeys(v for m in models() for v in m.voice_names()))
+
+
+def default_clone_model():
+    return next(m for m in models() if "clone" in m.capabilities)
+
+
+def resolve_preset_voice(voice, language, model=None):
+    """The Model that reads this Preset Voice in this language, and the Voice's name.
 
     No Model means the one that has the Voice, or the default Model; no Voice means the Model's first Voice whose
     native language this is, else its first Voice."""
     readers = [m for m in models() if m.preset_voices]
-    if voice is not None and not any(voice in m.voice_names() for m in readers):
-        known = list(dict.fromkeys(v for m in readers for v in m.voice_names()))
-        raise VoxxError("unknown_voice", f"No Model has a Voice named {voice!r}.",
-                        "Use one of the Voices in details.known_voices, or run `voxx voices`.",
-                        {"voice": voice, "known_voices": known}, USAGE)
     if model is None:
         model = next(m for m in readers if voice is None or voice in m.voice_names())
     elif "preset_voice" not in model.capabilities:
-        raise _unsupported("capability_unsupported", model, f"Model {model.id} cannot read Preset Voices.",
-                           "Pick a Model with the preset_voice capability from `voxx models`.", {"capability": "preset_voice"})
+        raise unsupported_capability(model, "preset_voice", "read Preset Voices")
     elif voice is not None and voice not in model.voice_names():
         raise _unsupported("voice_unsupported", model, f"Model {model.id} has no Voice named {voice!r}.",
                            "Pick one of the Voices in details.voices, or a Model that has this Voice.",
                            {"voice": voice, "voices": list(model.voice_names())})
-    if language not in model.languages:
-        raise _unsupported("unsupported_language", model, f"Model {model.id} cannot read language {language!r}.",
-                           "Pick a Model that reads this language.", {"language": language, "languages": list(model.languages)})
+    check_language(model, language)
     if voice is None:
         voice = next((v.name for v in model.preset_voices if v.native_language == language), model.preset_voices[0].name)
     return model, voice
+
+
+def check_language(model, language):
+    if language not in model.languages:
+        raise _unsupported("unsupported_language", model, f"Model {model.id} cannot read language {language!r}.",
+                           "Pick a Model that reads this language.", {"language": language, "languages": list(model.languages)})
+
+
+def unsupported_capability(model, capability, doing):
+    return _unsupported("capability_unsupported", model, f"Model {model.id} cannot {doing}.",
+                        f"Pick a Model with the {capability} capability from `voxx models`.", {"capability": capability})
 
 
 def _unsupported(code, model, message, hint, details):

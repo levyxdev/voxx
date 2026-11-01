@@ -11,6 +11,8 @@ from typing import NamedTuple
 
 import numpy as np
 
+from voxx.models import find_model
+
 SAMPLE_RATE = 24_000
 SECONDS_PER_CHAR = 0.06
 # "load", "synthesize", "transcribe" or "align": the worker is killed at that step, as the OS does when memory runs out.
@@ -18,6 +20,9 @@ SECONDS_PER_CHAR = 0.06
 CRASH_ENV = "VOXX_TEST_FAKE_CRASH"
 # A JSON object from a Line's text to what the fake Engine transcribes instead; any other Line is transcribed as written.
 HEARD_ENV = "VOXX_TEST_FAKE_HEARD"
+# What the fake Engine hears in a recording it did not read itself, such as a Reference Recording; HEARD_ENV can map it
+# to something else too.
+REFERENCE_HEARD = "这是我自己的声音。"
 # A JSON object from a Line's text to the [word, start, end] list the fake Engine aligns it to instead, or to the
 # error it fails with; any other Line's words are spread evenly over the sound in its WAV.
 ALIGNED_ENV = "VOXX_TEST_FAKE_ALIGNED"
@@ -44,24 +49,19 @@ class FakeEngine:
         _crash_if("load")
 
     def synthesize(self, text, *, model, voice, style, language, seed):
-        _crash_if("synthesize")
-        FakeEngine.last_read = text
-        # The tone's pitch follows the seed, the Voice and the style, so tests can tell what reached the Engine.
-        frequency = 200 + np.random.default_rng([seed, zlib.crc32(voice.encode()), zlib.crc32((style or "").encode())]).integers(0, 2000)
-        shape = SHAPES[seed] if seed < len(SHAPES) else SHAPES[0]
-        t = np.arange(int(SAMPLE_RATE * len(text) * SECONDS_PER_CHAR)) / SAMPLE_RATE
-        tone = shape.amplitude * np.sin(2 * np.pi * frequency * t)
-        if shape.spike:
-            tone[(2 * np.arange(shape.spikes) + 1) * len(tone) // (2 * shape.spikes)] = shape.spike
-        lead, tail = np.zeros(int(SAMPLE_RATE * shape.lead)), np.zeros(int(SAMPLE_RATE * shape.tail))
-        return np.concatenate([lead, tone, tail]).astype(np.float32), SAMPLE_RATE
+        return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode())
+
+    def clone(self, text, *, model, reference, reference_text, language, seed):
+        # The pitch follows the Reference Recording and its words, and the sample rate the Model's registry entry.
+        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), reference_text.encode())
 
     def transcribe(self, path, *, model, language):
         _crash_if("transcribe")
         with wave.open(str(path)) as audio:
             if not any(audio.readframes(audio.getnframes())):
                 return ""
-        return json.loads(os.environ.get(HEARD_ENV, "{}")).get(FakeEngine.last_read, FakeEngine.last_read)
+        heard = REFERENCE_HEARD if FakeEngine.last_read is None else FakeEngine.last_read
+        return json.loads(os.environ.get(HEARD_ENV, "{}")).get(heard, heard)
 
     def align(self, path, *, model, text, language):
         _crash_if("align")
@@ -78,6 +78,21 @@ class FakeEngine:
         words = _words(text)
         step = (end - start) / rate / max(len(words), 1)
         return [(word, start / rate + i * step, start / rate + (i + 1) * step) for i, word in enumerate(words)]
+
+
+def _tone(text, seed, sample_rate, *voice):
+    """A Line read as a tone whose pitch follows the seed and every part of `voice`, so tests can tell what reached
+    the Engine."""
+    _crash_if("synthesize")
+    FakeEngine.last_read = text
+    frequency = 200 + np.random.default_rng([seed, *map(zlib.crc32, voice)]).integers(0, 2000)
+    shape = SHAPES[seed] if seed < len(SHAPES) else SHAPES[0]
+    t = np.arange(int(sample_rate * len(text) * SECONDS_PER_CHAR)) / sample_rate
+    tone = shape.amplitude * np.sin(2 * np.pi * frequency * t)
+    if shape.spike:
+        tone[(2 * np.arange(shape.spikes) + 1) * len(tone) // (2 * shape.spikes)] = shape.spike
+    lead, tail = np.zeros(int(sample_rate * shape.lead)), np.zeros(int(sample_rate * shape.tail))
+    return np.concatenate([lead, tone, tail]).astype(np.float32), sample_rate
 
 
 def _words(text):

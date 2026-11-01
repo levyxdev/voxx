@@ -17,7 +17,7 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
 
     assert run.exit_code == 0
     models = by_id(run)
-    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner"} == set(models)
+    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt"} == set(models)
     for id, (capability, size) in REAL_MODELS.items():
         model = models[id]
         assert model["capabilities"] == [capability]
@@ -44,7 +44,7 @@ def test_the_fake_model_is_listed_only_for_tests(voxx):
 def test_models_can_be_filtered_by_capability(voxx):
     run = voxx("models", "--capability", "clone")
 
-    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2"}
+    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "fake-clone", "fake-clone-alt"}
 
 
 def test_an_unknown_capability_is_an_argument_error(voxx):
@@ -55,7 +55,7 @@ def test_an_unknown_capability_is_an_argument_error(voxx):
 
 
 def test_models_can_be_filtered_by_install_state(installed):
-    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner"}
+    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt"}
     assert set(by_id(installed("models", "--not-installed"))) == set(REAL_MODELS)
     assert by_id(installed("models"))["fake-tts"]["installed"] is True
 

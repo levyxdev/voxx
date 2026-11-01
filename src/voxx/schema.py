@@ -29,8 +29,10 @@ NARRATION_INPUT = {
     "required": ["language", "lines"],
     "properties": {
         "language": {**_language, "description": f"{LANGUAGE_RULE} The Model must read it; see `voxx models`."},
-        "voice": {**_non_empty_string, "description": "Default Voice for every Line, from `voxx voices`. Omit for the "
-                                                      "Model's first Voice native to the language."},
+        "voice": {**_non_empty_string, "description": "Default Voice for every Line, from `voxx voices`: a Preset Voice, "
+                                                      "or a Cloned Voice from `voxx voice add`, read by the Model it was "
+                                                      "added with. Omit for the Model's first Preset Voice native to "
+                                                      "the language."},
         "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
                                                       "instruction. Ignored, with a warning, by a Model that cannot follow it."},
         "seed": {**_seed, "description": "Default seed for every Line. Omit for a random one per Line; the same seed, "
@@ -69,7 +71,7 @@ LINE_OUTPUT_FIELDS = {
     "audio": {"type": "string", "description": "Mono WAV at the Model's native sample rate, at -18 LUFS with 50 ms of "
                                                "silence before and after the speech; relative to the output Narration file."},
     "model": {"type": "string"},
-    "voice": {"type": "string"},
+    "voice": {"type": "string", "description": "The name of the Preset Voice or Cloned Voice the Line was read in."},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
@@ -149,6 +151,47 @@ MODEL = {
     },
 }
 
+_installed_models = {"type": "array", "items": {"type": "object", "required": ["model", "installed"],
+                                               "properties": {"model": _model_id, "installed": {"type": "boolean"}}}}
+
+PRESET_VOICE = {
+    "type": "object",
+    "required": ["name", "kind", "native_language", "description", "languages", "models"],
+    "properties": {
+        "name": {"type": "string", "description": "What a Narration's voice names."},
+        "kind": {"const": "preset"},
+        "native_language": _language,
+        "description": {"type": "string", "description": "How the Voice sounds, from the Model's makers."},
+        "languages": {"type": "array", "items": _language, "description": "Languages a Model reads this Voice in."},
+        "models": {**_installed_models, "description": "The Models that have this Voice."},
+    },
+}
+
+CLONED_VOICE = {
+    "type": "object",
+    "required": ["name", "kind", "reference_text", "model", "languages", "models", "path", "source", "created",
+                 "transcribed_by"],
+    "properties": {
+        "name": {"type": "string", "description": "What a Narration's voice names."},
+        "kind": {"const": "cloned"},
+        "reference_text": {"type": "string", "description": "The words of the Reference Recording."},
+        "model": {**_model_id, "description": "The Model that reads the Voice, unless `voxx narrate --model` names "
+                                              "another Model with the clone capability."},
+        "languages": {"type": "array", "items": _language, "description": "Languages a Model reads this Voice in."},
+        "models": {**_installed_models, "description": "Every Model that can read this Voice: the Models that clone."},
+        "path": {"type": "string", "description": "The Voice's directory, holding voice.json and reference.wav: the "
+                                                  "Reference Recording as mono 24 kHz WAV at -18 LUFS, with 50 ms of "
+                                                  "silence before and after the speech."},
+        "source": {"type": "string", "description": "Absolute path of the recording given to --ref."},
+        "created": {"type": "string", "format": "date-time"},
+        "transcribed_by": {"type": ["string", "null"],
+                           "description": "The Model that transcribed reference_text; null if --ref-text gave it."},
+    },
+}
+
+_voices_dir = {"type": "string", "description": "Directory of Cloned Voices (--voices-dir), such as one in the user's "
+                                                "project; omit for $VOXX_HOME/voices."}
+
 MODEL_NOT_INSTALLED = {
     "$schema": DRAFT,
     "description": "details of a model_not_installed error (exit code 3): the Models that read the Lines. A missing "
@@ -163,7 +206,7 @@ MODEL_NOT_INSTALLED = {
 
 COMMANDS = {
     "narrate": {
-        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]...",
+        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--voices-dir <dir>]",
         "description": "Read every Line of a Narration, time each word, transcribe each Line back to check it, and "
                        "write <dir>/<id>.wav per "
                        "Line and <dir>/narration.json. Only the Model that reads must be installed: without the "
@@ -179,12 +222,16 @@ COMMANDS = {
                 "narration": {"type": "string", "description": "Path to the Narration file (positional)."},
                 "out": {"type": "string", "description": "Output directory (--out); created if missing."},
                 "model": {**_model_id, "description": "The Model that reads every Line (--model). Omit for the Model "
-                                                      "that has each Line's Voice, or the default Model."},
+                                                      "that has each Line's Preset Voice, the Model each Cloned Voice "
+                                                      "was added with, or the default Model."},
                 "line": {"type": "array", "items": _non_empty_string,
                          "description": "Ids of Lines to read again (--line, once per id), after a whole run into the "
                                         "same --out. Each is read with a new seed: the one the Narration file gives it, "
                                         "if that differs from the seed it was read with before, else a random one. "
                                         "Every other Line keeps its audio file and fields from the earlier run."},
+                "voices_dir": {**_voices_dir, "description": "Where to find the Cloned Voices the Narration names "
+                                                             "(--voices-dir): the directory they were added to; omit "
+                                                             "for $VOXX_HOME/voices."},
             },
         },
         "input": NARRATION_INPUT,
@@ -200,9 +247,13 @@ COMMANDS = {
         "errors": {
             "model_not_installed": MODEL_NOT_INSTALLED,
             "invalid_narration": {"description": "Exit 2: details.at points at what is wrong in the Narration file."},
-            "unknown_voice": {"description": "Exit 2: no Model has this Voice; details.known_voices lists them."},
+            "unknown_voice": {"description": "Exit 2: no Preset Voice or Cloned Voice in details.voices_dir has this "
+                                             "name; details.known_voices lists them."},
+            "invalid_cloned_voice": {"description": "Exit 2: the Cloned Voice's directory, details.path, cannot be "
+                                                    "read; add the Voice again with --overwrite."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
-            "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot read Preset Voices."},
+            "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot read Preset Voices, "
+                                                      "or cannot read a Cloned Voice (details.capability)."},
             "voice_unsupported": {"description": "Exit 4: the Model given to --model lacks this Voice; details.voices lists its own."},
             "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
             "unknown_line": {"description": "Exit 2: no Line has an id given to --line; details.known_lines lists them."},
@@ -213,27 +264,78 @@ COMMANDS = {
                                              "--line does not name."},
         },
     },
+    "voice add": {
+        "usage": "voxx voice add <name> --ref <recording> [--ref-text <text>] [--model <model>] [--voices-dir <dir>] "
+                 "[--overwrite]",
+        "description": "Store a Cloned Voice: normalize the Reference Recording (mono, 24 kHz, -18 LUFS, 50 ms of "
+                       "silence at each end), transcribe it unless --ref-text gives its words, and save both as "
+                       "<voices dir>/<name>/. A Narration then names it as its voice. voxx does not check consent: "
+                       "first ask the user to confirm they have the right to use this voice. Only without --ref-text "
+                       "must a Model be installed: the one that transcribes.",
+        "arguments": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["name", "ref"],
+            "properties": {
+                "name": {**_non_empty_string,
+                         "description": "The Voice's name (positional): not a Preset Voice's name, and a safe file "
+                                        "name: visible text that does not start with '.' and has no '/' or '\\'."},
+                "ref": {"type": "string", "description": "The Reference Recording (--ref): WAV, MP3 or FLAC, or with "
+                                                         "ffmpeg installed M4A, Ogg, AIFF and more. A few seconds to "
+                                                         "half a minute of one person speaking clearly."},
+                "ref_text": {**_non_empty_string, "description": "Its words, exactly as spoken (--ref-text). Omit to "
+                                                                 "transcribe them, which needs the transcribing Model."},
+                "model": {**_model_id, "description": "The Model that clones, which reads the Voice from then on "
+                                                      "(--model). Omit for the default, the first Model with the "
+                                                      "clone capability in `voxx models`."},
+                "voices_dir": {**_voices_dir, "description": "Where to store the Voice (--voices-dir), such as a "
+                                                             "directory in the user's project; omit for "
+                                                             "$VOXX_HOME/voices. Pass the same one to narrate."},
+                "overwrite": {"type": "boolean", "description": "Replace a Cloned Voice of this name (--overwrite)."},
+            },
+        },
+        "result": {
+            **CLONED_VOICE,
+            "$schema": DRAFT,
+            "required": [*CLONED_VOICE["required"], "warnings"],
+            "properties": {**CLONED_VOICE["properties"],
+                           "warnings": {"type": "array", "description": "What did not go as asked, such as a recording "
+                                                                        "that could not reach -18 LUFS without clipping.",
+                                        "items": {"type": "object", "required": ["code", "message"],
+                                                  "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}}},
+        },
+        "errors": {
+            "model_not_installed": {**MODEL_NOT_INSTALLED,
+                                    "description": "details of a model_not_installed error (exit code 3): the Model "
+                                                   "that transcribes the Reference Recording. Install it once the "
+                                                   "user agrees, or pass --ref-text instead."},
+            "invalid_voice_name": {"description": "Exit 2: the name cannot name a directory."},
+            "voice_exists": {"description": "Exit 2: a Preset Voice or a stored Cloned Voice has this name; pass "
+                                            "--overwrite to replace a Cloned Voice."},
+            "reference_not_found": {"description": "Exit 2: no file at --ref."},
+            "invalid_reference_text": {"description": "Exit 2: --ref-text is empty."},
+            "unreadable_reference": {"description": "Exit 2: the file at --ref cannot be decoded as audio."},
+            "silent_reference": {"description": "Exit 2: the recording is silent."},
+            "reference_not_transcribed": {"description": "Exit 2: no words were heard; pass --ref-text."},
+            "invalid_voices_dir": {"description": "Exit 2: --voices-dir cannot be created or written."},
+            "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
+            "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot clone."},
+            "cannot_transcribe": {"description": "Exit 4: no Model can transcribe for this Model; pass --ref-text."},
+        },
+    },
     "voices": {
-        "usage": "voxx voices",
-        "description": "List the Preset Voices and the Models that read them.",
-        "arguments": {"$schema": DRAFT, "type": "object", "properties": {}},
+        "usage": "voxx voices [--voices-dir <dir>]",
+        "description": "List the Preset Voices and the Models that read them, then the Cloned Voices in the voices dir.",
+        "arguments": {"$schema": DRAFT, "type": "object", "properties": {"voices_dir": _voices_dir}},
         "result": {
             "$schema": DRAFT,
             "type": "object",
             "required": ["voices"],
-            "properties": {"voices": {"type": "array", "items": {
-                "type": "object",
-                "required": ["name", "kind", "native_language", "description", "languages", "models"],
-                "properties": {
-                    "name": {"type": "string", "description": "What a Narration's voice names."},
-                    "kind": {"enum": ["preset"]},
-                    "native_language": _language,
-                    "description": {"type": "string", "description": "How the Voice sounds, from the Model's makers."},
-                    "languages": {"type": "array", "items": _language, "description": "Languages a Model reads this Voice in."},
-                    "models": {"type": "array", "items": {"type": "object", "required": ["model", "installed"],
-                                                          "properties": {"model": _model_id, "installed": {"type": "boolean"}}}},
-                },
-            }}},
+            "properties": {"voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE]}}},
+        },
+        "errors": {
+            "invalid_cloned_voice": {"description": "Exit 2: a Cloned Voice's directory, details.path, cannot be read; "
+                                                    "add the Voice again with --overwrite, or remove the directory."},
         },
     },
     "models": {
@@ -307,7 +409,7 @@ COMMANDS = {
     },
     "schema": {
         "usage": "voxx schema [<command>]",
-        "description": "Describe every command, or just one.",
+        "description": "Describe every command, or just one, such as `voxx schema narrate` or `voxx schema voice add`.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",

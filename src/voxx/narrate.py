@@ -10,10 +10,11 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing, staging
-from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, resolve_voice, transcriber_for
+from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, transcriber_for
 from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
+from voxx.voices import resolve_voice
 from voxx.words import word_timings
 from voxx.worker.client import WorkerProcess
 
@@ -21,8 +22,9 @@ OUTPUT_NAME = "narration.json"
 READ_ALL_HINT = "Read the whole Narration first: run `voxx narrate` without --line."
 
 
-def narrate(narration_path, out_dir, model_id=None, line_ids=()):
-    """Read every Line, or with `line_ids` only those Lines, keeping every other Line of the earlier output as it is."""
+def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None):
+    """Read every Line, or with `line_ids` only those Lines, keeping every other Line of the earlier output as it is.
+    Cloned Voices are found in `voices_dir`, else in $VOXX_HOME/voices."""
     narration = load_narration(narration_path)
     out = Path(out_dir).resolve()
     chosen = find_model(model_id) if model_id is not None else None
@@ -30,11 +32,11 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
     if line_ids:
         to_read = _lines_to_read_again(narration, list(dict.fromkeys(line_ids)))
         earlier = _earlier_output(out)
-        kept = _lines_to_keep(narration, earlier, to_read, chosen)
+        kept = _lines_to_keep(narration, earlier, to_read, chosen, voices_dir)
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
     # Plan every Line before starting the worker, so a bad Voice fails fast. Only the Models that read are required
     # (ADR 0006): a Line whose aligner or transcriber is not installed is read without it.
-    plans = [_plan_line(narration, line, chosen, earlier_seeds.get(line["id"])) for line in to_read]
+    plans = [_plan_line(narration, line, chosen, voices_dir, earlier_seeds.get(line["id"])) for line in to_read]
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
     try:
         out.mkdir(parents=True, exist_ok=True)
@@ -62,13 +64,13 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=()):
     return {"path": str(path), "narration": narration}
 
 
-def _plan_line(narration, line, chosen, earlier_seed=None):
-    """How a Line will be read: its Model, Voice, style and seed, the Model that times its words, and the Model that
-    transcribes it back.
+def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
+    """How a Line will be read: its Model, Voice (and the Cloned Voice it names, if any), style and seed, the Model
+    that times its words, and the Model that transcribes it back.
 
     A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
-    model, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+    model, voice, cloned = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen, voices_dir)
     style, warnings = line_setting(narration, line, "style"), []
     if style is not None and not model.reads_style:
         style = None
@@ -91,7 +93,7 @@ def _plan_line(narration, line, chosen, earlier_seed=None):
     seed = line_setting(narration, line, "seed")
     while seed is None or seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
-    return {"model": model, "voice": voice, "style": style, "warnings": warnings, "aligner": aligner,
+    return {"model": model, "voice": voice, "cloned": cloned, "style": style, "warnings": warnings, "aligner": aligner,
             "transcriber": transcriber, "seed": seed}
 
 
@@ -108,9 +110,13 @@ def _read_line(worker, narration, line, plan, stage):
     --line alike."""
     audio = f"{line['id']}.wav"
     model = plan["model"]
+    if cloned := plan["cloned"]:
+        voice = {"capability": "clone", "reference": {"audio": str(cloned.reference), "text": cloned.reference_text}}
+    else:
+        voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"]}
     result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
-                         capability="preset_voice", text=line["text"], voice=plan["voice"], style=plan["style"],
-                         language=narration["language"], seed=plan["seed"], path=str(stage / audio))
+                         text=line["text"], language=narration["language"], seed=plan["seed"], path=str(stage / audio),
+                         **voice)
     line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
                 sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
     # A Line given back from an earlier run may still carry the words and self-check of its earlier audio.
@@ -156,7 +162,7 @@ def _earlier_output(out):
     return earlier
 
 
-def _lines_to_keep(narration, earlier, to_read, chosen):
+def _lines_to_keep(narration, earlier, to_read, chosen, voices_dir):
     """The earlier run's Line for every Line not read again, each warned if the Narration now asks it to sound otherwise."""
     earlier_lines = {line["id"]: line for line in earlier["lines"]}
     reading = {line["id"] for line in to_read}
@@ -177,7 +183,7 @@ def _lines_to_keep(narration, earlier, to_read, chosen):
         if narration["language"] != earlier["language"]:
             changes.append(f"the Narration's language is now {narration['language']!r}")
         # The Voice this run would read the Line with, as _plan_line resolves it.
-        _, voice = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+        _, voice, _ = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen, voices_dir)
         if voice != old.get("voice"):
             changes.append(f"its voice is now {voice!r}, not {old.get('voice')!r}")
         style, old_style = line_setting(narration, line, "style"), line_setting(earlier, old, "style")

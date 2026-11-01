@@ -27,11 +27,20 @@ class MlxAudioEngine:
         self.model = load_stt(path) if capability in ("transcribe", "align") else load_tts(path)
 
     def synthesize(self, text, *, model, voice, style, language, seed):
+        return self._read(model, seed, text=text, voice=voice, instruct=style, lang_code=LANGUAGE_NAMES[language])
+
+    def clone(self, text, *, model, reference, reference_text, language, seed):
+        # Qwen3-TTS Base clones from ref_audio and ref_text. VoxCPM2 takes ref_audio for the voice and continues
+        # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Each Model's
+        # generate ignores the other's arguments.
+        return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
+                          prompt_audio=str(reference), prompt_text=reference_text, lang_code=LANGUAGE_NAMES[language])
+
+    def _read(self, model, seed, **arguments):
         # mlx samples from one global generator, so seeding it before each Line makes the Line independent of the others.
         mx.random.seed(seed)
         # CustomVoice Models never split a Line; an empty split_pattern keeps the Base ones from splitting it at newlines.
-        results = list(self.model.generate(text=text, voice=voice, instruct=style, lang_code=LANGUAGE_NAMES[language],
-                                           split_pattern="", verbose=False))
+        results = list(self.model.generate(**arguments, split_pattern="", verbose=False))
         if len(results) != 1:
             raise VoxxError("engine_split_line", f"mlx-audio read the Line in {len(results)} parts instead of one.",
                             BUG_HINT, {"model": model, "parts": len(results)})
@@ -39,7 +48,8 @@ class MlxAudioEngine:
 
     def transcribe(self, path, *, model, language):
         # Greedy decoding, so the same Line is always heard the same way; the path lets mlx-audio resample to 16 kHz.
-        return self.model.generate(str(path), language=LANGUAGE_NAMES[language], verbose=False).text
+        # No language lets Qwen3-ASR detect it.
+        return self.model.generate(str(path), language=language and LANGUAGE_NAMES[language], verbose=False).text
 
     def align(self, path, *, model, text, language):
         # The aligner splits the text into words itself: by character for Chinese, by space for English.

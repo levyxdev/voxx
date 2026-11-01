@@ -103,3 +103,51 @@ def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):
 
     for a, b in zip(first, second):
         assert (tmp_path / "first" / a["audio"]).read_bytes() == (tmp_path / "second" / b["audio"]).read_bytes()
+
+
+# A Reference Recording made by a Preset Voice, so the test needs no recording of a real person.
+REFERENCE = {"language": "zh", "voice": "serena", "seed": 42,
+             "lines": [{"id": "reference", "text": "大家好，这是我录的一段参考音频，用来克隆我的声音。"}]}
+CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000}
+
+
+@pytest.fixture(params=list(CLONE_SAMPLE_RATES))
+def cloning_model(request, installed_models):
+    for needed in (request.param, "qwen3-tts-1.7b-customvoice", "qwen3-forcedaligner-0.6b", "qwen3-asr-0.6b"):
+        if needed not in installed_models:
+            pytest.skip(f"{needed} is not installed")
+    return request.param
+
+
+@pytest.fixture
+def cloned_voice(cloning_model, tmp_path):
+    """A Cloned Voice added from a short recording, its words transcribed by Qwen3-ASR, in a project's voices dir."""
+    [reference] = narrate("qwen3-tts-1.7b-customvoice", REFERENCE, tmp_path / "reference")
+    voices = tmp_path / "voices"
+    code, result = real_voxx("voice", "add", "me", "--ref", tmp_path / "reference" / reference["audio"],
+                             "--model", cloning_model, "--voices-dir", voices)
+    assert code == 0, result
+    assert result["data"]["transcribed_by"] == "qwen3-asr-0.6b"
+    assert result["data"]["reference_text"].strip()
+    return voices
+
+
+@pytest.mark.parametrize("language", ["zh", "en"])
+def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word_for_word(cloning_model, cloned_voice,
+                                                                                          language, tmp_path):
+    out = tmp_path / "out"
+    path = out.with_suffix(".json")
+    path.write_text(json.dumps({**NARRATIONS[language], "voice": "me", "seed": 42}, ensure_ascii=False), encoding="utf-8")
+    code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", cloned_voice)
+
+    assert code == 0, result
+    for line in result["data"]["narration"]["lines"]:
+        assert (line["model"], line["voice"]) == (cloning_model, "me")
+        with wave.open(str(out / line["audio"])) as audio:
+            assert audio.getnchannels() == 1
+            assert audio.getframerate() == line["sample_rate"] == CLONE_SAMPLE_RATES[cloning_model]
+            samples = np.frombuffer(audio.readframes(audio.getnframes()), "<i2") / 32768
+        seconds = len(samples) / line["sample_rate"]
+        assert 1 < seconds < 15, f"{line['id']} is {seconds:.1f} s long"
+        assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
+        assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
