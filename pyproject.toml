@@ -1,8 +1,22 @@
 [project]
 name = "voxx"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Local text-to-speech CLI for agents: narrate each Line to a WAV with word timings"
+readme = "README.md"
 license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "levyxdev" }]
+keywords = ["text-to-speech", "tts", "narration", "voice-cloning", "mlx", "agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "mlx-audio==0.6.3 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
@@ -11,12 +25,20 @@ dependencies = [
     "scipy>=1.10",
 ]
 
+[project.urls]
+Homepage = "https://github.com/levyxdev/voxx"
+Issues = "https://github.com/levyxdev/voxx/issues"
+
 [project.scripts]
 voxx = "voxx.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# The sdist carries what builds and checks voxx; the agent skills that develop it stay in the repo.
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/skills", "/docs", "/examples", "/README.md", "/LICENSE", "/NOTICE", "/GLOSSARY.md", "/AGENTS.md"]
 
 [dependency-groups]
 dev = [
