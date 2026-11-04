@@ -10,6 +10,8 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import yaml
+
 from conftest import VOXX
 
 ROOT = Path(__file__).parent.parent
@@ -21,6 +23,14 @@ def test_the_skill_launcher_pins_the_version_being_released():
 
     assert re.findall(r"uvx voxx@(\S+)\}", launcher) == [VERSION]
     assert os.access(ROOT / "skills/voxx/scripts/voxx", os.X_OK)
+
+
+def test_the_skill_frontmatter_is_valid_yaml_with_a_name_and_a_description():
+    text = (ROOT / "skills/voxx/SKILL.md").read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(text.split("---\n")[1])
+
+    assert frontmatter["name"] == "voxx"
+    assert isinstance(frontmatter["description"], str)
 
 
 def test_the_plugin_has_the_version_being_released():

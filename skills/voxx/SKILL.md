@@ -1,6 +1,6 @@
 ---
 name: voxx
-description: Voice a Narration locally with the voxx CLI: one WAV and word timings per Line, in a Preset Voice or a Cloned Voice, ready for `cuetake record --narration`. Use when a demo video or any other project needs spoken narration, voice-over or text-to-speech, or the user wants to clone a voice.
+description: "Voice a Narration locally with the voxx CLI: one WAV and word timings per Line, in a Preset Voice or a Cloned Voice, ready for `cuetake record --narration`. Use when a demo video or any other project needs spoken narration, voice-over or text-to-speech, or the user wants to clone a voice."
 ---
 
 # voxx agent operating manual
