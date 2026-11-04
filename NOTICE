@@ -23,7 +23,3 @@ voxx builds on the following third-party projects:
 - VoxCPM (Apache License 2.0)
   Copyright OpenBMB
   https://github.com/OpenBMB/VoxCPM
-
-- CosyVoice (Apache License 2.0)
-  Copyright Alibaba FunAudioLLM
-  https://github.com/FunAudioLLM/CosyVoice
