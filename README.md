@@ -17,7 +17,7 @@ voxx 0.1 runs on Apple Silicon Macs only.
 
 If a user hands you this repository to set up voxx:
 
-1. Install the skill with `npx skills add levyxdev/voxx`. In Claude Code you can instead run `/plugin marketplace add levyxdev/voxx`, then `/plugin install voxx`.
+1. Install the skill globally with `npx skills add levyxdev/voxx -g`. In Claude Code you can instead run `/plugin marketplace add levyxdev/voxx`, then `/plugin install voxx`.
 2. The skill's `scripts/voxx` runs the pinned [`voxx`](https://pypi.org/project/voxx/) package with `uvx`, so nothing else needs installing besides [uv](https://docs.astral.sh/uv/). To run a source checkout instead, export `VOXX_BIN="uv run --project /absolute/path/to/voxx voxx"`.
 3. Follow the [skill](skills/voxx/SKILL.md): run `scripts/voxx doctor`, and install uv or a Model only after the user agrees ([setup](skills/voxx/setup.md)).
 
