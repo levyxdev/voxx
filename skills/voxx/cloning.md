@@ -8,9 +8,11 @@ Before anything else, ask the user to confirm they have the right to use this vo
 
 ## 2. Get a good Reference Recording
 
-The clone copies everything in the recording, noise and room included. Ask for one speaker, no music or background voices, in the Narration's language, about 5 to 15 seconds of natural speech. Any common audio format works; voxx normalizes it.
+The clone copies everything in the recording, noise and room included, and its delivery too: a Cloned Voice ignores `style`, so the tone of the recording is the tone of every Line. Ask for one speaker, no music or background voices, about 5 to 15 seconds of speech. Any common audio format works; voxx normalizes it.
 
-If the user knows exactly what the recording says, pass it as `--ref-text`: an exact transcript gives the closest clone. Without it, voxx transcribes the recording, which needs the transcribing Model installed (exit 3 otherwise; see [setup.md](setup.md)); show the user the `reference_text` it heard, and if it is wrong, add the voice again with `--ref-text` and `--overwrite`.
+Write the user a script to read: two or three sentences in the Narration's language, about 10 seconds aloud, in everyday words, in the tone the Narration should have, such as showing a colleague a new feature. Write it as spoken, like a Line. Ask the user to read it word for word in one take, and to record it again whenever they changed or stumbled over a word. Pass the script as `--ref-text`: an exact transcript gives the closest clone, and needs no transcribing Model.
+
+When the user brings a recording of their own instead, pass its words as `--ref-text` if they know them exactly. Otherwise voxx transcribes the recording, which needs the transcribing Model installed (exit 3 otherwise; see [setup.md](setup.md)); show the user the `reference_text` it heard, and if it is wrong, add the voice again with `--ref-text` and `--overwrite`.
 
 ## 3. Choose where it lives
 
