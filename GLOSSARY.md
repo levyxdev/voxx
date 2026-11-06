@@ -21,7 +21,7 @@ _Avoid_: alignment, 时间轴, 时间
 ### 音色
 
 **Voice（音色）**:
-念一个 Line 时用的声音身份，要么是 Preset Voice，要么是 Cloned Voice。
+念一个 Line 时用的声音身份：Preset Voice、Cloned Voice 或 Designed Voice。
 _Avoid_: speaker, 声音, 角色
 
 **Preset Voice（预设音色）**:
@@ -29,11 +29,19 @@ _Avoid_: speaker, 声音, 角色
 _Avoid_: built-in speaker, 内置声音
 
 **Cloned Voice（克隆音色）**:
-从一段参考录音得到的音色。
+从一段真人录的参考录音得到的音色。
 _Avoid_: custom voice, 声音档案
 
+**Designed Voice（设计音色）**:
+由一段文字描述设计、从几个 Design Take 中选定后固定下来的音色。
+_Avoid_: generated voice, AI 音色, 虚拟音色
+
+**Design Take（设计候选）**:
+按同一段文字描述设计出的一个候选音色，念的是同一段试读稿，等用户试听挑选。
+_Avoid_: candidate, 样本, 试音
+
 **Reference Recording（参考录音）**:
-用来得到 Cloned Voice 的那段真人录音。
+用来得到 Cloned Voice 或 Designed Voice 的那段录音：Cloned Voice 的是真人录的，Designed Voice 的是选中的那个 Design Take。
 _Avoid_: prompt audio, ref, 样本
 
 ### 模型
@@ -43,7 +51,7 @@ voxx 注册表里登记的一个可下载的 TTS、对齐或听写模型，固�
 _Avoid_: checkpoint, 权重
 
 **Capability（能力）**:
-一个 Model 能做的事：念 Preset Voice（preset_voice）、克隆（clone）、对齐（align）或听写（transcribe）。
+一个 Model 能做的事：念 Preset Voice（preset_voice）、克隆（clone）、设计音色（design）、对齐（align）或听写（transcribe）。
 _Avoid_: feature, task, 功能
 
 **Engine（引擎）**:
