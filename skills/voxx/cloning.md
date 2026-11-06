@@ -8,7 +8,7 @@ Before anything else, ask the user to confirm they have the right to use this vo
 
 ## 2. Get a good Reference Recording
 
-The clone copies everything in the recording, noise and room included, and its delivery too: a Cloned Voice ignores `style`, so the tone of the recording is the tone of every Line. Ask for one speaker, no music or background voices, about 5 to 15 seconds of speech. Any common audio format works; voxx normalizes it.
+The clone copies everything in the recording, noise and room included, and its delivery too: the tone of the recording is the tone of every Line without a `style`. Ask for one speaker, no music or background voices, about 5 to 15 seconds of speech. Any common audio format works; voxx normalizes it.
 
 Write the user a script to read: two or three sentences in the Narration's language, about 10 seconds aloud, in everyday words, in the tone the Narration should have, such as showing a colleague a new feature. Write it as spoken, like a Line. Ask the user to read it word for word in one take, and to record it again whenever they changed or stumbled over a word. Pass the script as `--ref-text`: an exact transcript gives the closest clone, and needs no transcribing Model.
 
@@ -23,4 +23,4 @@ Ask the user whether the voice belongs to one project or to this machine:
 
 ## 4. Choose the Model
 
-A Cloned Voice is read by the Model it was added with: the default cloning Model unless `voice add --model` picks the other one (`voxx models --capability clone`). Neither cloning Model follows `style`. The two sound different, and only the user can judge which sounds more like the speaker: to let them compare, read the same short Narration once more with `narrate --model <the other one>` into a second `--out`, and play them both. Keep the one they choose by adding the voice again with that `--model` and `--overwrite`.
+A Cloned Voice is read by the Model it was added with: the default cloning Model unless `voice add --model` picks the other one (`voxx models --capability clone`). VoxCPM2 follows `style`, but a Line with `style` may sound less like the speaker, so for a Cloned Voice leave `style` off the top of the Narration and give it only to the Lines that need a different delivery; Qwen3-TTS Base ignores `style` (each such Line says so in `warnings`). The two sound different, and only the user can judge which sounds more like the speaker: to let them compare, read the same short Narration once more with `narrate --model <the other one>` into a second `--out`, and play them both. Keep the one they choose by adding the voice again with that `--model` and `--overwrite`.

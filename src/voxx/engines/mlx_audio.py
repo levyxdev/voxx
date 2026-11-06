@@ -29,12 +29,17 @@ class MlxAudioEngine:
     def synthesize(self, text, *, model, voice, style, language, seed):
         return self._read(model, seed, text=text, voice=voice, instruct=style, lang_code=LANGUAGE_NAMES[language])
 
-    def clone(self, text, *, model, reference, reference_text, language, seed):
+    def clone(self, text, *, model, reference, reference_text, style, language, seed):
+        lang_code = LANGUAGE_NAMES[language]
+        if style:
+            # Only VoxCPM2 is given a style. Continuing a recording, it would read the style out as part of the text, so
+            # a styled Line takes ref_audio alone for the voice and the style as its instruct.
+            return self._read(model, seed, text=text, ref_audio=str(reference), instruct=style, lang_code=lang_code)
         # Qwen3-TTS Base clones from ref_audio and ref_text. VoxCPM2 takes ref_audio for the voice and continues
         # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Each Model's
         # generate ignores the other's arguments.
         return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
-                          prompt_audio=str(reference), prompt_text=reference_text, lang_code=LANGUAGE_NAMES[language])
+                          prompt_audio=str(reference), prompt_text=reference_text, lang_code=lang_code)
 
     def _read(self, model, seed, **arguments):
         # mlx samples from one global generator, so seeding it before each Line makes the Line independent of the others.

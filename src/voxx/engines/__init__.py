@@ -20,10 +20,10 @@ class Engine(Protocol):
         Returns mono float32 samples in [-1, 1] and the native sample rate."""
         ...
 
-    def clone(self, text: str, *, model: str, reference: Path, reference_text: str, language: str,
+    def clone(self, text: str, *, model: str, reference: Path, reference_text: str, style: str | None, language: str,
               seed: int) -> tuple[np.ndarray, int]:
         """Read one whole Line in one pass in the voice of the Reference Recording, a WAV at reference whose words are
-        reference_text; otherwise as synthesize does."""
+        reference_text; otherwise as synthesize does. style is None unless the Model reads_style."""
         ...
 
     def transcribe(self, path: Path, *, model: str, language: str | None) -> str:

@@ -139,19 +139,37 @@ def test_a_crash_while_adding_a_voice_stores_nothing(installed, recording):
 def test_narrate_reads_a_cloned_voice_with_the_model_it_was_added_with(installed, recording, write_narration, tmp_path):
     assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
     out = tmp_path / "out"
-    narration = {**NARRATION, "lines": [NARRATION["lines"][0], {**NARRATION["lines"][1], "style": "语气兴奋"}]}
-    run = installed("narrate", write_narration(narration), "--out", out)
+    run = installed("narrate", write_narration(NARRATION), "--out", out)
 
     assert run.exit_code == 0, run.result
-    intro, send = lines(run).values()
-    for line in (intro, send):
+    for line in lines(run).values():
         assert (line["model"], line["voice"], line["sample_rate"]) == ("fake-clone", "me", 48_000)
         assert read_wav(out / line["audio"])[1] == 48_000
         # A cloned Line is timed and checked like any other.
         assert line["words"] and line["error_rate"] == 0
-    assert intro["warnings"] == []
-    # Neither Model that clones follows style.
-    assert [w["code"] for w in send["warnings"]] == ["style_ignored"]
+        assert line["warnings"] == []
+
+
+def test_a_cloned_voice_follows_style_only_on_a_model_that_reads_style(installed, recording, write_narration, tmp_path):
+    assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
+    narration = {"language": "zh", "voice": "me", "seed": 7,
+                 "lines": [{"id": "plain", "text": "一样的话"}, {"id": "styled", "text": "一样的话", "style": "语气兴奋"}]}
+    path = write_narration(narration)
+    # fake-clone follows style as VoxCPM2 does; fake-clone-alt ignores it as Qwen3-TTS Base does.
+    runs = {out: installed("narrate", path, "--out", tmp_path / out, *model)
+            for out, model in (("first", []), ("again", []), ("alt", ["--model", "fake-clone-alt"]))}
+
+    def audio(out, line_id):
+        return (tmp_path / out / f"{line_id}.wav").read_bytes()
+
+    assert audio("first", "styled") != audio("first", "plain")
+    assert [line["warnings"] for line in lines(runs["first"]).values()] == [[], []]
+    # The same seed, style and text read the same way again.
+    assert audio("again", "styled") == audio("first", "styled")
+    assert audio("alt", "styled") == audio("alt", "plain")
+    plain, styled = lines(runs["alt"]).values()
+    assert plain["warnings"] == []
+    assert [w["code"] for w in styled["warnings"]] == ["style_ignored"]
 
 
 def test_narrate_reads_a_cloned_voice_with_the_model_given_to_model(installed, recording, write_narration, tmp_path):

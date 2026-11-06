@@ -44,7 +44,7 @@ agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + w
 ```
 
 - `language`：BCP 47 标签（规范大小写，如 zh、yue、en-US），一份旁白一种语言，必须和 Model 登记的语言完全一致（ADR 0005）。能用哪些语言跟随念它的 Model（Qwen3-TTS 支持 zh、en、ja、ko、fr、de、it、pt、ru、es），voxx 不另设限制；Model 不念这种语言时退出码 4。
-- `voice`、`style`、`seed` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型；没有数值语速。不支持 `style` 的 Model（0.6B 快速档）照样念这个 Line，只在它的 `warnings` 里说明忽略了 `style`。
+- `voice`、`style`、`seed` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型；没有数值语速。不支持 `style` 的 Model（0.6B 快速档、Qwen3-TTS Base）照样念这个 Line，只在它的 `warnings` 里说明忽略了 `style`。
 - 没写 `voice` 时，用 Model 里第一个以这种语言为母语的音色（中文 vivian、英文 ryan），没有就用它的第一个音色。
 - 没写 `seed` 时由 voxx 随机生成。每个 Line 合成前都重新设 seed，所以同一个 Model、音色、`style`、文字和 seed 在同一台机器上念出逐字节相同的 WAV（真实模型测试验证过），也和 Line 的先后无关。输出的旁白文件原样当输入、带上同样的 `--model`，就能复现上一次（输入不读 Line 上的 `model`）。
 
@@ -100,7 +100,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 ## 音色
 
 - Preset Voice 按名字选，来自模型自带的音色。`voxx voices` 列出每个音色的母语、上游给的一句描述和能念它的 Model，agent 据此让用户挑。Qwen3-TTS CustomVoice 的 9 个音色全部登记，1.7B 和 0.6B 共用；不指定 `--model` 时由默认的 1.7B 念。
-- Cloned Voice 先存再用：`voice add` 把参考录音规范化（单声道、24 kHz、-18 LUFS、首尾静音 50 ms）、补好文字（没给 `--ref-text` 时用 Qwen3-ASR 听写，这时它必须已安装），存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以用 `--voices-dir` 指向项目目录，`narrate` 和 `voices` 传同一个目录。`voice.json` 记下 `voice add --model` 选的克隆 Model（默认 VoxCPM2），`narrate` 默认用它念，`narrate --model` 可以换成另一个克隆 Model。两个克隆 Model 都不跟随 `style`。
+- Cloned Voice 先存再用：`voice add` 把参考录音规范化（单声道、24 kHz、-18 LUFS、首尾静音 50 ms）、补好文字（没给 `--ref-text` 时用 Qwen3-ASR 听写，这时它必须已安装），存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以用 `--voices-dir` 指向项目目录，`narrate` 和 `voices` 传同一个目录。`voice.json` 记下 `voice add --model` 选的克隆 Model（默认 VoxCPM2），`narrate` 默认用它念，`narrate --model` 可以换成另一个克隆 Model。VoxCPM2 跟随 `style`：有 `style` 的 Line 只拿参考录音定声音、`style` 作为 instruct，不再接着参考录音续写（续写会把 `style` 当正文念出来），所以可能没那么像；没 `style` 的 Line 照旧续写，克隆最像。Qwen3-TTS Base 不接受 instruct，忽略 `style` 并在 `warnings` 里说明。
 - 代码不做授权校验，使用者对所克隆的声音负责，README 写免责声明（[ADR 0004](adr/0004-cloning-does-not-check-consent.md)）。不加水印。
 
 ## CLI 契约

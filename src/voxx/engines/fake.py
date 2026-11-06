@@ -51,9 +51,11 @@ class FakeEngine:
     def synthesize(self, text, *, model, voice, style, language, seed):
         return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode())
 
-    def clone(self, text, *, model, reference, reference_text, language, seed):
-        # The pitch follows the Reference Recording and its words, and the sample rate the Model's registry entry.
-        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), reference_text.encode())
+    def clone(self, text, *, model, reference, reference_text, style, language, seed):
+        # The pitch follows the Reference Recording, and its words or the style, as the real Engine reads one or the
+        # other; the sample rate follows the Model's registry entry.
+        read_from = f"style: {style}" if style else f"reference_text: {reference_text}"
+        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), read_from.encode())
 
     def transcribe(self, path, *, model, language):
         _crash_if("transcribe")

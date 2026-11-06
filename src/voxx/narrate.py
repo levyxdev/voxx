@@ -111,7 +111,8 @@ def _read_line(worker, narration, line, plan, stage):
     audio = f"{line['id']}.wav"
     model = plan["model"]
     if cloned := plan["cloned"]:
-        voice = {"capability": "clone", "reference": {"audio": str(cloned.reference), "text": cloned.reference_text}}
+        voice = {"capability": "clone", "reference": {"audio": str(cloned.reference), "text": cloned.reference_text},
+                 "style": plan["style"]}
     else:
         voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"]}
     result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),

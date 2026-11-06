@@ -151,3 +151,7 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
         assert 1 < seconds < 15, f"{line['id']} is {seconds:.1f} s long"
         assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
         assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
+    styled = result["data"]["narration"]["lines"][1]
+    # VoxCPM2 follows style without reading it out as part of the Line; Qwen3-TTS Base ignores it and says so.
+    assert NARRATIONS[language]["lines"][1]["style"].strip(".").lower() not in styled["transcript"].lower()
+    assert ("style_ignored" in [w["code"] for w in styled["warnings"]]) == (cloning_model == "qwen3-tts-1.7b-base")
