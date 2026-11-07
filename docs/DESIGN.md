@@ -55,7 +55,9 @@ agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + w
 ```
 voxx narrate <narration.json> --out <dir> [--model <id>] [--line <id>...] [--voices-dir <dir>]   # 合成整份旁白；--model 选念它的 Model；--line 只重配指定 Line
 voxx voice add <name> --ref <录音> [--ref-text <文字>] [--model <id>] [--voices-dir <dir>] [--overwrite]   # 存一个 Cloned Voice
-voxx voices [--voices-dir <dir>]                              # 列出 Preset Voice 和 Cloned Voice
+voxx voice design --describe <描述>... --text <试读稿> --language <tag> --out <dir> [--takes <n>] [--model <id>]   # 按描述生成 Design Take，供用户试听挑选
+voxx voice add <name> --from-design <dir> --take <n> [--model <id>] [--voices-dir <dir>] [--overwrite]   # 把选中的 Design Take 存成 Designed Voice
+voxx voices [--voices-dir <dir>]                              # 列出 Preset Voice、Cloned Voice 和 Designed Voice
 voxx models                                                   # 注册表（只含可商用模型）
 voxx install <model>                                          # 唯一会下载的命令
 voxx doctor                                                   # 平台、已装模型、磁盘
@@ -90,7 +92,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 | 用途 | 模型 |
 |---|---|
 | Preset Voice（默认） | Qwen3-TTS-12Hz-1.7B-CustomVoice；0.6B 为快速档 |
-| Cloned Voice（默认） | VoxCPM2 |
+| Cloned Voice、Designed Voice（默认），设计音色 | VoxCPM2 |
 | Cloned Voice（对比项） | Qwen3-TTS-12Hz-1.7B-Base |
 | 强制对齐 | Qwen3-ForcedAligner-0.6B |
 | 自检听写、补参考录音文字 | Qwen3-ASR-0.6B |
@@ -101,6 +103,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 
 - Preset Voice 按名字选，来自模型自带的音色。`voxx voices` 列出每个音色的母语、上游给的一句描述和能念它的 Model，agent 据此让用户挑。Qwen3-TTS CustomVoice 的 9 个音色全部登记，1.7B 和 0.6B 共用；不指定 `--model` 时由默认的 1.7B 念。
 - Cloned Voice 先存再用：`voice add` 把参考录音规范化（单声道、24 kHz、-18 LUFS、首尾静音 50 ms）、补好文字（没给 `--ref-text` 时用 Qwen3-ASR 听写，这时它必须已安装），存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以用 `--voices-dir` 指向项目目录，`narrate` 和 `voices` 传同一个目录。`voice.json` 记下 `voice add --model` 选的克隆 Model（默认 VoxCPM2），`narrate` 默认用它念，`narrate --model` 可以换成另一个克隆 Model。VoxCPM2 跟随 `style`：有 `style` 的 Line 只拿参考录音定声音、`style` 作为 instruct，不再接着参考录音续写（续写会把 `style` 当正文念出来），所以可能没那么像；没 `style` 的 Line 照旧续写，克隆最像。Qwen3-TTS Base 不接受 instruct，忽略 `style` 并在 `warnings` 里说明。
+- Designed Voice 分两步（[ADR 0007](adr/0007-designed-voice-is-fixed-by-a-chosen-take.md)）：`voice design` 按每个描述生成 `--takes` 个念同一段试读稿的 Design Take，写进 `--out` 的 take-<n>.wav 和 design.json，并像 Line 一样听写回来自检；用户挑中后，`voice add --from-design <dir> --take <n>` 把那个 Design Take 当参考录音、试读稿当文字存成音色，`voice.json` 记 `kind: "designed"` 和描述。之后它和 Cloned Voice 一样由克隆 Model 念，不限语言。描述只写特征，不指向真实人物，由 skill 约束（ADR 0004）。
 - 代码不做授权校验，使用者对所克隆的声音负责，README 写免责声明（[ADR 0004](adr/0004-cloning-does-not-check-consent.md)）。不加水印。
 
 ## CLI 契约
@@ -121,7 +124,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 ```
 $VOXX_HOME（默认 ~/.voxx）
   models/            # 模型文件
-  voices/<name>/     # voice.json（来源、参考文字、念它的克隆 Model、听写它的 Model、创建时间）+ reference.wav（规范化后的参考录音）
+  voices/<name>/     # voice.json（kind、来源、参考文字、念它的克隆 Model、听写它的 Model、创建时间；Designed Voice 另有描述、设计它的 Model、take 和 seed）+ reference.wav（规范化后的参考录音）
 ```
 
 ## 平台与分发

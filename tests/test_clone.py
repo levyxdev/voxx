@@ -51,7 +51,8 @@ def test_voice_add_stores_the_reference_recording_normalized_with_voice_json(vox
     assert voice["model"] == "voxcpm2"
     assert voice["transcribed_by"] is None
     stored = json.loads((path / "voice.json").read_text(encoding="utf-8"))
-    assert stored == {k: voice[k] for k in ("name", "reference_text", "model", "source", "created", "transcribed_by")}
+    assert stored == {k: voice[k] for k in ("name", "kind", "reference_text", "model", "source", "created",
+                                            "transcribed_by")}
     assert stored["created"]
     channels, rate, samples = read_wav(path / "reference.wav")
     assert (channels, rate) == (1, 24_000)

@@ -92,5 +92,38 @@ def design(descriptions, text, language, out_dir, takes=1, model_id=None):
     return {"path": str(path), "design": result}
 
 
+def read_take(out_dir, number):
+    """The Design Take numbered `number` in <out_dir>/design.json, with the text it read and the Model that designed
+    it, and the absolute path of its audio."""
+    out = Path(out_dir).resolve()
+    path = out / OUTPUT_NAME
+    if not path.is_file():
+        raise VoxxError("design_not_found", f"No {OUTPUT_NAME} in {out}.",
+                        "Pass to --from-design the --out of a `voxx voice design` run that finished.",
+                        {"path": str(path)}, USAGE)
+    try:
+        design = json.loads(path.read_text(encoding="utf-8"))
+        text, model, takes = design["text"], design["model"], design["takes"]
+        if not (isinstance(text, str) and text.strip() and isinstance(model, str) and isinstance(takes, list)):
+            raise ValueError("text and model must be non-empty strings, and takes a list")
+        for take in takes:
+            if not (isinstance(take["take"], int) and isinstance(take["description"], str)
+                    and isinstance(take["seed"], int) and isinstance(take["audio"], str)):
+                raise ValueError("each take needs a number, description, seed and audio")
+    except (OSError, UnicodeDecodeError, ValueError, KeyError, TypeError) as e:
+        raise VoxxError("invalid_design", f"Cannot read {path}: {e}",
+                        "Design the voice again into a new --out with `voxx voice design`.", {"path": str(path)}, USAGE)
+    take = next((t for t in takes if t["take"] == number), None)
+    if take is None:
+        raise VoxxError("take_not_found", f"{path} has no Design Take {number}.",
+                        "Pass to --take one of the numbers in details.takes: the one the user chose.",
+                        {"path": str(path), "takes": [t["take"] for t in takes]}, USAGE)
+    audio = out / take["audio"]
+    if audio.parent != out or not audio.is_file():
+        raise VoxxError("invalid_design", f"The audio of Design Take {number}, {audio}, is missing.",
+                        "Design the voice again into a new --out with `voxx voice design`.", {"path": str(path)}, USAGE)
+    return {**take, "text": text, "model": model, "audio": audio}
+
+
 def _invalid(message):
     raise VoxxError("invalid_arguments", message, ARGS_HINT, {}, USAGE)

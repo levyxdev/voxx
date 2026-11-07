@@ -30,9 +30,9 @@ NARRATION_INPUT = {
     "properties": {
         "language": {**_language, "description": f"{LANGUAGE_RULE} The Model must read it; see `voxx models`."},
         "voice": {**_non_empty_string, "description": "Default Voice for every Line, from `voxx voices`: a Preset Voice, "
-                                                      "or a Cloned Voice from `voxx voice add`, read by the Model it was "
-                                                      "added with. Omit for the Model's first Preset Voice native to "
-                                                      "the language."},
+                                                      "or a Cloned Voice or Designed Voice from `voxx voice add`, read "
+                                                      "by the Model it was added with. Omit for the Model's first "
+                                                      "Preset Voice native to the language."},
         "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
                                                       "instruction. Ignored, with a warning, by a Model that cannot follow it."},
         "seed": {**_seed, "description": "Default seed for every Line. Omit for a random one per Line; the same seed, "
@@ -71,7 +71,8 @@ LINE_OUTPUT_FIELDS = {
     "audio": {"type": "string", "description": "Mono WAV at the Model's native sample rate, at -18 LUFS with 50 ms of "
                                                "silence before and after the speech; relative to the output Narration file."},
     "model": {"type": "string"},
-    "voice": {"type": "string", "description": "The name of the Preset Voice or Cloned Voice the Line was read in."},
+    "voice": {"type": "string", "description": "The name of the Preset Voice, Cloned Voice or Designed Voice the Line "
+                                               "was read in."},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
@@ -189,8 +190,32 @@ CLONED_VOICE = {
     },
 }
 
-_voices_dir = {"type": "string", "description": "Directory of Cloned Voices (--voices-dir), such as one in the user's "
-                                                "project; omit for $VOXX_HOME/voices."}
+DESIGNED_VOICE = {
+    "type": "object",
+    "description": "A Voice designed from a text description with `voxx voice design`, fixed by the Design Take the "
+                   "user chose, which is its Reference Recording. A Model that clones reads it, as it reads a Cloned "
+                   "Voice, in any language that Model reads.",
+    "required": [*CLONED_VOICE["required"], "description", "design_model", "take", "seed"],
+    "properties": {
+        **CLONED_VOICE["properties"],
+        "kind": {"const": "designed"},
+        "reference_text": {"type": "string", "description": "The text the Design Takes read."},
+        "source": {"type": "string", "description": "Absolute path of the chosen Design Take's audio."},
+        "transcribed_by": {"type": "null"},
+        "description": {"type": "string", "description": "The description the chosen Design Take was designed from."},
+        "design_model": {**_model_id, "description": "The Model that designed it."},
+        "take": {"type": "integer", "description": "The number of the chosen Design Take (--take)."},
+        "seed": {"type": "integer", "description": "The seed the chosen Design Take was read with."},
+    },
+}
+
+_voices_dir = {"type": "string", "description": "Directory of Cloned Voices and Designed Voices (--voices-dir), such "
+                                                "as one in the user's project; omit for $VOXX_HOME/voices."}
+
+_ADD_WARNINGS = {"type": "array", "description": "What did not go as asked, such as a recording that could not reach "
+                                               "-18 LUFS without clipping.",
+                 "items": {"type": "object", "required": ["code", "message"],
+                           "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}}
 
 MODEL_NOT_INSTALLED = {
     "$schema": DRAFT,
@@ -222,16 +247,16 @@ COMMANDS = {
                 "narration": {"type": "string", "description": "Path to the Narration file (positional)."},
                 "out": {"type": "string", "description": "Output directory (--out); created if missing."},
                 "model": {**_model_id, "description": "The Model that reads every Line (--model). Omit for the Model "
-                                                      "that has each Line's Preset Voice, the Model each Cloned Voice "
-                                                      "was added with, or the default Model."},
+                                                      "that has each Line's Preset Voice, the Model each Cloned Voice or "
+                                                      "Designed Voice was added with, or the default Model."},
                 "line": {"type": "array", "items": _non_empty_string,
                          "description": "Ids of Lines to read again (--line, once per id), after a whole run into the "
                                         "same --out. Each is read with a new seed: the one the Narration file gives it, "
                                         "if that differs from the seed it was read with before, else a random one. "
                                         "Every other Line keeps its audio file and fields from the earlier run."},
-                "voices_dir": {**_voices_dir, "description": "Where to find the Cloned Voices the Narration names "
-                                                             "(--voices-dir): the directory they were added to; omit "
-                                                             "for $VOXX_HOME/voices."},
+                "voices_dir": {**_voices_dir, "description": "Where to find the Cloned Voices and Designed Voices "
+                                                             "the Narration names (--voices-dir): the directory they "
+                                                             "were added to; omit for $VOXX_HOME/voices."},
             },
         },
         "input": NARRATION_INPUT,
@@ -247,13 +272,14 @@ COMMANDS = {
         "errors": {
             "model_not_installed": MODEL_NOT_INSTALLED,
             "invalid_narration": {"description": "Exit 2: details.at points at what is wrong in the Narration file."},
-            "unknown_voice": {"description": "Exit 2: no Preset Voice or Cloned Voice in details.voices_dir has this "
-                                             "name; details.known_voices lists them."},
-            "invalid_cloned_voice": {"description": "Exit 2: the Cloned Voice's directory, details.path, cannot be "
-                                                    "read; add the Voice again with --overwrite."},
+            "unknown_voice": {"description": "Exit 2: no Preset Voice, or Cloned Voice or Designed Voice in "
+                                             "details.voices_dir, has this name; details.known_voices lists them."},
+            "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
+                                                    "details.path, cannot be read; add the Voice again with --overwrite."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
             "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot read Preset Voices, "
-                                                      "or cannot read a Cloned Voice (details.capability)."},
+                                                      "or cannot clone to read a Cloned Voice or Designed Voice "
+                                                      "(details.capability)."},
             "voice_unsupported": {"description": "Exit 4: the Model given to --model lacks this Voice; details.voices lists its own."},
             "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
             "unknown_line": {"description": "Exit 2: no Line has an id given to --line; details.known_lines lists them."},
@@ -265,17 +291,23 @@ COMMANDS = {
         },
     },
     "voice add": {
-        "usage": "voxx voice add <name> --ref <recording> [--ref-text <text>] [--model <model>] [--voices-dir <dir>] "
-                 "[--overwrite]",
+        "usage": "voxx voice add <name> (--ref <recording> [--ref-text <text>] | --from-design <dir> --take <n>) "
+                 "[--model <model>] [--voices-dir <dir>] [--overwrite]",
         "description": "Store a Cloned Voice: normalize the Reference Recording (mono, 24 kHz, -18 LUFS, 50 ms of "
                        "silence at each end), transcribe it unless --ref-text gives its words, and save both as "
                        "<voices dir>/<name>/. A Narration then names it as its voice. voxx does not check consent: "
-                       "first ask the user to confirm they have the right to use this voice. Only without --ref-text "
-                       "must a Model be installed: the one that transcribes.",
+                       "before --ref, ask the user to confirm they have the right to use this voice. Only without "
+                       "--ref-text must a Model be installed: the one that transcribes. With --from-design and --take "
+                       "instead, store a Designed Voice: the Design Take the user chose from a `voxx voice design` run "
+                       "is its Reference Recording and the text it read is its words, so no Model needs to be "
+                       "installed, and there is no consent to ask about.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
-            "required": ["name", "ref"],
+            "required": ["name"],
+            "oneOf": [{"required": ["ref"], "not": {"anyOf": [{"required": ["from_design"]}, {"required": ["take"]}]}},
+                      {"required": ["from_design", "take"],
+                       "not": {"anyOf": [{"required": ["ref"]}, {"required": ["ref_text"]}]}}],
             "properties": {
                 "name": {**_non_empty_string,
                          "description": "The Voice's name (positional): not a Preset Voice's name, and a safe file "
@@ -285,24 +317,25 @@ COMMANDS = {
                                                          "half a minute of one person speaking clearly."},
                 "ref_text": {**_non_empty_string, "description": "Its words, exactly as spoken (--ref-text). Omit to "
                                                                  "transcribe them, which needs the transcribing Model."},
+                "from_design": {"type": "string", "description": "The --out of a finished `voxx voice design` run "
+                                                                 "(--from-design), holding design.json."},
+                "take": {"type": "integer", "minimum": 1, "description": "The number of the Design Take the user chose "
+                                                                         "(--take), as design.json lists it."},
                 "model": {**_model_id, "description": "The Model that clones, which reads the Voice from then on "
                                                       "(--model). Omit for the default, the first Model with the "
                                                       "clone capability in `voxx models`."},
                 "voices_dir": {**_voices_dir, "description": "Where to store the Voice (--voices-dir), such as a "
                                                              "directory in the user's project; omit for "
                                                              "$VOXX_HOME/voices. Pass the same one to narrate."},
-                "overwrite": {"type": "boolean", "description": "Replace a Cloned Voice of this name (--overwrite)."},
+                "overwrite": {"type": "boolean", "description": "Replace the Cloned Voice or Designed Voice of "
+                                                               "this name (--overwrite)."},
             },
         },
         "result": {
-            **CLONED_VOICE,
             "$schema": DRAFT,
-            "required": [*CLONED_VOICE["required"], "warnings"],
-            "properties": {**CLONED_VOICE["properties"],
-                           "warnings": {"type": "array", "description": "What did not go as asked, such as a recording "
-                                                                        "that could not reach -18 LUFS without clipping.",
-                                        "items": {"type": "object", "required": ["code", "message"],
-                                                  "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}}},
+            "oneOf": [{**voice, "required": [*voice["required"], "warnings"],
+                       "properties": {**voice["properties"], "warnings": _ADD_WARNINGS}}
+                      for voice in (CLONED_VOICE, DESIGNED_VOICE)],
         },
         "errors": {
             "model_not_installed": {**MODEL_NOT_INSTALLED,
@@ -310,8 +343,14 @@ COMMANDS = {
                                                    "that transcribes the Reference Recording. Install it once the "
                                                    "user agrees, or pass --ref-text instead."},
             "invalid_voice_name": {"description": "Exit 2: the name cannot name a directory."},
-            "voice_exists": {"description": "Exit 2: a Preset Voice or a stored Cloned Voice has this name; pass "
-                                            "--overwrite to replace a Cloned Voice."},
+            "voice_exists": {"description": "Exit 2: a Preset Voice, Cloned Voice or Designed Voice has this name; "
+                                            "pass --overwrite to replace a Cloned Voice or Designed Voice."},
+            "design_not_found": {"description": "Exit 2: no design.json in --from-design; pass the --out of a "
+                                                "`voxx voice design` run that finished."},
+            "invalid_design": {"description": "Exit 2: design.json in --from-design, or the audio of the chosen Design "
+                                              "Take, cannot be read; design the voice again into a new --out."},
+            "take_not_found": {"description": "Exit 2: design.json has no Design Take numbered --take; details.takes "
+                                              "lists the numbers it has."},
             "reference_not_found": {"description": "Exit 2: no file at --ref."},
             "invalid_reference_text": {"description": "Exit 2: --ref-text is empty."},
             "unreadable_reference": {"description": "Exit 2: the file at --ref cannot be decoded as audio."},
@@ -413,17 +452,19 @@ COMMANDS = {
     },
     "voices": {
         "usage": "voxx voices [--voices-dir <dir>]",
-        "description": "List the Preset Voices and the Models that read them, then the Cloned Voices in the voices dir.",
+        "description": "List the Preset Voices and the Models that read them, then the Cloned Voices and Designed "
+                       "Voices in the voices dir.",
         "arguments": {"$schema": DRAFT, "type": "object", "properties": {"voices_dir": _voices_dir}},
         "result": {
             "$schema": DRAFT,
             "type": "object",
             "required": ["voices"],
-            "properties": {"voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE]}}},
+            "properties": {"voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE, DESIGNED_VOICE]}}},
         },
         "errors": {
-            "invalid_cloned_voice": {"description": "Exit 2: a Cloned Voice's directory, details.path, cannot be read; "
-                                                    "add the Voice again with --overwrite, or remove the directory."},
+            "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
+                                                    "details.path, cannot be read; add the Voice again with "
+                                                    "--overwrite, or remove the directory."},
         },
     },
     "models": {

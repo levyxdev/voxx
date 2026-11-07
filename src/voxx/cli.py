@@ -37,8 +37,10 @@ def _parser():
                                                                          parser_class=_Parser)
     add = voice.add_parser("add", add_help=False)
     add.add_argument("name")
-    add.add_argument("--ref", required=True)
+    add.add_argument("--ref")
     add.add_argument("--ref-text")
+    add.add_argument("--from-design")
+    add.add_argument("--take", type=int)
     add.add_argument("--model")
     add.add_argument("--voices-dir")
     add.add_argument("--overwrite", action="store_true")
@@ -82,7 +84,8 @@ def main(argv=None):
             data = design(args.descriptions, args.text, args.language, args.out, args.takes, args.model)
         elif args.command == "voice":
             from voxx.voices import add_voice
-            data = add_voice(args.name, args.ref, args.ref_text, args.model, args.voices_dir, args.overwrite)
+            data = add_voice(args.name, args.ref, args.ref_text, args.model, args.voices_dir, args.overwrite,
+                             args.from_design, args.take)
         else:
             from voxx.schema import schema
             data = schema(" ".join(args.name) or None)

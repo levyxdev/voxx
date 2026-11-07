@@ -22,7 +22,7 @@ READ_ALL_HINT = "Read the whole Narration first: run `voxx narrate` without --li
 
 def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None):
     """Read every Line, or with `line_ids` only those Lines, keeping every other Line of the earlier output as it is.
-    Cloned Voices are found in `voices_dir`, else in $VOXX_HOME/voices."""
+    Cloned Voices and Designed Voices are found in `voices_dir`, else in $VOXX_HOME/voices."""
     narration = load_narration(narration_path)
     out = Path(out_dir).resolve()
     chosen = find_model(model_id) if model_id is not None else None
@@ -57,12 +57,12 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
 
 
 def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
-    """How a Line will be read: its Model, Voice (and the Cloned Voice it names, if any), style and seed, the Model
-    that times its words, and the Model that transcribes it back.
+    """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), style and
+    seed, the Model that times its words, and the Model that transcribes it back.
 
     A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
-    model, voice, cloned = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen, voices_dir)
+    model, voice, stored = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen, voices_dir)
     style, warnings = line_setting(narration, line, "style"), []
     if style is not None and not model.reads_style:
         style = None
@@ -85,7 +85,7 @@ def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
     seed = line_setting(narration, line, "seed")
     while seed is None or seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
-    return {"model": model, "voice": voice, "cloned": cloned, "style": style, "warnings": warnings, "aligner": aligner,
+    return {"model": model, "voice": voice, "stored": stored, "style": style, "warnings": warnings, "aligner": aligner,
             "transcriber": transcriber, "seed": seed}
 
 
@@ -102,8 +102,8 @@ def _read_line(worker, narration, line, plan, stage):
     --line alike."""
     audio = f"{line['id']}.wav"
     model = plan["model"]
-    if cloned := plan["cloned"]:
-        voice = {"capability": "clone", "reference": {"audio": str(cloned.reference), "text": cloned.reference_text},
+    if stored := plan["stored"]:
+        voice = {"capability": "clone", "reference": {"audio": str(stored.reference), "text": stored.reference_text},
                  "style": plan["style"]}
     else:
         voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"]}

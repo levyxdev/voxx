@@ -30,6 +30,6 @@ Run `voxx doctor` again: `platform.supported` is true and the Models appear unde
 voxx has no uninstall command.
 
 - **A Model**: delete `$VOXX_HOME/models/<id>/`. `doctor` reports `$VOXX_HOME` (by default `~/.voxx`).
-- **Cloned Voices** are the user's work: `voxx voices` lists them with their paths. Ask about each before deleting its folder.
+- **Cloned Voices and Designed Voices** are the user's work: `voxx voices` lists them with their paths. Ask about each before deleting its folder.
 - **voxx itself**: `uv cache clean voxx` removes it from uv's cache. Leave uv, which other tools use.
 - **This skill**: remove it with the tool that installed it, for example `/plugin uninstall voxx` in Claude Code.

@@ -7,7 +7,7 @@ voxx is a text-to-speech CLI built only for agents. An agent writes a Narration,
 - Every Line is read whole by the Model, never stitched, then trimmed to 50 ms of silence at each end and normalized to -18 LUFS, as a mono WAV at the Model's native sample rate.
 - Word timings for each Line (per character in Chinese), for Subtitles.
 - A self-check: every Line is transcribed back and compared with its text, so the agent knows which Lines to read again with a new seed, leaving the others byte for byte as they were.
-- Preset Voices, or a Cloned Voice made from a short Reference Recording.
+- Preset Voices, a Cloned Voice made from a short Reference Recording, or a Designed Voice made from a text description and chosen by ear.
 - Only Models whose weights allow commercial use, run locally through [mlx-audio](https://github.com/Blaizzy/mlx-audio). Nothing is downloaded until the user agrees.
 - Every command prints one JSON object, and `voxx schema` describes them all, so an agent never guesses.
 
@@ -47,7 +47,7 @@ If a user hands you this repository to set up voxx:
 | --- | --- | --- | --- |
 | `qwen3-tts-1.7b-customvoice` | Preset Voices (default) | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) |
 | `qwen3-tts-0.6b-customvoice` | Preset Voices, fast drafts | 2.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice) |
-| `voxcpm2` | Cloned Voices (default) | 3.2 GB | [Apache-2.0](https://huggingface.co/openbmb/VoxCPM2) |
+| `voxcpm2` | Cloned Voices and Designed Voices (default), designing voices | 3.2 GB | [Apache-2.0](https://huggingface.co/openbmb/VoxCPM2) |
 | `qwen3-tts-1.7b-base` | Cloned Voices | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) |
 | `qwen3-forcedaligner-0.6b` | Word timings | 1.3 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B) |
 | `qwen3-asr-0.6b` | Self-check, Reference Recording text | 1.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) |

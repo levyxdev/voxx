@@ -30,9 +30,11 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert commands["install"]["arguments"]["required"] == ["model"]
     assert {"model", "path", "already_installed"} <= set(commands["install"]["result"]["required"])
     assert {"platform", "disk", "models"} <= set(commands["doctor"]["result"]["required"])
-    preset, cloned = commands["voices"]["result"]["properties"]["voices"]["items"]["oneOf"]
+    preset, cloned, designed = commands["voices"]["result"]["properties"]["voices"]["items"]["oneOf"]
     assert {"name", "kind", "native_language", "description", "languages", "models"} <= set(preset["required"])
     assert {"name", "kind", "reference_text", "model", "languages", "models", "path"} <= set(cloned["required"])
+    assert (cloned["properties"]["kind"]["const"], designed["properties"]["kind"]["const"]) == ("cloned", "designed")
+    assert {"description", "design_model", "take", "seed"} <= set(designed["required"]) - set(cloned["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
     assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
 
@@ -100,10 +102,14 @@ def test_schema_describes_voice_add_and_voices_dir(voxx):
 
     assert run.exit_code == 0
     voice_add = run.result["data"]["voice add"]
-    assert set(voice_add["arguments"]["required"]) == {"name", "ref"}
+    assert voice_add["arguments"]["required"] == ["name"]
+    # A Cloned Voice from --ref, or a Designed Voice from --from-design and --take.
+    assert [set(o["required"]) for o in voice_add["arguments"]["oneOf"]] == [{"ref"}, {"from_design", "take"}]
     assert {"ref_text", "model", "voices_dir", "overwrite"} <= set(voice_add["arguments"]["properties"])
-    assert {"reference_text", "model", "path", "warnings"} <= set(voice_add["result"]["required"])
-    assert {"model_not_installed", "voice_exists", "unreadable_reference", "capability_unsupported"} <= set(voice_add["errors"])
+    assert [o["properties"]["kind"]["const"] for o in voice_add["result"]["oneOf"]] == ["cloned", "designed"]
+    assert all({"reference_text", "model", "path", "warnings"} <= set(o["required"]) for o in voice_add["result"]["oneOf"])
+    assert {"model_not_installed", "voice_exists", "unreadable_reference", "capability_unsupported", "design_not_found",
+            "invalid_design", "take_not_found"} <= set(voice_add["errors"])
     commands = voxx("schema").result["data"]["commands"]
     assert "voices_dir" in commands["narrate"]["arguments"]["properties"]
     assert "voices_dir" in commands["voices"]["arguments"]["properties"]

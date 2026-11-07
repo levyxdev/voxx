@@ -1,11 +1,11 @@
 ---
 name: voxx
-description: "Voice a Narration locally with the voxx CLI: one WAV and word timings per Line, in a Preset Voice or a Cloned Voice, ready for `cuetake record --narration`. Use when a demo video or any other project needs spoken narration, voice-over or text-to-speech, or the user wants to clone a voice."
+description: "Voice a Narration locally with the voxx CLI: one WAV and word timings per Line, in a Preset Voice, a Cloned Voice or a Designed Voice, ready for `cuetake record --narration`. Use when a demo video or any other project needs spoken narration, voice-over or text-to-speech, or the user wants to clone or design a voice."
 ---
 
 # voxx agent operating manual
 
-voxx reads each Line of a Narration in one go with a local speech Model and hands back a WAV per Line, its word timings and a self-check. The CLI does what is deterministic; you make the judgment calls: language, Voice, `style`, whether a Line needs reading again, and asking the user before anything is downloaded. Run every command through `scripts/voxx` in this skill's folder; it launches the pinned voxx version with `uvx`, and this manual writes commands without that path. Read [setup.md](setup.md) when `uvx` is missing, `doctor` reports an unsupported platform, a command exits 3 or warns that a Model is not installed, or the user wants voxx removed. Read [cloning.md](cloning.md) before cloning a voice.
+voxx reads each Line of a Narration in one go with a local speech Model and hands back a WAV per Line, its word timings and a self-check. The CLI does what is deterministic; you make the judgment calls: language, Voice, `style`, whether a Line needs reading again, and asking the user before anything is downloaded. Run every command through `scripts/voxx` in this skill's folder; it launches the pinned voxx version with `uvx`, and this manual writes commands without that path. Read [setup.md](setup.md) when `uvx` is missing, `doctor` reports an unsupported platform, a command exits 3 or warns that a Model is not installed, or the user wants voxx removed. Read [cloning.md](cloning.md) before cloning a voice, and [designing.md](designing.md) before designing one.
 
 Every command prints one JSON object on stdout and NDJSON progress on stderr. `voxx schema` describes every command's arguments, the Narration file, the results, the warnings and the exit codes; it is the reference, so look things up there rather than guessing.
 
@@ -23,7 +23,7 @@ Every command prints one JSON object on stdout and NDJSON progress on stderr. `v
 
 The user chooses the Voice, since they will hear it and you cannot. Run `voxx voices` and list each Voice's name with its own short description, and the Models that read it; offer the Voices native to the Narration's language first. Once the user has chosen in a project, keep that Voice for every later Narration there without asking again. When they do not care, leave `voice` out: the Model then reads in its first Voice native to the language.
 
-A Cloned Voice is listed by `voxx voices` beside the Preset Voices once it has been added; [cloning.md](cloning.md) covers adding one.
+A Cloned Voice or Designed Voice is listed by `voxx voices` beside the Preset Voices once it has been added; [cloning.md](cloning.md) covers cloning one. When the user wants a voice of their own but not their own voice, has no voice actor who agreed to be cloned, and no Preset Voice fits, offer to design one from a description: [designing.md](designing.md).
 
 For a quick draft, pass `--model qwen3-tts-0.6b-customvoice`: the same Preset Voices, faster, but it ignores `style` (each Line says so in `warnings`). Voice the final take with the default Model by leaving `--model` out.
 
