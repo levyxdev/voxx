@@ -95,7 +95,7 @@ Seed-TTS-eval 的数字格式为 zh CER / en WER（%，越低越好），SIM 格
 - **内置音色**（[voice catalog](https://github.com/inclusionAI/Ming-3.0-tts/blob/main/cookbooks/instruction_en.md#built-in-premium-voices)）：
   - 英文：`US_Emma`、`UK_George`、`UK_Charlotte`。mlx-audio README 另外列了 `US_James`、`US_Stella`。
   - 中文：100 多个，例如 灵小柔、灵楷、灵卓然（新闻和纪录片男声）、灵叙柔（新闻女声）；部分有情绪变体（`_高兴` / `_悲伤` 等）。
-  - ⚠️ 音色表里还有影视角色和 IP 音色：`康熙王朝_康熙`、`西游记_唐僧`、`小猪佩奇_佩奇`、`蜡笔小新_野原美伢`、`悟空` 等。这类音色有肖像权和版权风险，voxx 如果接入，应该在注册表里**白名单**通用音色，不暴露 IP 音色。
+  - ⚠️ 音色表里还有影视角色和 IP 音色：`康熙王朝_康熙`、`西游记_唐僧`、`小猪佩奇_佩奇`、`蜡笔小新_野原美伢`、`悟空` 等。这类音色有肖像权和版权风险；用户 2026-11-06 决定接入时不屏蔽。
 - **语速和情绪**：控制项最全。显式参数有语速（慢速 / 中速 / 快速）、情绪（高兴、悲伤、愤怒、恐惧、厌恶、惊讶、中性）、音高和音量（低 / 中 / 高）、方言（川渝话、广粤话）；另外支持 FREEFORM 自由 instruct 和 14 种副语言标签（`[Laughter]`、`[Sigh]` 等）。在 mlx 里用 `ming3_instruction()` 生成 JSON caption。不同任务模式**不能任意组合**（官方原话：“Capabilities use separate task modes, not arbitrary combinations”）。
 - **Mac**：
   - mlx-audio 上游从 v0.6.0 开始支持（PR #1048 于 2026-10-20 合并，#1047 于 2026-10-19 合并，之后又合并了 #1054、#1062、#1075 等修复）。
@@ -294,7 +294,7 @@ voxx 需要为每条 Line 的音频返回 `{text, start, end}`。
 
 ### 以后再加
 
-1. **Ming-3.0-tts-0.5B**：等 mlx 支持稳定下来（#1059 合并、CAM++ 实现），再按试听结果决定是否升为默认。接入时只白名单通用音色，排除康熙、唐僧、佩奇这类 IP 音色。
+1. **Ming-3.0-tts-0.5B**：等 mlx 支持稳定下来（#1059 合并、CAM++ 实现），再按试听结果决定是否升为默认。
 2. **Fun-CosyVoice3-0.5B-2512**：等 PR #861 合并进上游 mlx-audio，不依赖 mlx-audio-plus 分叉（和 DESIGN.md 的决定一致）。
 3. **FireRedTTS3 / dots.tts**：Apache-2.0，自报 SIM 最高（80.9 到 81.0），但上游 mlx-audio 不支持，只能等，或者走 v0.2 的 torch worker。
 4. **MOSS-TTS-Nano**：在没有 GPU、只想快速出声的场景当 CPU 兜底；MOSS-TTS 的 token 级时长控制以后做“按时长合成”时值得再看。
