@@ -10,7 +10,7 @@ from voxx.output import NOT_INSTALLED, UNSUPPORTED, USAGE, VoxxError
 # Set to 1 only in tests: registers the fake Engine and its Model.
 FAKE_ENGINE_ENV = "VOXX_TEST_FAKE_ENGINE"
 
-CAPABILITIES = ("preset_voice", "clone", "align", "transcribe")
+CAPABILITIES = ("preset_voice", "clone", "design", "align", "transcribe")
 
 
 @dataclass(frozen=True)
@@ -99,7 +99,8 @@ REGISTRY = (
           _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"), QWEN3_TTS_CODE, VERIFIED, 24_000,
           QWEN3_TTS_VOICES),
     # The first Model that clones is the one a new Cloned Voice is read with; the other is there to compare by ear.
-    Model("voxcpm2", "mlx-audio", ("clone",), ("zh", "en"),
+    # The first Model that designs is the one `voxx voice design` uses.
+    Model("voxcpm2", "mlx-audio", ("clone", "design"), ("zh", "en"),
           "mlx-community/VoxCPM2-8bit", "d52725898a0675703f7f9ddc5a4d1a3cdbb99032", 3_226_617_581,
           _apache("https://huggingface.co/openbmb/VoxCPM2"), _apache("https://github.com/OpenBMB/VoxCPM"), VERIFIED, 48_000,
           reads_style=True),
@@ -135,9 +136,9 @@ FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
                          "voxx-test/fake-aligner", "76543210fedcba9876543210fedcba9876543210", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-aligner"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED)
-# Clone like the two real cloning Models: the first follows style as VoxCPM2 does, the other ignores it as Qwen3-TTS
-# Base does, and they read at different sample rates.
-FAKE_CLONE_MODEL = Model("fake-clone", "fake", ("clone",), ("zh", "en"),
+# Clone like the two real cloning Models: the first follows style and designs as VoxCPM2 does, the other ignores style
+# as Qwen3-TTS Base does, and they read at different sample rates.
+FAKE_CLONE_MODEL = Model("fake-clone", "fake", ("clone", "design"), ("zh", "en"),
                          "voxx-test/fake-clone", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-clone"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000, reads_style=True)
@@ -242,6 +243,10 @@ def preset_voice_names():
 
 def default_clone_model():
     return next(m for m in models() if "clone" in m.capabilities)
+
+
+def default_design_model():
+    return next(m for m in models() if "design" in m.capabilities)
 
 
 def resolve_preset_voice(voice, language, model=None):

@@ -42,6 +42,13 @@ def _parser():
     add.add_argument("--model")
     add.add_argument("--voices-dir")
     add.add_argument("--overwrite", action="store_true")
+    design = voice.add_parser("design", add_help=False)
+    design.add_argument("--describe", dest="descriptions", action="append", required=True)
+    design.add_argument("--text", required=True)
+    design.add_argument("--language", required=True)
+    design.add_argument("--out", required=True)
+    design.add_argument("--takes", type=int, default=1)
+    design.add_argument("--model")
     install = commands.add_parser("install", add_help=False)
     install.add_argument("model")
     commands.add_parser("doctor", add_help=False)
@@ -70,6 +77,9 @@ def main(argv=None):
         elif args.command == "voices":
             from voxx.voices import list_voices
             data = list_voices(args.voices_dir)
+        elif args.command == "voice" and args.voice_command == "design":
+            from voxx.design import design
+            data = design(args.descriptions, args.text, args.language, args.out, args.takes, args.model)
         elif args.command == "voice":
             from voxx.voices import add_voice
             data = add_voice(args.name, args.ref, args.ref_text, args.model, args.voices_dir, args.overwrite)

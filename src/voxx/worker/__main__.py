@@ -20,9 +20,13 @@ class Worker:
     def synthesize_line(self, *, model, engine, model_path, capability, text, language, seed, path, **voice):
         """Reads a Line in a Preset Voice, given as voice, or with capability "clone" in a Cloned Voice, given as
         reference: the path of its Reference Recording (audio) and that recording's words (text). Either way, style
-        is the Line's style, or None."""
+        is the Line's style, or None. With capability "design", reads a Design Take in a new voice that fits
+        description."""
         reader = self._engine(model, engine, model_path, capability)
-        if capability == "clone":
+        if capability == "design":
+            samples, sample_rate = reader.design(text, model=model, description=voice["description"], language=language,
+                                                 seed=seed)
+        elif capability == "clone":
             samples, sample_rate = reader.clone(text, model=model, reference=Path(voice["reference"]["audio"]),
                                                 reference_text=voice["reference"]["text"], style=voice["style"],
                                                 language=language, seed=seed)

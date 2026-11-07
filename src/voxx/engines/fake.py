@@ -57,6 +57,9 @@ class FakeEngine:
         read_from = f"style: {style}" if style else f"reference_text: {reference_text}"
         return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), read_from.encode())
 
+    def design(self, text, *, model, description, language, seed):
+        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, f"description: {description}".encode())
+
     def transcribe(self, path, *, model, language):
         _crash_if("transcribe")
         with wave.open(str(path)) as audio:

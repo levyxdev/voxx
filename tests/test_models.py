@@ -1,10 +1,10 @@
 REAL_MODELS = {
-    "qwen3-tts-1.7b-customvoice": ("preset_voice", 3_080_141_538),
-    "qwen3-tts-0.6b-customvoice": ("preset_voice", 1_973_575_388),
-    "qwen3-tts-1.7b-base": ("clone", 3_104_158_788),
-    "voxcpm2": ("clone", 3_226_617_581),
-    "qwen3-forcedaligner-0.6b": ("align", 1_276_475_979),
-    "qwen3-asr-0.6b": ("transcribe", 1_010_773_761),
+    "qwen3-tts-1.7b-customvoice": (["preset_voice"], 3_080_141_538),
+    "qwen3-tts-0.6b-customvoice": (["preset_voice"], 1_973_575_388),
+    "qwen3-tts-1.7b-base": (["clone"], 3_104_158_788),
+    "voxcpm2": (["clone", "design"], 3_226_617_581),
+    "qwen3-forcedaligner-0.6b": (["align"], 1_276_475_979),
+    "qwen3-asr-0.6b": (["transcribe"], 1_010_773_761),
 }
 
 
@@ -18,9 +18,9 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
     assert run.exit_code == 0
     models = by_id(run)
     assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt"} == set(models)
-    for id, (capability, size) in REAL_MODELS.items():
+    for id, (capabilities, size) in REAL_MODELS.items():
         model = models[id]
-        assert model["capabilities"] == [capability]
+        assert model["capabilities"] == capabilities
         assert model["size_bytes"] == size
         assert model["installed"] is False
         assert model["weights_license"]["id"] == "Apache-2.0"
@@ -45,6 +45,12 @@ def test_models_can_be_filtered_by_capability(voxx):
     run = voxx("models", "--capability", "clone")
 
     assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "fake-clone", "fake-clone-alt"}
+
+
+def test_voxcpm2_is_the_model_that_designs(voxx):
+    run = voxx("models", "--capability", "design")
+
+    assert set(by_id(run)) == {"voxcpm2", "fake-clone"}
 
 
 def test_an_unknown_capability_is_an_argument_error(voxx):

@@ -3,13 +3,11 @@
 The output directory changes only once every Line has been read: until then the new audio waits in a staging directory
 inside it, so a run that fails leaves the earlier output exactly as it was."""
 
-import errno
 import json
-import os
 import secrets
 from pathlib import Path
 
-from voxx.files import replacing, staging
+from voxx.files import replacing, staging, writable_out
 from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, transcriber_for
 from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
@@ -38,13 +36,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
     # (ADR 0006): a Line whose aligner or transcriber is not installed is read without it.
     plans = [_plan_line(narration, line, chosen, voices_dir, earlier_seeds.get(line["id"])) for line in to_read]
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
-    try:
-        out.mkdir(parents=True, exist_ok=True)
-        if not os.access(out, os.W_OK):
-            raise PermissionError(errno.EACCES, "Permission denied")
-    except OSError as e:
-        raise VoxxError("invalid_out", f"Cannot use {out} as the output directory: {e.strerror}.",
-                        "Pass a writable directory for --out.", {"out": str(out)}, USAGE)
+    writable_out(out)
 
     progress("narration_started", lines=len(plans))
     path = out / OUTPUT_NAME

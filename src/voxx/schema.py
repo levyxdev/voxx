@@ -323,6 +323,94 @@ COMMANDS = {
             "cannot_transcribe": {"description": "Exit 4: no Model can transcribe for this Model; pass --ref-text."},
         },
     },
+    "voice design": {
+        "usage": "voxx voice design --describe <description> [--describe <description>]... --text <text> "
+                 "--language <tag> --out <dir> [--takes <n>] [--model <model>]",
+        "description": "Design new voices from text descriptions: read --text --takes times for each description, each "
+                       "time with a new seed and so in a new voice, as Design Takes for the user to listen to and choose "
+                       "from. Writes <dir>/take-<n>.wav, numbered in the order of the descriptions, and "
+                       "<dir>/design.json. Stores no Voice. Each take is transcribed back to check it, as a Line is: a "
+                       "take that reads its description out loud shows it in its transcript. Only the Model that "
+                       "designs must be installed: without the transcriber, the takes come without the check, with a "
+                       "warning.",
+        "arguments": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["describe", "text", "language", "out"],
+            "properties": {
+                "describe": {"type": "array", "minItems": 1, "items": _non_empty_string,
+                             "description": "How a voice should sound (--describe, once per description), in natural "
+                                            "language: traits such as age, gender, timbre, pace and mood, never a real "
+                                            "person. Compare styles with several descriptions, then pick a voice with "
+                                            "--takes on the one the user likes."},
+                "text": {**_non_empty_string, "description": "The words every Design Take reads (--text): a few short "
+                                                             "sentences in the language and tone of the Narration the "
+                                                             "voice is for."},
+                "language": {**_language, "description": f"The language of --text (--language). {LANGUAGE_RULE}"},
+                "out": {"type": "string", "description": "Output directory (--out); created if missing. Must not hold "
+                                                         "design.json from an earlier run."},
+                "takes": {"type": "integer", "minimum": 1, "default": 1,
+                          "description": "How many Design Takes to read for each description (--takes)."},
+                "model": {**_model_id, "description": "The Model that designs (--model). Omit for the default, the "
+                                                      "first Model with the design capability in `voxx models`."},
+            },
+        },
+        "result": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["path", "design"],
+            "properties": {
+                "path": {"type": "string", "description": "Absolute path of the written design.json."},
+                "design": {
+                    "type": "object",
+                    "description": "The contents of design.json.",
+                    "required": ["model", "language", "text", "takes"],
+                    "properties": {
+                        "model": _model_id,
+                        "language": _language,
+                        "text": {"type": "string"},
+                        "takes": {"type": "array", "items": {
+                            "type": "object",
+                            "required": ["take", "description", "seed", "audio", "sample_rate", "warnings"],
+                            "properties": {
+                                "take": {"type": "integer", "minimum": 1, "description": "The n of take-<n>.wav."},
+                                "description": {"type": "string", "description": "The --describe it was read from."},
+                                "seed": {"type": "integer", "description": "Seed it was read with."},
+                                "audio": {**LINE_OUTPUT_FIELDS["audio"],
+                                          "description": "Mono WAV at the Model's native sample rate, at -18 LUFS with "
+                                                         "50 ms of silence before and after the speech; relative to "
+                                                         "design.json."},
+                                "sample_rate": LINE_OUTPUT_FIELDS["sample_rate"],
+                                "warnings": {**LINE_OUTPUT_FIELDS["warnings"],
+                                             "description": "What did not go as asked, such as a take that could not "
+                                                            "reach -18 LUFS without clipping, or a take not checked "
+                                                            "because no Model transcribes its language (not_checked) "
+                                                            "or the one that would is not installed "
+                                                            "(checker_not_installed)."},
+                                "transcript": {**SELF_CHECK_FIELDS["transcript"],
+                                               "description": "The take, transcribed back; only when it was checked."},
+                                "error_rate": SELF_CHECK_FIELDS["error_rate"],
+                            },
+                        }},
+                    },
+                },
+            },
+        },
+        "errors": {
+            "model_not_installed": {**MODEL_NOT_INSTALLED,
+                                    "description": "details of a model_not_installed error (exit code 3): the Model "
+                                                   "that designs. A missing transcriber is a warning on each take "
+                                                   "instead."},
+            "invalid_arguments": {"description": "Exit 2: a description or the text is empty, or --takes is below 1."},
+            "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
+            "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
+            "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot design a voice."},
+            "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
+            "design_exists": {"description": "Exit 2: --out already holds design.json from an earlier run; pass a new "
+                                             "directory."},
+            "invalid_out": {"description": "Exit 2: --out cannot be created or written."},
+        },
+    },
     "voices": {
         "usage": "voxx voices [--voices-dir <dir>]",
         "description": "List the Preset Voices and the Models that read them, then the Cloned Voices in the voices dir.",

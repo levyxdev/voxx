@@ -47,7 +47,7 @@ def check_narration(narration):
         _invalid("$", "The Narration must be a JSON object.")
     language = narration.get("language")
     if not (isinstance(language, str) and re.fullmatch(LANGUAGE_PATTERN, language)):
-        canonical = _canonical_case(language) if isinstance(language, str) else None
+        canonical = canonical_case(language) if isinstance(language, str) else None
         _invalid("$.language", LANGUAGE_RULE + (f" Write it as {canonical!r}." if canonical else ""))
     _check_settings(narration, "$")
     lines = narration.get("lines")
@@ -86,7 +86,7 @@ def line_id_key(line_id):
     return unicodedata.normalize("NFD", unicodedata.normalize("NFD", line_id).casefold())
 
 
-def _canonical_case(tag):
+def canonical_case(tag):
     """The tag in canonical case if only its case is wrong, else None: zh-hant-hk is zh-Hant-HK."""
     first, *rest = tag.split("-")
     canonical = "-".join([first.lower(), *(s.title() if len(s) == 4 else s.upper() for s in rest)])

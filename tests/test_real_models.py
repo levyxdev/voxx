@@ -155,3 +155,25 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
     # VoxCPM2 follows style without reading it out as part of the Line; Qwen3-TTS Base ignores it and says so.
     assert NARRATIONS[language]["lines"][1]["style"].strip(".").lower() not in styled["transcript"].lower()
     assert ("style_ignored" in [w["code"] for w in styled["warnings"]]) == (cloning_model == "qwen3-tts-1.7b-base")
+
+
+@pytest.mark.parametrize("language", ["zh", "en"])
+def test_voxcpm2_designs_a_voice_that_reads_the_text_without_its_description(installed_models, language, tmp_path):
+    for needed in ("voxcpm2", "qwen3-asr-0.6b"):
+        if needed not in installed_models:
+            pytest.skip(f"{needed} is not installed")
+    describe = {"zh": "温和的中年女声，语速偏慢", "en": "A calm middle-aged female narrator, speaking slowly"}[language]
+    text = NARRATIONS[language]["lines"][0]["text"]
+    out = tmp_path / "design"
+    code, result = real_voxx("voice", "design", "--describe", describe, "--text", text, "--language", language,
+                             "--out", out)
+
+    assert code == 0, result
+    [take] = result["data"]["design"]["takes"]
+    assert take["sample_rate"] == 48_000
+    with wave.open(str(out / take["audio"])) as audio:
+        samples = np.frombuffer(audio.readframes(audio.getnframes()), "<i2") / 32768
+    assert 1 < len(samples) / take["sample_rate"] < 15
+    assert np.sqrt(np.mean(samples**2)) > 0.01
+    # The known bad take reads its description out loud; the transcript is where it shows.
+    assert take["error_rate"] <= 0.25, (text, take["transcript"])

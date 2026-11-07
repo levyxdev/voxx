@@ -1,9 +1,13 @@
 """Files and directories: writing so a reader never sees a half-written file, and finding where a path would live."""
 
+import errno
+import os
 import shutil
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+
+from voxx.output import USAGE, VoxxError
 
 
 @contextmanager
@@ -32,3 +36,14 @@ def staging(directory):
 def nearest_existing(path):
     """`path` if it exists, else its closest existing parent: where its disk space would come from."""
     return next(p for p in (path, *path.parents) if p.exists())
+
+
+def writable_out(out):
+    """Creates the output directory `out` if missing, and fails unless voxx can write in it."""
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+        if not os.access(out, os.W_OK):
+            raise PermissionError(errno.EACCES, "Permission denied")
+    except OSError as e:
+        raise VoxxError("invalid_out", f"Cannot use {out} as the output directory: {e.strerror}.",
+                        "Pass a writable directory for --out.", {"out": str(out)}, USAGE)

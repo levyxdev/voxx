@@ -24,7 +24,7 @@ def test_schema_describes_narrate(voxx):
 def test_schema_describes_models_install_and_doctor(voxx):
     commands = voxx("schema").result["data"]["commands"]
 
-    assert set(commands["models"]["arguments"]["properties"]["capability"]["enum"]) == {"preset_voice", "clone", "align", "transcribe"}
+    assert set(commands["models"]["arguments"]["properties"]["capability"]["enum"]) == {"preset_voice", "clone", "design", "align", "transcribe"}
     model = commands["models"]["result"]["properties"]["models"]["items"]
     assert {"id", "capabilities", "size_bytes", "weights_license", "installed"} <= set(model["required"])
     assert commands["install"]["arguments"]["required"] == ["model"]
@@ -107,3 +107,18 @@ def test_schema_describes_voice_add_and_voices_dir(voxx):
     commands = voxx("schema").result["data"]["commands"]
     assert "voices_dir" in commands["narrate"]["arguments"]["properties"]
     assert "voices_dir" in commands["voices"]["arguments"]["properties"]
+
+
+def test_schema_describes_voice_design(voxx):
+    run = voxx("schema", "voice", "design")
+
+    assert run.exit_code == 0
+    voice_design = run.result["data"]["voice design"]
+    assert set(voice_design["arguments"]["required"]) == {"describe", "text", "language", "out"}
+    assert {"takes", "model"} <= set(voice_design["arguments"]["properties"])
+    assert set(voice_design["result"]["required"]) == {"path", "design"}
+    take = voice_design["result"]["properties"]["design"]["properties"]["takes"]["items"]
+    assert {"take", "description", "seed", "audio", "warnings"} <= set(take["required"])
+    assert {"transcript", "error_rate"} <= set(take["properties"])
+    assert {"model_not_installed", "capability_unsupported", "unsupported_language", "invalid_language",
+            "design_exists", "invalid_out"} <= set(voice_design["errors"])

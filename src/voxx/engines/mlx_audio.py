@@ -41,6 +41,10 @@ class MlxAudioEngine:
         return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
                           prompt_audio=str(reference), prompt_text=reference_text, lang_code=lang_code)
 
+    def design(self, text, *, model, description, language, seed):
+        # Without reference audio, VoxCPM2 reads "({instruct}){text}": a voice that fits the description.
+        return self._read(model, seed, text=text, instruct=description, lang_code=LANGUAGE_NAMES[language])
+
     def _read(self, model, seed, **arguments):
         # mlx samples from one global generator, so seeding it before each Line makes the Line independent of the others.
         mx.random.seed(seed)

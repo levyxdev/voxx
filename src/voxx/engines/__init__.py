@@ -26,6 +26,11 @@ class Engine(Protocol):
         reference_text; otherwise as synthesize does. style is None unless the Model reads_style."""
         ...
 
+    def design(self, text: str, *, model: str, description: str, language: str, seed: int) -> tuple[np.ndarray, int]:
+        """Read text in one pass in a new voice that fits description, as synthesize reads a Line. Every seed may give
+        another voice, so a Design Take is fixed by its audio, not by its description (ADR 0007)."""
+        ...
+
     def transcribe(self, path: Path, *, model: str, language: str | None) -> str:
         """The words spoken in the WAV at path, in language, a BCP 47 tag; None means whatever language is heard."""
         ...
