@@ -12,13 +12,22 @@ _language = {"type": "string", "pattern": LANGUAGE_PATTERN,
 _seed = {"type": "integer", "minimum": 0, "maximum": MAX_SEED}
 _model_id = {"type": "string", "description": "A Model id from `voxx models`."}
 
+_EXTRA_REPOS = ("Hugging Face repos the Model's Engine also loads, downloaded with it. Present only for a Model that has "
+                "any. Not pinned: `voxx install` downloads each one's current revision, so its size can differ from "
+                "the one voxx checked.")
 INSTALL_SUMMARY = {
     "type": "object",
     "description": "What to tell the user before running `voxx install <model>`.",
     "required": ["model", "size_bytes", "license", "license_url"],
-    "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
+    "properties": {"model": _model_id,
+                   "size_bytes": {"type": "integer", "description": "Download size, extra repos included."},
                    "license": {"type": "string", "description": "SPDX id of the weights license."},
-                   "license_url": {"type": "string"}},
+                   "license_url": {"type": "string"},
+                   "extra_repos": {"type": "array", "description": _EXTRA_REPOS + " Tell the user about them too.",
+                                   "items": {"type": "object", "required": ["repo", "size_bytes", "license", "license_url"],
+                                             "properties": {"repo": {"type": "string"}, "size_bytes": {"type": "integer"},
+                                                            "license": {"type": "string", "description": "SPDX id."},
+                                                            "license_url": {"type": "string"}}}}},
 }
 
 # Delivery Controls: the delivery a Line asks for by value, where style asks in words.
@@ -154,14 +163,19 @@ MODEL = {
         "id": _model_id,
         "capabilities": {"type": "array", "items": {"enum": list(CAPABILITIES)}},
         "languages": {"type": "array", "items": _language},
-        "size_bytes": {"type": "integer", "description": "Download size."},
+        "size_bytes": {"type": "integer", "description": "Download size, extra repos included."},
         "sample_rate": {"type": ["integer", "null"], "description": "Native output sample rate in Hz; null if the Model does not speak."},
         "weights_license": {**_license, "description": "License of the weights; every listed Model allows commercial use."},
         "code_license": {**_license, "description": "License of the upstream code."},
         "verified": {"type": "string", "format": "date", "description": "When the licenses were last checked."},
         "repo": {"type": "string", "description": "Hugging Face repo `voxx install` downloads."},
         "revision": {"type": "string", "description": "The pinned commit of that repo."},
-        "installed": {"type": "boolean"},
+        "installed": {"type": "boolean", "description": "False if an extra repo is missing too."},
+        "extra_repos": {"type": "array", "description": _EXTRA_REPOS,
+                        "items": {"type": "object", "required": ["repo", "size_bytes", "license"],
+                                  "properties": {"repo": {"type": "string"},
+                                                 "size_bytes": {"type": "integer", "description": "Size when checked."},
+                                                 "license": _license}}},
     },
 }
 
@@ -518,8 +532,9 @@ COMMANDS = {
     },
     "install": {
         "usage": "voxx install <model>",
-        "description": "Download a Model into $VOXX_HOME/models. The only command that downloads; ask the user first. "
-                       "Resumes an interrupted download; honors HF_ENDPOINT for a Hugging Face mirror.",
+        "description": "Download a Model into $VOXX_HOME/models, and its extra repos, if any, into $VOXX_HOME/hf-cache. "
+                       "The only command that downloads; ask the user first. Resumes an interrupted download; honors "
+                       "HF_ENDPOINT for a Hugging Face mirror.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
@@ -530,8 +545,17 @@ COMMANDS = {
             "$schema": DRAFT,
             "type": "object",
             "required": ["model", "path", "size_bytes", "already_installed"],
-            "properties": {"model": _model_id, "path": {"type": "string"}, "size_bytes": {"type": "integer"},
-                           "already_installed": {"type": "boolean", "description": "True if nothing was downloaded."}},
+            "properties": {"model": _model_id, "path": {"type": "string"},
+                           "size_bytes": {"type": "integer", "description": "Installed size, extra repos included."},
+                           "already_installed": {"type": "boolean", "description": "True if nothing was downloaded."},
+                           "extra_repos": {"type": "array", "description": "The extra repos installed with the Model, "
+                                                                           "at the revision downloaded. Present only "
+                                                                           "for a Model that has any.",
+                                           "items": {"type": "object", "required": ["repo", "revision", "size_bytes", "path"],
+                                                     "properties": {"repo": {"type": "string"},
+                                                                    "revision": {"type": "string"},
+                                                                    "size_bytes": {"type": "integer"},
+                                                                    "path": {"type": "string"}}}}},
         },
         "errors": {
             "unknown_model": {"description": "Exit 2: no Model by that id; details.known_models lists them."},
@@ -597,7 +621,8 @@ CONTRACT = {
         "0": "Success.",
         "1": "Internal error, including a crashed worker: report it.",
         "2": "Invalid arguments or input: fix them.",
-        "3": "Model not installed: tell the user its size and license, and run `voxx install` once they agree.",
+        "3": "Model not installed: tell the user its size and license, and any extra repos it downloads with it, and "
+             "run `voxx install` once they agree.",
         "4": "The Model cannot do this: pick another Model or Voice.",
     },
 }

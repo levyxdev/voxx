@@ -33,6 +33,18 @@ class PresetVoice:
 
 
 @dataclass(frozen=True)
+class ExtraRepo:
+    """A Hugging Face repo a Model's Engine loads by name alongside the Model's own. Not pinned: `voxx install`
+    downloads its current revision and records it (ADR 0003)."""
+    repo: str
+    # The size of `files` when voxx checked the repo; a later revision may differ.
+    size_bytes: int
+    license: License
+    # Glob patterns of the files the Engine loads, as its own download would filter them; only these are installed.
+    files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Model:
     id: str
     engine: str
@@ -53,20 +65,35 @@ class Model:
     # Whether the Model follows a Line's Delivery Controls (emotion, speed, pitch, volume); a Model that cannot reads
     # the Line without them.
     reads_controls: bool = False
+    # Repos the Engine also loads, downloaded with the Model by `voxx install`.
+    extra_repos: tuple[ExtraRepo, ...] = ()
+
+    @property
+    def download_bytes(self):
+        """What `voxx install` downloads: the Model's repo and its extra repos, at the sizes voxx checked."""
+        return self.size_bytes + sum(e.size_bytes for e in self.extra_repos)
 
     def to_json(self):
-        return {"id": self.id, "capabilities": list(self.capabilities), "languages": list(self.languages),
-                "size_bytes": self.size_bytes, "sample_rate": self.sample_rate,
-                "weights_license": vars(self.weights_license), "code_license": vars(self.code_license),
-                "verified": self.verified, "repo": self.repo, "revision": self.revision}
+        listed = {"id": self.id, "capabilities": list(self.capabilities), "languages": list(self.languages),
+                  "size_bytes": self.download_bytes, "sample_rate": self.sample_rate,
+                  "weights_license": vars(self.weights_license), "code_license": vars(self.code_license),
+                  "verified": self.verified, "repo": self.repo, "revision": self.revision}
+        if self.extra_repos:
+            listed["extra_repos"] = [{"repo": e.repo, "size_bytes": e.size_bytes, "license": vars(e.license)}
+                                     for e in self.extra_repos]
+        return listed
 
     def voice_names(self):
         return tuple(v.name for v in self.preset_voices)
 
     def install_summary(self):
-        """What the user hears before agreeing to `voxx install`."""
-        return {"model": self.id, "size_bytes": self.size_bytes, "license": self.weights_license.id,
-                "license_url": self.weights_license.url}
+        """What the user hears before agreeing to `voxx install`, extra repos included."""
+        summary = {"model": self.id, "size_bytes": self.download_bytes, "license": self.weights_license.id,
+                   "license_url": self.weights_license.url}
+        if self.extra_repos:
+            summary["extra_repos"] = [{"repo": e.repo, "size_bytes": e.size_bytes, "license": e.license.id,
+                                       "license_url": e.license.url} for e in self.extra_repos]
+        return summary
 
 
 def _apache(url):
@@ -170,7 +197,16 @@ FAKE_CLONE_ALT_MODEL = Model("fake-clone-alt", "fake", ("clone",), ("zh", "en"),
                              "voxx-test/fake-clone-alt", "a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2", 4096,
                              _apache("https://huggingface.co/voxx-test/fake-clone-alt"),
                              _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000)
-FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL)
+# Clones with a tokenizer from a repo of its own, as Chatterbox does: the hub serves more files than it loads.
+FAKE_EXTRA_REPO = ExtraRepo("voxx-test/fake-tokenizer", 4096, _apache("https://huggingface.co/voxx-test/fake-tokenizer"),
+                            ("model.safetensors", "*.json"))
+FAKE_EXTRA_MODEL = Model("fake-clone-extra", "fake", ("clone",), ("zh", "en"),
+                         "voxx-test/fake-clone-extra", "c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0", 4096,
+                         _apache("https://huggingface.co/voxx-test/fake-clone-extra"),
+                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000,
+                         extra_repos=(FAKE_EXTRA_REPO,))
+FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL,
+               FAKE_EXTRA_MODEL)
 
 
 INSTALL_MANIFEST = "voxx-install.json"
@@ -188,13 +224,57 @@ def model_dir(model):
     return models_dir() / model.id
 
 
-def is_installed(model):
-    """Installed means `voxx install` finished for the revision this voxx pins; an older revision does not count."""
+def hf_cache_dir():
+    """Where extra repos are installed, laid out as a Hugging Face cache: an Engine that loads one by name finds it
+    there offline, because the worker points HF_HUB_CACHE here."""
+    return voxx_home() / "hf-cache"
+
+
+def extra_repo_dir(repo):
+    return hf_cache_dir() / ("models--" + repo.replace("/", "--"))
+
+
+def extra_repo_path(repo):
+    """The installed files of an extra repo, where Hugging Face's own loader finds them: the snapshot its main ref
+    names. None if there is none."""
+    try:
+        revision = (extra_repo_dir(repo) / "refs" / "main").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    path = extra_repo_dir(repo) / "snapshots" / revision
+    return path if revision and path.is_dir() else None
+
+
+def read_manifest(model):
+    """What `voxx install` recorded when it finished installing this Model, or None."""
     try:
         manifest = json.loads((model_dir(model) / INSTALL_MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        return None
+    return manifest if isinstance(manifest, dict) else None
+
+
+def is_installed(model):
+    """Installed means `voxx install` finished for the revision this voxx pins, and every extra repo's files are still
+    where the Engine looks for them; an older revision does not count."""
+    manifest = read_manifest(model)
+    if manifest is None or manifest.get("revision") != model.revision:
         return False
-    return isinstance(manifest, dict) and manifest.get("revision") == model.revision
+    try:
+        recorded = {e["repo"]: e for e in manifest.get("extra_repos", [])}
+        return all(_extra_repo_installed(recorded[e.repo]) for e in model.extra_repos)
+    except (KeyError, TypeError, AttributeError):
+        return False
+
+
+def _extra_repo_installed(entry):
+    # Every file is checked, because an Engine may go on without one: Chatterbox reads with random weights.
+    path = extra_repo_path(entry["repo"])
+    try:
+        return path is not None and path.name == entry["revision"] and all(
+            (path / f["path"]).stat().st_size == f["size"] for f in entry["files"])
+    except OSError:
+        return False
 
 
 def require_installed(required):
@@ -203,8 +283,9 @@ def require_installed(required):
     if missing:
         commands = " and ".join(f"`voxx install {m.id}`" for m in missing)
         raise VoxxError("model_not_installed", f"Not installed: {', '.join(m.id for m in missing)}.",
-                        f"Tell the user each Model's size and license from details; once they agree, run {commands}.",
-                        {"missing": [m.install_summary() for m in missing], "total_bytes": sum(m.size_bytes for m in missing)},
+                        f"Tell the user each Model's size and license from details, and the extra repos it downloads with it; "
+                        f"once they agree, run {commands}.",
+                        {"missing": [m.install_summary() for m in missing], "total_bytes": sum(m.download_bytes for m in missing)},
                         NOT_INSTALLED)
 
 

@@ -60,7 +60,7 @@ voxx voice design --describe <描述>... --text <试读稿> --language <tag> --o
 voxx voice add <name> --from-design <dir> --take <n> [--model <id>] [--voices-dir <dir>] [--overwrite]   # 把选中的 Design Take 存成 Designed Voice
 voxx voices [--model <id>] [--language <tag>] [--voices-dir <dir>]   # 列出 Preset Voice、Cloned Voice 和 Designed Voice
 voxx models                                                   # 注册表（只含可商用模型）
-voxx install <model>                                          # 唯一会下载的命令
+voxx install <model>                                          # 唯一会下载的命令，连同 Model 的额外仓库
 voxx doctor                                                   # 平台、已装模型、磁盘
 voxx schema                                                   # 所有命令的参数和返回结构
 ```

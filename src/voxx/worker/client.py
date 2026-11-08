@@ -10,6 +10,7 @@ import sys
 import threading
 from typing import IO, cast
 
+from voxx.models import hf_cache_dir
 from voxx.output import BUG_HINT, INTERNAL, VoxxError, emit_event
 
 # Model libraries reach for Hugging Face on their own; only `voxx install` may download (ADR 0003).
@@ -21,7 +22,9 @@ class WorkerProcess:
     def __enter__(self):
         self.process = subprocess.Popen(
             [sys.executable, "-m", "voxx.worker"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, encoding="utf-8", bufsize=1, env={**os.environ, **OFFLINE})
+            stderr=subprocess.PIPE, encoding="utf-8", bufsize=1,
+            # An Engine that loads a Model's extra repo by name finds the copy `voxx install` made, not another.
+            env={**os.environ, **OFFLINE, "HF_HUB_CACHE": str(hf_cache_dir())})
         # Popen types its pipes as optional; all three are pipes here.
         self.stdin, self.stdout, self.stderr = cast(tuple[IO[str], IO[str], IO[str]],
                                                     (self.process.stdin, self.process.stdout, self.process.stderr))

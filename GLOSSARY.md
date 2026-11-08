@@ -54,6 +54,10 @@ _Avoid_: prompt audio, ref, 样本
 voxx 注册表里登记的一个可下载的 TTS、对齐或听写模型，固定到一个上游版本，带有已核实的权重许可证。
 _Avoid_: checkpoint, 权重
 
+**Extra Repo（额外仓库）**:
+Model 加载时还要的另一个 Hugging Face 仓库，由 `voxx install` 和 Model 一起下载；不固定版本，安装清单记下实际下载的 revision。
+_Avoid_: dependency, 依赖, 附带模型
+
 **Capability（能力）**:
 一个 Model 能做的事：念 Preset Voice（preset_voice）、克隆（clone）、设计音色（design）、对齐（align）或听写（transcribe）。
 _Avoid_: feature, task, 功能

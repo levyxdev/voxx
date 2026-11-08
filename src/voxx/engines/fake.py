@@ -47,6 +47,11 @@ class FakeEngine:
 
     def load(self, path, capability):
         _crash_if("load")
+        # As Chatterbox loads S3TokenizerV2: by repo name, from the Hugging Face cache, with no revision.
+        for extra in find_model(path.name).extra_repos:
+            from huggingface_hub import snapshot_download
+
+            snapshot_download(extra.repo, allow_patterns=list(extra.files))
 
     def synthesize(self, text, *, model, voice, style, controls, language, seed):
         return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode(), *_controls(controls))

@@ -43,6 +43,12 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert {"voices", "unlisted"} <= set(commands["voices"]["result"]["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
     assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
+    # Extra repos, where a Model has any: in the listing, in what the user is told before install, and in its result.
+    assert {"repo", "size_bytes", "license"} <= set(model["properties"]["extra_repos"]["items"]["required"])
+    summary = commands["narrate"]["errors"]["model_not_installed"]["properties"]["missing"]["items"]
+    assert {"repo", "size_bytes", "license", "license_url"} <= set(summary["properties"]["extra_repos"]["items"]["required"])
+    assert {"repo", "revision", "size_bytes", "path"} <= set(
+        commands["install"]["result"]["properties"]["extra_repos"]["items"]["required"])
 
 
 def test_schema_describes_one_command(voxx):

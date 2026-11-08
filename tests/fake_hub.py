@@ -1,4 +1,5 @@
-"""A local stand-in for Hugging Face, reached through HF_ENDPOINT: the tree API and `resolve/` downloads, nothing else."""
+"""A local stand-in for Hugging Face, reached through HF_ENDPOINT: the revision and tree APIs and `resolve/` downloads,
+nothing else."""
 
 import hashlib
 import json
@@ -18,6 +19,8 @@ class Request:
 class FakeHub:
     # (repo, revision) -> {file path: content}
     repos: dict = field(default_factory=dict)
+    # repo -> the revision its main branch points to
+    main: dict = field(default_factory=dict)
     requests: list = field(default_factory=list)
     # file path -> bytes sent before the connection drops, once
     cut_after: dict = field(default_factory=dict)
@@ -52,6 +55,9 @@ class FakeHub:
 
     def _handle(self, handler):
         path = handler.path.split("?")[0]
+        for repo, revision in self.main.items():
+            if path == f"/api/models/{repo}/revision/main":
+                return _send(handler, 200, json.dumps({"id": repo, "sha": revision}).encode())
         for (repo, revision), files in self.repos.items():
             if path == f"/api/models/{repo}/tree/{revision}":
                 if self.tree_body is not None:

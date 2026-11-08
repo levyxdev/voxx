@@ -53,7 +53,7 @@ If a user hands you this repository to set up voxx:
 | `qwen3-asr-0.6b` | Self-check, Reference Recording text | 1.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) |
 | `ming-3.0-tts-0.5b` | On audition: 241 Preset Voices (3 English, the rest Chinese), Cloned Voices, designing voices, and `emotion`, `speed`, `pitch` and `volume` | 1.6 GB | [MIT](https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B) |
 
-Only the Model that reads must be installed; without the aligner or the transcriber, Lines are read without word timings or the self-check. `voxx install <model>` is the only command that downloads anything ([ADR 0003](docs/adr/0003-models-are-installed-only-by-an-explicit-command.md)). It fetches the 8-bit MLX conversions from Hugging Face into `~/.voxx/models` (or `$VOXX_HOME/models`), and honors `HF_ENDPOINT` for a mirror.
+Only the Model that reads must be installed; without the aligner or the transcriber, Lines are read without word timings or the self-check. `voxx install <model>` is the only command that downloads anything ([ADR 0003](docs/adr/0003-models-are-installed-only-by-an-explicit-command.md)). It fetches the 8-bit MLX conversions from Hugging Face into `~/.voxx/models` (or `$VOXX_HOME/models`), and honors `HF_ENDPOINT` for a mirror. A Model that also loads another repo, such as a tokenizer, gets it in the same install, at that repo's latest revision, into `$VOXX_HOME/hf-cache`; `voxx models` lists these extra repos with their sizes and licenses.
 
 ## Disclaimer
 

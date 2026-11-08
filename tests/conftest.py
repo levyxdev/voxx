@@ -11,13 +11,17 @@ from pathlib import Path
 import pytest
 from fake_hub import FakeHub
 
-from voxx.models import FAKE_MODEL, FAKE_MODELS
+from voxx.models import FAKE_EXTRA_REPO, FAKE_MODEL, FAKE_MODELS
 
 VOXX = Path(sys.executable).with_name("voxx")
 FAKE_CONFIG = b'{"model_type": "fake"}'
 # Each fake Model's files add up to the size its registry entry declares.
 FAKE_FILES = {"config.json": FAKE_CONFIG,
               "model.safetensors": bytes(i % 251 for i in range(FAKE_MODEL.size_bytes - len(FAKE_CONFIG)))}
+# The fake extra repo at its main revision: the files the fake Engine loads add up to the size voxx checked, and the
+# README is left on the hub.
+FAKE_EXTRA_REVISION = "e0c9886f0e1c35ae85b1f27277416fb19fc72bec"
+FAKE_EXTRA_FILES = {**FAKE_FILES, "README.md": b"# fake tokenizer\n"}
 
 
 def assert_error(run, exit_code, code):
@@ -61,7 +65,9 @@ class Voxx:
 
 
 def fake_hub():
-    return FakeHub({(m.repo, m.revision): FAKE_FILES for m in FAKE_MODELS}).start()
+    repos = {(m.repo, m.revision): FAKE_FILES for m in FAKE_MODELS}
+    repos[FAKE_EXTRA_REPO.repo, FAKE_EXTRA_REVISION] = FAKE_EXTRA_FILES
+    return FakeHub(repos, main={FAKE_EXTRA_REPO.repo: FAKE_EXTRA_REVISION}).start()
 
 
 @pytest.fixture

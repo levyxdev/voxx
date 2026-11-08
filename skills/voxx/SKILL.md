@@ -52,7 +52,7 @@ For a quick draft, pass `--model qwen3-tts-0.6b-customvoice`: the same Preset Vo
 
 The error's `hint` says what to do, and `schema` lists every exit code. Two need the user:
 
-- **Exit 3, `model_not_installed`**: nothing was downloaded. Tell the user, from `details`, each missing Model's id, size, license and license link exactly as given, and the total. Run `voxx install <model>` only after they agree; follow [setup.md](setup.md).
+- **Exit 3, `model_not_installed`**: nothing was downloaded. Tell the user, from `details`, each missing Model's id, size, license and license link exactly as given, any `extra_repos` it downloads with it, and the total. Run `voxx install <model>` only after they agree; follow [setup.md](setup.md).
 - **Exit 4, `unsupported_language`**: pick from `details.languages` the tag that matches the language and accent the user asked for, and write it into the Narration. If none matches, tell the user this Model cannot read that language; substituting a related language is the user's call, not yours.
 
 ## Delivering
