@@ -17,7 +17,7 @@ VOXX = Path(sys.executable).with_name("voxx")
 FAKE_CONFIG = b'{"model_type": "fake"}'
 # Each fake Model's files add up to the size its registry entry declares.
 FAKE_FILES = {"config.json": FAKE_CONFIG,
-              "model.safetensors": bytes(i % 251 for i in range(FAKE_MODEL.size_bytes - len(FAKE_CONFIG)))}
+              "model.safetensors": bytes(i % 251 for i in range(FAKE_MODEL.repo_bytes - len(FAKE_CONFIG)))}
 # The fake extra repo at its main revision: the files the fake Engine loads add up to the size voxx checked, and the
 # README is left on the hub.
 FAKE_EXTRA_REVISION = "e0c9886f0e1c35ae85b1f27277416fb19fc72bec"

@@ -53,7 +53,8 @@ class Model:
     # What `voxx install` downloads: a Hugging Face repo pinned to one commit, so the license and size stay as verified.
     repo: str
     revision: str
-    size_bytes: int
+    # The size of the repo alone; what voxx reports as a Model's size_bytes is its download_bytes.
+    repo_bytes: int
     weights_license: License
     code_license: License
     verified: str
@@ -71,7 +72,7 @@ class Model:
     @property
     def download_bytes(self):
         """What `voxx install` downloads: the Model's repo and its extra repos, at the sizes voxx checked."""
-        return self.size_bytes + sum(e.size_bytes for e in self.extra_repos)
+        return self.repo_bytes + sum(e.size_bytes for e in self.extra_repos)
 
     def to_json(self):
         listed = {"id": self.id, "capabilities": list(self.capabilities), "languages": list(self.languages),
@@ -272,6 +273,11 @@ def extra_repo_dir(repo):
     return hf_cache_dir() / ("models--" + repo.replace("/", "--"))
 
 
+def extra_repo_snapshot(repo, revision):
+    """Where `voxx install` puts an extra repo's files at a revision, as Hugging Face's cache lays them out."""
+    return extra_repo_dir(repo) / "snapshots" / revision
+
+
 def extra_repo_path(repo):
     """The installed files of an extra repo, where Hugging Face's own loader finds them: the snapshot its main ref
     names. None if there is none."""
@@ -279,7 +285,7 @@ def extra_repo_path(repo):
         revision = (extra_repo_dir(repo) / "refs" / "main").read_text(encoding="utf-8")
     except OSError:
         return None
-    path = extra_repo_dir(repo) / "snapshots" / revision
+    path = extra_repo_snapshot(repo, revision)
     return path if revision and path.is_dir() else None
 
 

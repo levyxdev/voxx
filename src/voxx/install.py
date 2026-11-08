@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
 from voxx.files import nearest_existing
-from voxx.models import INSTALL_MANIFEST, extra_repo_dir, find_model, is_installed, model_dir, read_manifest
+from voxx.models import (INSTALL_MANIFEST, extra_repo_dir, extra_repo_snapshot, find_model, is_installed, model_dir,
+                         read_manifest)
 from voxx.output import VoxxError, progress
 
 DEFAULT_ENDPOINT = "https://huggingface.co"
@@ -35,36 +36,12 @@ def install(model_id):
     if is_installed(model):
         return _result(model, path, read_manifest(model), already_installed=True)
 
-    # Downloads land in <id>.<revision>.partial/: a verified file under its own name, an unfinished one as
-    # <name>.download. Naming the revision keeps an interrupted install of another revision from being reused.
-    partial = path.with_name(f"{path.name}.{model.revision}.partial")
-    stale_name = re.compile(re.escape(path.name) + r"\.[0-9a-f]{40}\.partial")
-    for stale in path.parent.glob(f"{path.name}.*.partial"):
-        if stale != partial and stale_name.fullmatch(stale.name):
-            shutil.rmtree(stale)
-    manifest = read_manifest(model)
-    if manifest is not None and manifest.get("revision") == model.revision:
-        # Only an extra repo is missing: keep the Model's own files, which the download below then skips.
-        if partial.exists():
-            shutil.rmtree(partial)
-        path.replace(partial)
-    files = _repo_files(model, model.repo, model.revision)
-    total = sum(f["size"] for f in files)
-    if total != model.size_bytes:
-        raise _invalid_repo(model, model.repo, model.revision,
-                            f"The hub lists {total} bytes for {model.id}, not the {model.size_bytes} voxx verified.")
-    # An extra repo is not pinned: its current revision, and only the files the Engine loads (ADR 0003).
-    extras = []
-    for extra in model.extra_repos:
-        revision = _main_revision(model, extra.repo)
-        wanted = [f for f in _repo_files(model, extra.repo, revision)
-                  if any(fnmatch.fnmatchcase(f["path"], pattern) for pattern in extra.files)]
-        if not wanted:
-            raise _invalid_repo(model, extra.repo, revision,
-                                f"The hub lists none of the files {model.id} loads from {extra.repo}.")
-        extras.append((extra.repo, revision, wanted))
+    partial = _partial_dir(model, path)
+    files = _model_files(model)
+    extras = [_extra_repo_files(model, extra) for extra in model.extra_repos]
+    # One download for the Model and its extra repos, so the disk check and the progress cover them all.
     downloads = [(model.repo, model.revision, partial, f) for f in files]
-    downloads += [(repo, revision, extra_repo_dir(repo) / "snapshots" / revision, f) for repo, revision, wanted in extras
+    downloads += [(repo, revision, extra_repo_snapshot(repo, revision), f) for repo, revision, wanted in extras
                   for f in wanted]
     total = sum(f["size"] for *_, f in downloads)
     _check_free_space(partial, total - sum(_downloaded(folder, f) for _, _, folder, f in downloads))
@@ -85,15 +62,57 @@ def install(model_id):
     return _result(model, path, manifest, already_installed=False)
 
 
+def _partial_dir(model, path):
+    """Where this install downloads the Model's own files before moving them into place."""
+    # Downloads land in <id>.<revision>.partial/: a verified file under its own name, an unfinished one as
+    # <name>.download. Naming the revision keeps an interrupted install of another revision from being reused.
+    partial = path.with_name(f"{path.name}.{model.revision}.partial")
+    stale_name = re.compile(re.escape(path.name) + r"\.[0-9a-f]{40}\.partial")
+    for stale in path.parent.glob(f"{path.name}.*.partial"):
+        if stale != partial and stale_name.fullmatch(stale.name):
+            shutil.rmtree(stale)
+    manifest = read_manifest(model)
+    if manifest is not None and manifest.get("revision") == model.revision:
+        # Only an extra repo is missing: keep the Model's own files, which the download then skips.
+        if partial.exists():
+            shutil.rmtree(partial)
+        path.replace(partial)
+    return partial
+
+
+def _model_files(model):
+    """The files of the Model's own repo at its pinned revision, which must add up to the size voxx verified."""
+    files = _repo_files(model, model.repo, model.revision)
+    total = sum(f["size"] for f in files)
+    if total != model.repo_bytes:
+        raise _invalid_repo(model, model.repo, model.revision,
+                            f"The hub lists {total} bytes for {model.id}, not the {model.repo_bytes} voxx verified.")
+    return files
+
+
+def _extra_repo_files(model, extra):
+    """An extra repo's current revision and the files of it the Engine loads. It is not pinned, so their size may
+    differ from the one voxx checked (ADR 0003)."""
+    revision = _main_revision(model, extra.repo)
+    wanted = [f for f in _repo_files(model, extra.repo, revision)
+              if any(fnmatch.fnmatchcase(f["path"], pattern) for pattern in extra.files)]
+    if not wanted:
+        raise _invalid_repo(model, extra.repo, revision,
+                            f"The hub lists none of the files {model.id} loads from {extra.repo}.")
+    return extra.repo, revision, wanted
+
+
 def _sizes(files):
     return [{"path": f["path"], "size": f["size"]} for f in files]
 
 
 def _result(model, path, manifest, already_installed):
+    # The sizes installed, as the manifest records them: an extra repo's can differ from the one voxx checked, which
+    # Model.download_bytes adds up.
     extras = [{"repo": e["repo"], "revision": e["revision"], "size_bytes": sum(f["size"] for f in e["files"]),
-               "path": str(extra_repo_dir(e["repo"]) / "snapshots" / e["revision"])}
+               "path": str(extra_repo_snapshot(e["repo"], e["revision"]))}
               for e in manifest.get("extra_repos", [])]
-    result = {"model": model.id, "path": str(path), "size_bytes": model.size_bytes + sum(e["size_bytes"] for e in extras),
+    result = {"model": model.id, "path": str(path), "size_bytes": model.repo_bytes + sum(e["size_bytes"] for e in extras),
               "already_installed": already_installed}
     return {**result, "extra_repos": extras} if extras else result
 
