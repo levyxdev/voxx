@@ -193,6 +193,12 @@ REGISTRY = (
           _apache("https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M"),
           _apache("https://github.com/OpenMOSS/MOSS-TTS-Nano"), "2026-11-06", 48_000,
           extra_repos=(MOSS_AUDIO_TOKENIZER,)),
+    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06. It only designs, in every language Qwen3-TTS
+    # reads; it has no Voices of its own. The description goes in as a chat turn of its own, before the text it reads,
+    # so it is not read out the way VoxCPM2 sometimes reads its description.
+    Model("qwen3-tts-1.7b-voicedesign", "mlx-audio", ("design",), QWEN3_TTS_LANGUAGES,
+          "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit", "f90d617701d9f7f4ca499291e0b57f2b3c2fd2ee", 3_080_140_867,
+          _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"), QWEN3_TTS_CODE, "2026-11-06", 24_000),
 )
 
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice

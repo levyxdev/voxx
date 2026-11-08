@@ -14,12 +14,14 @@ Describe traits only. When the user asks for a voice that sounds like a real per
 
 Write it as in [cloning.md](cloning.md) step 2: two or three sentences in the Narration's language, about 10 seconds aloud, in everyday words, in the tone the Narration should have, written as spoken. Pass that language as `--language`.
 
+The default designing Model, VoxCPM2, designs only in Chinese and English. For another language, pass `--model` a Model whose `languages` include it (`voxx models --capability design`): Qwen3-TTS VoiceDesign, on audition, designs in 10 languages.
+
 ## 3. Let the user choose
 
 Design in two rounds, each into a new `--out`:
 
 ```
-voice design --describe <description> [--describe <description>]... --text <text> --language <tag> --out <dir> [--takes <n>]
+voice design --describe <description> [--describe <description>]... --text <text> --language <tag> --out <dir> [--takes <n>] [--model <id>]
 ```
 
 1. **The style**: two or three different descriptions, one take each, into `voice-design/1/`. The user picks the description they like.
@@ -32,9 +34,9 @@ Each take takes about 15–30 seconds, so run the command in the background when
 Ask where the voice lives, as in [cloning.md](cloning.md) step 3, then store the chosen take:
 
 ```
-voice add <name> --from-design <the round's --out> --take <n> [--voices-dir <dir>]
+voice add <name> --from-design <the round's --out> --take <n> [--model <id>] [--voices-dir <dir>]
 ```
 
-It is read like a Cloned Voice: the Model and the `style` rules of [cloning.md](cloning.md) step 4 apply. It reads in any language its Model reads, not only the one it was designed in.
+It is read like a Cloned Voice: the Model and the `style` rules of [cloning.md](cloning.md) step 4 apply. It reads in any language its Model reads, not only the one it was designed in. The default cloning Model, VoxCPM2, also reads only Chinese and English, so a voice for a Narration in another language needs `voice add --model` with a cloning Model that reads it (`voxx models --capability clone`).
 
 When delivering, a Designed Voice needs no reminder about the right to use a voice, since no real person's voice is in it; the reminder to label AI-generated speech still applies.

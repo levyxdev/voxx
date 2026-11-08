@@ -166,7 +166,7 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
     assert ("style_ignored" in [w["code"] for w in styled["warnings"]]) == (cloning_model != "voxcpm2")
 
 
-DESIGN_SAMPLE_RATES = {"voxcpm2": 48_000, "ming-3.0-tts-0.5b": 44_100}
+DESIGN_SAMPLE_RATES = {"voxcpm2": 48_000, "ming-3.0-tts-0.5b": 44_100, "qwen3-tts-1.7b-voicedesign": 24_000}
 
 
 @pytest.mark.parametrize("designer", list(DESIGN_SAMPLE_RATES))

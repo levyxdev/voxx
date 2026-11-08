@@ -98,6 +98,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 | 试听候选：Preset Voice、Cloned Voice、设计音色、Delivery Control | Ming-3.0-tts-0.5B（levyxdev/voxx#33） |
 | 试听候选：Cloned Voice（23 种语言） | Chatterbox Multilingual V3（levyxdev/voxx#34），连带额外仓库 S3TokenizerV2 |
 | 试听候选：Cloned Voice（20 种语言），快速草稿 | MOSS-TTS-Nano-100M（levyxdev/voxx#35），连带额外仓库 MOSS-Audio-Tokenizer-Nano |
+| 试听候选：设计音色（10 种语言） | Qwen3-TTS-12Hz-1.7B-VoiceDesign（levyxdev/voxx#36） |
 | 强制对齐 | Qwen3-ForcedAligner-0.6B |
 | 自检听写、补参考录音文字 | Qwen3-ASR-0.6B |
 

@@ -63,6 +63,13 @@ def test_voice_design_uses_voxcpm2_unless_model_names_another_and_fails_until_it
     assert not (tmp_path / "design").exists()
 
 
+def test_voice_design_can_use_qwen3_voicedesign_in_a_language_voxcpm2_does_not_read(voxx, tmp_path):
+    run = design(voxx, tmp_path / "design", WARM, model="qwen3-tts-1.7b-voicedesign", language="ja")
+
+    error = assert_error(run, 3, "model_not_installed")
+    assert [m["model"] for m in error["details"]["missing"]] == ["qwen3-tts-1.7b-voicedesign"]
+
+
 def test_voice_design_needs_a_model_that_designs(installed, tmp_path):
     error = assert_error(design(installed, tmp_path / "design", WARM, model="fake-clone-alt"), 4, "capability_unsupported")
 
