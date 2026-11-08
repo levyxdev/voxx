@@ -23,8 +23,8 @@ INSTALL_SUMMARY = {
 
 # Delivery Controls: the delivery a Line asks for by value, where style asks in words.
 _CONTROL_WORDS = {"emotion": "Default emotion", "speed": "Default speaking rate", "pitch": "Default pitch",
-                  "volume": "Default speaking volume; each Line is still normalized to -18 LUFS, so it changes the delivery "
-                            "more than the loudness"}
+                  "volume": "Default speaking volume; each Line is still normalized to -18 LUFS, so it cannot make a "
+                            "Line louder"}
 _CONTROLS = {field: {"enum": list(values), "description": f"{_CONTROL_WORDS[field]} for every Line. Only a Model that "
                                                          "follows Delivery Controls (ming-3.0-tts-0.5b) reads it; any "
                                                          "other ignores it with a controls_ignored warning."}

@@ -45,7 +45,7 @@ agent 写旁白 ──► voxx narrate ──► 旁白文件（补全 audio + w
 
 - `language`：BCP 47 标签（规范大小写，如 zh、yue、en-US），一份旁白一种语言，必须和 Model 登记的语言完全一致（ADR 0005）。能用哪些语言跟随念它的 Model（Qwen3-TTS 支持 zh、en、ja、ko、fr、de、it、pt、ru、es），voxx 不另设限制；Model 不念这种语言时退出码 4。
 - `voice`、`style`、`seed` 在顶层设默认值，单个 Line 可以覆盖。`style` 是自然语言，直接作为 instruct 传给模型。不支持 `style` 的 Model（0.6B 快速档、Qwen3-TTS Base）照样念这个 Line，只在它的 `warnings` 里说明忽略了 `style`。
-- 四个 Delivery Control 也是顶层默认、Line 覆盖：`emotion`（happy、sad、angry、fearful、disgusted、surprised、neutral）、`speed`（slow、medium、fast）、`pitch`、`volume`（都是 low、medium、high）。只有 Ming-3.0-tts 跟随它们：voxx 把取值翻成 Ming 的中文取值，和 Preset Voice 一起拼成 Ming 的控制指令；克隆时还要给它一个全零的说话人向量，否则短句常常只念出零点几秒的杂音。Ming 不跟随 `style`（带 Preset Voice 或参考录音时音色还在，但 `style` 没有效果，levyxdev/voxx#33 实测），所以忽略并警告。其他 Model 照样念这个 Line，在 `warnings` 里用 `controls_ignored` 说明忽略了哪些。Line 最后仍规范化到 -18 LUFS，所以 `volume` 改变的是念法，不是响度。
+- 四个 Delivery Control 也是顶层默认、Line 覆盖：`emotion`（happy、sad、angry、fearful、disgusted、surprised、neutral）、`speed`（slow、medium、fast）、`pitch`、`volume`（都是 low、medium、high）。只有 Ming-3.0-tts 跟随它们：voxx 把取值翻成 Ming 的中文取值，和 Preset Voice 一起拼成 Ming 的控制指令；克隆时还要给它一个全零的说话人向量，否则短句常常只念出零点几秒的杂音。Ming 不跟随 `style`（带 Preset Voice 或参考录音时音色还在，但 `style` 没有效果，levyxdev/voxx#33 实测），所以忽略并警告。其他 Model 照样念这个 Line，在 `warnings` 里用 `controls_ignored` 说明忽略了哪些。Line 最后仍规范化到 -18 LUFS，所以 `volume` 改变不了响度。实测（levyxdev/voxx#33）情绪最明显；语速只差 5% 到 20%，和情绪一起用时更小；音高只在中文里有一点；音量测不出差别。
 - 没写 `voice` 时，用 Model 里第一个以这种语言为母语的音色（中文 vivian、英文 ryan），没有就用它的第一个音色。
 - 没写 `seed` 时由 voxx 随机生成。每个 Line 合成前都重新设 seed，所以同一个 Model、音色、`style`、文字和 seed 在同一台机器上念出逐字节相同的 WAV（真实模型测试验证过），也和 Line 的先后无关。输出的旁白文件原样当输入、带上同样的 `--model`，就能复现上一次（输入不读 Line 上的 `model`）。
 
