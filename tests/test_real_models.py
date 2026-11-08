@@ -112,7 +112,8 @@ def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):
 # A Reference Recording made by a Preset Voice, so the test needs no recording of a real person.
 REFERENCE = {"language": "zh", "voice": "serena", "seed": 42,
              "lines": [{"id": "reference", "text": "大家好，这是我录的一段参考音频，用来克隆我的声音。"}]}
-CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000, "ming-3.0-tts-0.5b": 44_100}
+CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000, "ming-3.0-tts-0.5b": 44_100,
+                      "chatterbox-multilingual-v3": 24_000}
 
 
 @pytest.fixture(params=list(CLONE_SAMPLE_RATES))
@@ -156,7 +157,7 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
         assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
         assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
     styled = result["data"]["narration"]["lines"][1]
-    # VoxCPM2 follows style without reading it out as part of the Line; Qwen3-TTS Base and Ming ignore it and say so.
+    # VoxCPM2 follows style without reading it out as part of the Line; the others ignore it and say so.
     assert NARRATIONS[language]["lines"][1]["style"].strip(".").lower() not in styled["transcript"].lower()
     assert ("style_ignored" in [w["code"] for w in styled["warnings"]]) == (cloning_model != "voxcpm2")
 

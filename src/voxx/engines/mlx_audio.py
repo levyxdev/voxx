@@ -57,8 +57,13 @@ class MlxAudioEngine:
                               use_zero_spk_emb=True, lang_code=LANGUAGE_NAMES[language])
         return self._read(model, seed, text=text, voice=voice, instruct=style, lang_code=LANGUAGE_NAMES[language])
 
+    @property
+    def chatterbox(self):
+        return getattr(getattr(self.model, "config", None), "model_type", None) == "chatterbox"
+
     def clone(self, text, *, model, reference, reference_text, style, controls, language, seed):
-        lang_code = LANGUAGE_NAMES[language]
+        # Chatterbox names a language by its tag, as a Narration does, and refuses the English name.
+        lang_code = language if self.chatterbox else LANGUAGE_NAMES[language]
         if self.ming:
             # Ming ignores ref_audio without ref_text, so it always takes both. With Delivery Controls it also needs a
             # speaker slot, if an empty one: without it, a short Line often comes back as a fraction of a second of noise.
@@ -72,8 +77,8 @@ class MlxAudioEngine:
             # of the text, so a styled Line takes ref_audio alone for the voice and the style as its instruct.
             return self._read(model, seed, text=text, ref_audio=str(reference), instruct=style, lang_code=lang_code)
         # Qwen3-TTS Base clones from ref_audio and ref_text. VoxCPM2 takes ref_audio for the voice and continues
-        # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Each Model's
-        # generate ignores the other's arguments.
+        # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Chatterbox takes
+        # ref_audio alone. Each Model's generate ignores the others' arguments.
         return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
                           prompt_audio=str(reference), prompt_text=reference_text, lang_code=lang_code)
 

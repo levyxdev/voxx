@@ -128,6 +128,9 @@ QWEN3_ASR_LANGUAGES = ("zh", "en", "yue", "ar", "de", "fr", "es", "pt", "id", "i
 VERIFIED = "2026-10-30"
 # Ming-3.0-tts reads these languages (its cookbook's "Target languages"); its dialects are not offered.
 MING_LANGUAGES = ("zh", "en", "ja", "ko", "de", "fr", "es")
+# The 23 languages of Chatterbox Multilingual V3, as its mlx-audio code lists them (SUPPORTED_LANGUAGES).
+CHATTERBOX_LANGUAGES = ("ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms", "nl", "no", "pl",
+                        "pt", "ru", "sv", "sw", "tr", "zh")
 REGISTRY = (
     # The first Model with Preset Voices is the default one.
     Model("qwen3-tts-1.7b-customvoice", "mlx-audio", ("preset_voice",), QWEN3_TTS_LANGUAGES,
@@ -161,6 +164,18 @@ REGISTRY = (
           _mit("https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B"), _mit("https://github.com/inclusionAI/Ming-3.0-tts"),
           "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES),
           reads_controls=True),
+    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06. It only clones: the mlx conversion has no voice of
+    # its own. It needs no reference text, but `voice add` keeps one, so the same Cloned Voice can be read by another
+    # Model. It loads S3TokenizerV2 by name at every load; that repo states no license, so it carries that of the
+    # CosyVoice2 weights it was converted from. Japanese, Hebrew and Russian are read without the extra text
+    # processing mlx-audio applies when optional packages voxx does not install are present.
+    Model("chatterbox-multilingual-v3", "mlx-audio", ("clone",), CHATTERBOX_LANGUAGES,
+          "mlx-community/chatterbox-multilingual-v3", "03565773edd72e949572557597af8063bb49a18a", 2_713_107_406,
+          _mit("https://huggingface.co/ResembleAI/chatterbox"), _mit("https://github.com/resemble-ai/chatterbox"),
+          "2026-11-06", 24_000,
+          extra_repos=(ExtraRepo("mlx-community/S3TokenizerV2", 494_869_110,
+                                 _apache("https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B"),
+                                 ("model.safetensors", "config.json")),)),
 )
 
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice
