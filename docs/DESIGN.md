@@ -97,6 +97,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 | Cloned Voice（对比项） | Qwen3-TTS-12Hz-1.7B-Base |
 | 试听候选：Preset Voice、Cloned Voice、设计音色、Delivery Control | Ming-3.0-tts-0.5B（levyxdev/voxx#33） |
 | 试听候选：Cloned Voice（23 种语言） | Chatterbox Multilingual V3（levyxdev/voxx#34），连带额外仓库 S3TokenizerV2 |
+| 试听候选：Cloned Voice（20 种语言），快速草稿 | MOSS-TTS-Nano-100M（levyxdev/voxx#35），连带额外仓库 MOSS-Audio-Tokenizer-Nano |
 | 强制对齐 | Qwen3-ForcedAligner-0.6B |
 | 自检听写、补参考录音文字 | Qwen3-ASR-0.6B |
 
@@ -105,7 +106,7 @@ v0.1 的 worker 和 CLI 在同一个 Python 环境里。等第一个依赖冲突
 ## 音色
 
 - Preset Voice 按名字选，来自模型自带的音色。`voxx voices` 列出每个音色的母语、上游给的一句描述和能念它的 Model，agent 据此让用户挑。Qwen3-TTS CustomVoice 的 9 个音色全部登记，1.7B 和 0.6B 共用；不指定 `--model` 时由默认的 1.7B 念。Ming-3.0-tts 的 241 个音色抄自上游 cookbook（commit `9332fb9`），`US_`、`UK_` 开头的 3 个是英文，其余是中文，带情绪后缀的变体各算一个；音色超过 20 个的 Model 在 `voxx voices` 默认输出里只有 `unlisted` 里的一行摘要（数量和列出全部的命令），`--model` 列出它的全部音色，`--language` 只留母语是这种语言的。
-- Cloned Voice 先存再用：`voice add` 把参考录音规范化（单声道、24 kHz、-18 LUFS、首尾静音 50 ms）、补好文字（没给 `--ref-text` 时用 Qwen3-ASR 听写，这时它必须已安装），存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以用 `--voices-dir` 指向项目目录，`narrate` 和 `voices` 传同一个目录。`voice.json` 记下 `voice add --model` 选的克隆 Model（默认 VoxCPM2），`narrate` 默认用它念，`narrate --model` 可以换成另一个克隆 Model。VoxCPM2 跟随 `style`：有 `style` 的 Line 只拿参考录音定声音、`style` 作为 instruct，不再接着参考录音续写（续写会把 `style` 当正文念出来），所以可能没那么像；没 `style` 的 Line 照旧续写，克隆最像。Qwen3-TTS Base 不接受 instruct，忽略 `style` 并在 `warnings` 里说明。Chatterbox 只用参考录音、不用文字，也忽略 `style`；`voice add` 照样补好文字，同一个音色换别的克隆 Model 念时要用。
+- Cloned Voice 先存再用：`voice add` 把参考录音规范化（单声道、24 kHz、-18 LUFS、首尾静音 50 ms）、补好文字（没给 `--ref-text` 时用 Qwen3-ASR 听写，这时它必须已安装），存成有名字的音色；旁白里用 `voice: "<名字>"` 引用。默认存在 `~/.voxx/voices/`，也可以用 `--voices-dir` 指向项目目录，`narrate` 和 `voices` 传同一个目录。`voice.json` 记下 `voice add --model` 选的克隆 Model（默认 VoxCPM2），`narrate` 默认用它念，`narrate --model` 可以换成另一个克隆 Model。VoxCPM2 跟随 `style`：有 `style` 的 Line 只拿参考录音定声音、`style` 作为 instruct，不再接着参考录音续写（续写会把 `style` 当正文念出来），所以可能没那么像；没 `style` 的 Line 照旧续写，克隆最像。Qwen3-TTS Base 不接受 instruct，忽略 `style` 并在 `warnings` 里说明。Chatterbox 和 MOSS-TTS-Nano 只用参考录音、不用文字，也忽略 `style`；`voice add` 照样补好文字，同一个音色换别的克隆 Model 念时要用。
 - Designed Voice 分两步（[ADR 0007](adr/0007-designed-voice-is-fixed-by-a-chosen-take.md)）：`voice design` 按每个描述生成 `--takes` 个念同一段试读稿的 Design Take，写进 `--out` 的 take-<n>.wav 和 design.json，并像 Line 一样听写回来自检；用户挑中后，`voice add --from-design <dir> --take <n>` 把那个 Design Take 当参考录音、试读稿当文字存成音色，`voice.json` 记 `kind: "designed"` 和描述。之后它和 Cloned Voice 一样由克隆 Model 念，不限语言。描述只写特征，不指向真实人物，由 skill 约束（ADR 0004）。
 - 代码不做授权校验，使用者对所克隆的声音负责，README 写免责声明（[ADR 0004](adr/0004-cloning-does-not-check-consent.md)）。不加水印。
 

@@ -9,6 +9,8 @@ REAL_MODELS = {
     "ming-3.0-tts-0.5b": (["preset_voice", "clone", "design"], 1_617_181_518, "MIT", "2026-11-06"),
     # 2,713,107,406 B of its own and 494,869,110 B of S3TokenizerV2.
     "chatterbox-multilingual-v3": (["clone"], 3_207_976_516, "MIT", "2026-11-06"),
+    # 285,462,910 B of its own and 87,976,790 B of its audio tokenizer.
+    "moss-tts-nano-100m": (["clone"], 373_439_700, "Apache-2.0", "2026-11-06"),
 }
 
 
@@ -51,6 +53,14 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
     assert chatterbox["extra_repos"] == [{"repo": "mlx-community/S3TokenizerV2", "size_bytes": 494_869_110,
                                           "license": {"id": "Apache-2.0",
                                                       "url": "https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B"}}]
+    moss = models["moss-tts-nano-100m"]
+    assert moss["languages"] == ["zh", "en", "de", "es", "fr", "ja", "it", "he", "ko", "ru", "fa", "ar", "pl", "pt", "cs",
+                                 "da", "sv", "hu", "el", "tr"]
+    assert moss["sample_rate"] == 48_000
+    assert (moss["repo"], moss["revision"]) == ("mlx-community/MOSS-TTS-Nano-100M", "229a9c51bb0ffff6fd0dbe53b5bf0c441e438a79")
+    assert moss["extra_repos"] == [{"repo": "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano", "size_bytes": 87_976_790,
+                                    "license": {"id": "Apache-2.0",
+                                                "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano"}}]
 
 
 def test_the_fake_model_is_listed_only_for_tests(voxx):
@@ -62,7 +72,7 @@ def test_the_fake_model_is_listed_only_for_tests(voxx):
 def test_models_can_be_filtered_by_capability(voxx):
     run = voxx("models", "--capability", "clone")
 
-    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "ming-3.0-tts-0.5b", "chatterbox-multilingual-v3", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
+    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "ming-3.0-tts-0.5b", "chatterbox-multilingual-v3", "moss-tts-nano-100m", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
 
 
 def test_voxcpm2_and_ming_design_voices(voxx):

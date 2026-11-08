@@ -8,6 +8,7 @@ from mlx_audio.stt.utils import load as load_stt
 from mlx_audio.tts.models.bailingmm.bailingmm import ming3_instruction
 from mlx_audio.tts.utils import load as load_tts
 
+from voxx.models import extra_repo_path, find_model
 from voxx.output import BUG_HINT, VoxxError
 
 # Narrations name languages by BCP 47 tag; mlx-audio names them in English.
@@ -61,7 +62,17 @@ class MlxAudioEngine:
     def chatterbox(self):
         return getattr(getattr(self.model, "config", None), "model_type", None) == "chatterbox"
 
+    @property
+    def moss(self):
+        return getattr(getattr(self.model, "config", None), "model_type", None) == "moss_tts_nano"
+
     def clone(self, text, *, model, reference, reference_text, style, controls, language, seed):
+        if self.moss:
+            # MOSS-TTS-Nano clones from ref_audio alone and reads no language tag. It loads its audio tokenizer on the
+            # first Line, from the copy `voxx install` made rather than by name.
+            [tokenizer] = find_model(model).extra_repos
+            return self._read(model, seed, text=text, ref_audio=str(reference),
+                              audio_tokenizer_source=str(extra_repo_path(tokenizer.repo)))
         # Chatterbox names a language by its tag, as a Narration does, and refuses the English name.
         lang_code = language if self.chatterbox else LANGUAGE_NAMES[language]
         if self.ming:
@@ -98,7 +109,9 @@ class MlxAudioEngine:
         if len(results) != 1:
             raise VoxxError("engine_split_line", f"mlx-audio read the Line in {len(results)} parts instead of one.",
                             BUG_HINT, {"model": model, "parts": len(results)})
-        return np.asarray(results[0].audio, dtype=np.float32), results[0].sample_rate
+        samples = np.asarray(results[0].audio, dtype=np.float32)
+        # MOSS-TTS-Nano reads in stereo, as [samples, channels]; a Line is mono.
+        return (samples.mean(axis=1) if samples.ndim == 2 else samples), results[0].sample_rate
 
     def transcribe(self, path, *, model, language):
         # Greedy decoding, so the same Line is always heard the same way; the path lets mlx-audio resample to 16 kHz.

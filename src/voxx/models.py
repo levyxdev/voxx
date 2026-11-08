@@ -131,6 +131,13 @@ MING_LANGUAGES = ("zh", "en", "ja", "ko", "de", "fr", "es")
 # The 23 languages of Chatterbox Multilingual V3, as its mlx-audio code lists them (SUPPORTED_LANGUAGES).
 CHATTERBOX_LANGUAGES = ("ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms", "nl", "no", "pl",
                         "pt", "ru", "sv", "sw", "tr", "zh")
+# The 20 languages on MOSS-TTS-Nano's model card.
+MOSS_TTS_NANO_LANGUAGES = ("zh", "en", "de", "es", "fr", "ja", "it", "he", "ko", "ru", "fa", "ar", "pl", "pt", "cs", "da", "sv",
+                           "hu", "el", "tr")
+# MOSS-TTS-Nano's codec, which its mlx-audio code would otherwise download by name on the first Line.
+MOSS_AUDIO_TOKENIZER = ExtraRepo("OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano", 87_976_790,
+                                 _apache("https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano"),
+                                 ("*.json", "*.safetensors", "*.index.json", "*.md"))
 REGISTRY = (
     # The first Model with Preset Voices is the default one.
     Model("qwen3-tts-1.7b-customvoice", "mlx-audio", ("preset_voice",), QWEN3_TTS_LANGUAGES,
@@ -176,6 +183,16 @@ REGISTRY = (
           extra_repos=(ExtraRepo("mlx-community/S3TokenizerV2", 494_869_110,
                                  _apache("https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B"),
                                  ("model.safetensors", "config.json")),)),
+    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06: small and fast, a draft tier for Cloned Voices.
+    # Its model card still asks not to redistribute it before a LICENSE file is published; that sentence is stale, and
+    # the publisher confirmed the weights are Apache-2.0 (OpenMOSS/MOSS-TTS-Nano#91). The mlx conversion only clones:
+    # the ONNX release's built-in voices are not part of it. It needs no reference text, but `voice add` keeps one, so
+    # the same Cloned Voice can be read by another Model. Its Engine is given the audio tokenizer's installed path.
+    Model("moss-tts-nano-100m", "mlx-audio", ("clone",), MOSS_TTS_NANO_LANGUAGES,
+          "mlx-community/MOSS-TTS-Nano-100M", "229a9c51bb0ffff6fd0dbe53b5bf0c441e438a79", 285_462_910,
+          _apache("https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M"),
+          _apache("https://github.com/OpenMOSS/MOSS-TTS-Nano"), "2026-11-06", 48_000,
+          extra_repos=(MOSS_AUDIO_TOKENIZER,)),
 )
 
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice

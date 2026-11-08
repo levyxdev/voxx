@@ -33,3 +33,7 @@ voxx builds on the following third-party projects:
 - Chatterbox (MIT License)
   Copyright (c) 2025 Resemble AI
   https://github.com/resemble-ai/chatterbox
+
+- MOSS-TTS-Nano (Apache License 2.0)
+  Copyright 2026 OpenMOSS Team, Fudan University, SII and MOSI
+  https://github.com/OpenMOSS/MOSS-TTS-Nano
