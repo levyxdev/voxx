@@ -32,7 +32,10 @@ def _parser():
     installed = models.add_mutually_exclusive_group()
     installed.add_argument("--installed", dest="installed", action="store_const", const=True)
     installed.add_argument("--not-installed", dest="installed", action="store_const", const=False)
-    commands.add_parser("voices", add_help=False).add_argument("--voices-dir")
+    voices = commands.add_parser("voices", add_help=False)
+    voices.add_argument("--voices-dir")
+    voices.add_argument("--model")
+    voices.add_argument("--language")
     voice = commands.add_parser("voice", add_help=False).add_subparsers(dest="voice_command", required=True,
                                                                          parser_class=_Parser)
     add = voice.add_parser("add", add_help=False)
@@ -78,7 +81,7 @@ def main(argv=None):
             data = list_models(args.capability, args.installed)
         elif args.command == "voices":
             from voxx.voices import list_voices
-            data = list_voices(args.voices_dir)
+            data = list_voices(args.voices_dir, args.model, args.language)
         elif args.command == "voice" and args.voice_command == "design":
             from voxx.design import design
             data = design(args.descriptions, args.text, args.language, args.out, args.takes, args.model)

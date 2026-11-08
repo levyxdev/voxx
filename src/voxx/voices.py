@@ -7,6 +7,7 @@ way, by a Model that clones. The voices dir is $VOXX_HOME/voices, or the one --v
 the user's project."""
 
 import json
+import re
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -17,7 +18,7 @@ from voxx.files import staging
 from voxx.models import (check_language, default_clone_model, find_model, is_installed, list_preset_voices, model_dir,
                          models, preset_voice_names, require_installed, resolve_preset_voice, transcriber_for,
                          unsupported_capability, voxx_home)
-from voxx.narration import FILE_NAME_BYTES, is_file_name
+from voxx.narration import FILE_NAME_BYTES, LANGUAGE_PATTERN, LANGUAGE_RULE, canonical_case, is_file_name
 from voxx.output import UNSUPPORTED, USAGE, VoxxError
 from voxx.worker.client import WorkerProcess
 
@@ -65,9 +66,20 @@ def voices_dir(path=None):
     return Path(path).resolve() if path is not None else voxx_home() / "voices"
 
 
-def list_voices(directory=None):
-    """`voxx voices`: every Preset Voice, then every Cloned Voice and Designed Voice in the voices dir."""
-    return {"voices": [*list_preset_voices(), *(v.to_json() for v in stored_voices(directory))]}
+def list_voices(directory=None, model_id=None, language=None):
+    """`voxx voices`: the Preset Voices, then the Cloned Voices and Designed Voices in the voices dir; with `model_id`,
+    only the Voices that Model reads, and with `language`, only Preset Voices native to it and the other Voices a
+    Model reads in it."""
+    if language is not None and not re.fullmatch(LANGUAGE_PATTERN, language):
+        canonical = canonical_case(language)
+        raise VoxxError("invalid_language", f"--language {language!r}: {LANGUAGE_RULE}"
+                        + (f" Write it as {canonical!r}." if canonical else ""), ARGS_HINT, {"language": language}, USAGE)
+    model = find_model(model_id) if model_id is not None else None
+    presets, unlisted = list_preset_voices(model, language)
+    # Every Model that clones reads every Cloned Voice and Designed Voice.
+    stored = [v.to_json() for v in stored_voices(directory)] if model is None or "clone" in model.capabilities else []
+    stored = [v for v in stored if language is None or language in (model.languages if model else v["languages"])]
+    return {"voices": [*presets, *stored], "unlisted": unlisted}
 
 
 def stored_voices(directory=None):

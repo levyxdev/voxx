@@ -21,7 +21,7 @@ Every command prints one JSON object on stdout and NDJSON progress on stderr. `v
 
 ## Voices
 
-The user chooses the Voice, since they will hear it and you cannot. Run `voxx voices` and list each Voice's name with its own short description, and the Models that read it; offer the Voices native to the Narration's language first. Once the user has chosen in a project, keep that Voice for every later Narration there without asking again. When they do not care, leave `voice` out: the Model then reads in its first Voice native to the language.
+The user chooses the Voice, since they will hear it and you cannot. Run `voxx voices` and list each Voice's name with its own short description, and the Models that read it; offer the Voices native to the Narration's language first. A Model with hundreds of Preset Voices, such as `ming-3.0-tts-0.5b`, shows up only in `unlisted`, as a count per language and the command that lists them; when the listed Voices do not suit the user, such as for an English female voice, run that command with `--language` to list only the ones native to the Narration's language. Once the user has chosen in a project, keep that Voice for every later Narration there without asking again. When they do not care, leave `voice` out: the Model then reads in its first Voice native to the language.
 
 A Cloned Voice or Designed Voice is listed by `voxx voices` beside the Preset Voices once it has been added; [cloning.md](cloning.md) covers cloning one. When the user wants a voice of their own but not their own voice, has no voice actor who agreed to be cloned, and no Preset Voice fits, offer to design one from a description: [designing.md](designing.md).
 

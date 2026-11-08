@@ -35,6 +35,8 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert {"name", "kind", "reference_text", "model", "languages", "models", "path"} <= set(cloned["required"])
     assert (cloned["properties"]["kind"]["const"], designed["properties"]["kind"]["const"]) == ("cloned", "designed")
     assert {"description", "design_model", "take", "seed"} <= set(designed["required"]) - set(cloned["required"])
+    assert {"model", "language", "voices_dir"} <= set(commands["voices"]["arguments"]["properties"])
+    assert {"voices", "unlisted"} <= set(commands["voices"]["result"]["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
     assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
 

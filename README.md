@@ -41,7 +41,7 @@ If a user hands you this repository to set up voxx:
 
 ## Models
 
-`voxx models` lists the registry. Each Model is pinned to one upstream revision, and its weights license was checked against the upstream model card on 2026-10-30. Only Models whose weights allow commercial use are registered.
+`voxx models` lists the registry. Each Model is pinned to one upstream revision, and its weights license was checked against the upstream model card on the date `voxx models` shows (2026-10-30; 2026-11-06 for Ming-3.0-tts). Only Models whose weights allow commercial use are registered.
 
 | Model | Used for | Download | Weights license |
 | --- | --- | --- | --- |
@@ -51,6 +51,7 @@ If a user hands you this repository to set up voxx:
 | `qwen3-tts-1.7b-base` | Cloned Voices | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) |
 | `qwen3-forcedaligner-0.6b` | Word timings | 1.3 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B) |
 | `qwen3-asr-0.6b` | Self-check, Reference Recording text | 1.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) |
+| `ming-3.0-tts-0.5b` | On audition: 241 Preset Voices (3 English, the rest Chinese), Cloned Voices, designing voices, and `emotion`, `speed`, `pitch` and `volume` | 1.6 GB | [MIT](https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B) |
 
 Only the Model that reads must be installed; without the aligner or the transcriber, Lines are read without word timings or the self-check. `voxx install <model>` is the only command that downloads anything ([ADR 0003](docs/adr/0003-models-are-installed-only-by-an-explicit-command.md)). It fetches the 8-bit MLX conversions from Hugging Face into `~/.voxx/models` (or `$VOXX_HOME/models`), and honors `HF_ENDPOINT` for a mirror.
 

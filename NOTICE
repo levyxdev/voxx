@@ -23,3 +23,9 @@ voxx builds on the following third-party projects:
 - VoxCPM (Apache License 2.0)
   Copyright OpenBMB
   https://github.com/OpenBMB/VoxCPM
+
+- Ming-3.0-tts (MIT License)
+  Copyright (c) 2025 inclusionAI
+  https://github.com/inclusionAI/Ming-3.0-tts
+  src/voxx/ming_voices.py copies the names and descriptions of its Preset
+  Voices from the cookbook in that repository.

@@ -2,15 +2,20 @@
 
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from voxx.ming_voices import MING_VOICES
 from voxx.output import NOT_INSTALLED, UNSUPPORTED, USAGE, VoxxError
 
 # Set to 1 only in tests: registers the fake Engine and its Model.
 FAKE_ENGINE_ENV = "VOXX_TEST_FAKE_ENGINE"
 
 CAPABILITIES = ("preset_voice", "clone", "design", "align", "transcribe")
+# `voxx voices` lists the Preset Voices of a Model with more than this only when asked to, so that hundreds of names do
+# not fill an agent's context by default.
+LISTED_VOICES_MAX = 20
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,10 @@ def _apache(url):
     return License("Apache-2.0", url)
 
 
+def _mit(url):
+    return License("MIT", url)
+
+
 # Only Models whose weights allow commercial use (ADR 0003). Weights licenses are the upstream repo's; the mlx
 # conversions downloaded here carry the same license. Sizes are the repo's total at the pinned revision.
 QWEN3_TTS_CODE = _apache("https://github.com/QwenLM/Qwen3-TTS")
@@ -87,6 +96,8 @@ QWEN3_ASR_CODE = _apache("https://github.com/QwenLM/Qwen3-ASR")
 QWEN3_ASR_LANGUAGES = ("zh", "en", "yue", "ar", "de", "fr", "es", "pt", "id", "it", "ko", "ru", "th", "vi", "ja", "tr", "hi",
                        "ms", "nl", "sv", "da", "fi", "pl", "cs", "fil", "fa", "el", "ro", "hu", "mk")
 VERIFIED = "2026-10-30"
+# Ming-3.0-tts reads these languages (its cookbook's "Target languages"); its dialects are not offered.
+MING_LANGUAGES = ("zh", "en", "ja", "ko", "de", "fr", "es")
 REGISTRY = (
     # The first Model with Preset Voices is the default one.
     Model("qwen3-tts-1.7b-customvoice", "mlx-audio", ("preset_voice",), QWEN3_TTS_LANGUAGES,
@@ -113,6 +124,11 @@ REGISTRY = (
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
+    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06.
+    Model("ming-3.0-tts-0.5b", "mlx-audio", ("preset_voice", "clone", "design"), MING_LANGUAGES,
+          "mlx-community/Ming-3.0-tts-0.5B-8bit", "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad", 1_617_181_518,
+          _mit("https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B"), _mit("https://github.com/inclusionAI/Ming-3.0-tts"),
+          "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES)),
 )
 
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice
@@ -199,17 +215,26 @@ def list_models(capability=None, installed=None):
     return {"models": [m for m in listed if installed is None or m["installed"] == installed]}
 
 
-def list_preset_voices():
-    """Every Preset Voice, and the Models that read it, as `voxx voices` lists them."""
-    voices = {}
-    for model in models():
-        installed = is_installed(model)
-        for voice in model.preset_voices:
+def list_preset_voices(model=None, language=None):
+    """The Preset Voices `voxx voices` lists, each with the Models that read it, and a summary of each Model whose
+    Voices it leaves out: only `model`'s if given, else those of every Model with at most LISTED_VOICES_MAX; only those
+    native to `language` if given."""
+    voices, listed, unlisted = {}, set(), []
+    for reader in models():
+        installed = is_installed(reader)
+        own = [v for v in reader.preset_voices if language is None or v.native_language == language]
+        if reader is model or (model is None and len(reader.preset_voices) <= LISTED_VOICES_MAX):
+            listed.update(v.name for v in own)
+        elif model is None and own:
+            command = f"voxx voices --model {reader.id}" + (f" --language {language}" if language else "")
+            unlisted.append({"model": reader.id, "installed": installed, "voices": len(own),
+                             "native_languages": dict(Counter(v.native_language for v in own)), "command": command})
+        for voice in own:
             entry = voices.setdefault(voice.name, {"name": voice.name, "kind": "preset", "native_language": voice.native_language,
                                                    "description": voice.description, "languages": [], "models": []})
-            entry["languages"] += [l for l in model.languages if l not in entry["languages"]]
-            entry["models"].append({"model": model.id, "installed": installed})
-    return list(voices.values())
+            entry["languages"] += [l for l in reader.languages if l not in entry["languages"]]
+            entry["models"].append({"model": reader.id, "installed": installed})
+    return [v for name, v in voices.items() if name in listed], unlisted
 
 
 def find_model(model_id):

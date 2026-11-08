@@ -1,6 +1,6 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
-from voxx.models import CAPABILITIES
+from voxx.models import CAPABILITIES, LISTED_VOICES_MAX
 from voxx.narration import LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
 from voxx.output import USAGE, VoxxError
 
@@ -451,17 +451,39 @@ COMMANDS = {
         },
     },
     "voices": {
-        "usage": "voxx voices [--voices-dir <dir>]",
+        "usage": "voxx voices [--model <model>] [--language <language>] [--voices-dir <dir>]",
         "description": "List the Preset Voices and the Models that read them, then the Cloned Voices and Designed "
-                       "Voices in the voices dir.",
-        "arguments": {"$schema": DRAFT, "type": "object", "properties": {"voices_dir": _voices_dir}},
+                       f"Voices in the voices dir. A Model with more than {LISTED_VOICES_MAX} Preset Voices, such as "
+                       "ming-3.0-tts-0.5b, is only summarized in unlisted unless --model names it.",
+        "arguments": {"$schema": DRAFT, "type": "object", "properties": {
+            "model": {**_model_id, "description": "Only the Voices this Model reads (--model): every one of its Preset "
+                                                  "Voices, and the Cloned Voices and Designed Voices if it clones."},
+            "language": {**_language, "description": "Only Preset Voices native to this language, and Cloned Voices and "
+                                                     "Designed Voices a Model reads in it (--language)."},
+            "voices_dir": _voices_dir}},
         "result": {
             "$schema": DRAFT,
             "type": "object",
-            "required": ["voices"],
-            "properties": {"voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE, DESIGNED_VOICE]}}},
+            "required": ["voices", "unlisted"],
+            "properties": {
+                "voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE, DESIGNED_VOICE]}},
+                "unlisted": {
+                    "type": "array",
+                    "description": "Each Model whose Preset Voices are left out of voices; run command to list them.",
+                    "items": {"type": "object", "required": ["model", "installed", "voices", "native_languages", "command"],
+                              "properties": {"model": _model_id, "installed": {"type": "boolean"},
+                                             "voices": {"type": "integer", "description": "How many are left out."},
+                                             "native_languages": {"type": "object",
+                                                                  "additionalProperties": {"type": "integer"},
+                                                                  "description": "How many of them are native to each "
+                                                                                 "language."},
+                                             "command": {"type": "string"}}},
+                },
+            },
         },
         "errors": {
+            "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
+            "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
             "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
                                                     "details.path, cannot be read; add the Voice again with "
                                                     "--overwrite, or remove the directory."},
