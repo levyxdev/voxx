@@ -362,9 +362,11 @@ def list_preset_voices(model=None, language=None):
     for reader in models():
         installed = is_installed(reader)
         own = [v for v in reader.preset_voices if language is None or v.native_language == language]
-        if reader is model or (model is None and len(reader.preset_voices) <= LISTED_VOICES_MAX):
+        shown = reader is model if model is not None else len(reader.preset_voices) <= LISTED_VOICES_MAX
+        if shown:
             listed.update(v.name for v in own)
         elif model is None and own:
+            # A Model with too many to list unasked gets a summary instead, with the command that lists them.
             command = f"voxx voices --model {reader.id}" + (f" --language {language}" if language else "")
             unlisted.append({"model": reader.id, "installed": installed, "voices": len(own),
                              "native_languages": dict(Counter(v.native_language for v in own)), "command": command})
