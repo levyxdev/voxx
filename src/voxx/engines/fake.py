@@ -7,6 +7,7 @@ import unicodedata
 import wave
 import zlib
 from collections import Counter
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
@@ -45,13 +46,16 @@ class FakeEngine:
     # A tone carries no words, so the fake Engine transcribes the text it last read in this worker.
     last_read = None
 
-    def load(self, path, capability):
+    def load(self, path, capability, *, extra_repos):
         _crash_if("load")
-        # As Chatterbox loads S3TokenizerV2: by repo name, from the Hugging Face cache, with no revision.
-        for extra in find_model(path.name).extra_repos:
+        # As Chatterbox loads S3TokenizerV2: by repo name, from the Hugging Face cache, with no revision. That must
+        # find the files MOSS-TTS-Nano is given by path.
+        for repo, installed in extra_repos.items():
             from huggingface_hub import snapshot_download
 
-            snapshot_download(extra.repo, allow_patterns=list(extra.files))
+            found = Path(snapshot_download(repo))
+            if found != installed:
+                raise RuntimeError(f"Hugging Face's loader finds {repo} at {found}, not at {installed}.")
 
     def synthesize(self, text, *, model, voice, style, controls, language, seed):
         return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode(), *_controls(controls))

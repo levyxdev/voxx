@@ -8,7 +8,6 @@ from mlx_audio.stt.utils import load as load_stt
 from mlx_audio.tts.models.bailingmm.bailingmm import ming3_instruction
 from mlx_audio.tts.utils import load as load_tts
 
-from voxx.models import extra_repo_path, find_model
 from voxx.output import BUG_HINT, VoxxError
 
 # Narrations name languages by BCP 47 tag; mlx-audio names them in English.
@@ -37,69 +36,103 @@ def _ming_caption(*, ip=None, style=None, controls=None):
     return ming3_instruction(ip=ip, style=style, **translated)
 
 
-class MlxAudioEngine:
-    # mlx-audio's Models share no typed interface.
-    model: Any
+class _Architecture:
+    """The arguments besides its text that a Line is read with, as Qwen3-TTS and VoxCPM2 take them. Each architecture
+    that takes them otherwise is a subclass; `_architecture` picks one when the Model loads."""
 
-    def load(self, path, capability):
-        # mlx-audio loads Models that speak and Models that listen through different loaders.
-        self.model = load_stt(path) if capability in ("transcribe", "align") else load_tts(path)
+    def __init__(self, extra_repos):
+        self.extra_repos = extra_repos
 
-    @property
-    def ming(self):
-        return getattr(self.model, "ming3", False)
+    def lang_code(self, language):
+        return LANGUAGE_NAMES[language]
 
-    def synthesize(self, text, *, model, voice, style, controls, language, seed):
-        if self.ming:
-            # Ming is never given a style. It takes its Voice as one more field of the caption: mlx-audio's own voice
-            # argument would refuse Delivery Controls beside it, and silently drop a Voice whose name has a space or
-            # parentheses.
-            return self._read(model, seed, text=text, instruct=_ming_caption(ip=voice, controls=controls),
-                              use_zero_spk_emb=True, lang_code=LANGUAGE_NAMES[language])
-        return self._read(model, seed, text=text, voice=voice, instruct=style, lang_code=LANGUAGE_NAMES[language])
+    def synthesize(self, *, voice, style, controls, language):
+        return {"voice": voice, "instruct": style, "lang_code": self.lang_code(language)}
 
-    @property
-    def chatterbox(self):
-        return getattr(getattr(self.model, "config", None), "model_type", None) == "chatterbox"
-
-    @property
-    def moss(self):
-        return getattr(getattr(self.model, "config", None), "model_type", None) == "moss_tts_nano"
-
-    def clone(self, text, *, model, reference, reference_text, style, controls, language, seed):
-        if self.moss:
-            # MOSS-TTS-Nano clones from ref_audio alone and reads no language tag. It loads its audio tokenizer on the
-            # first Line, from the copy `voxx install` made rather than by name.
-            [tokenizer] = find_model(model).extra_repos
-            return self._read(model, seed, text=text, ref_audio=str(reference),
-                              audio_tokenizer_source=str(extra_repo_path(tokenizer.repo)))
-        # Chatterbox names a language by its tag, as a Narration does, and refuses the English name.
-        lang_code = language if self.chatterbox else LANGUAGE_NAMES[language]
-        if self.ming:
-            # Ming ignores ref_audio without ref_text, so it always takes both. With Delivery Controls it also needs a
-            # speaker slot, if an empty one: without it, a short Line often comes back as a fraction of a second of noise.
-            if not controls:
-                return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
-                                  lang_code=lang_code)
-            return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
-                              instruct=_ming_caption(controls=controls), use_zero_spk_emb=True, lang_code=lang_code)
+    def clone(self, *, reference, reference_text, style, controls, language):
         if style:
-            # Of the others, only VoxCPM2 is given a style. Continuing a recording, it would read the style out as part
-            # of the text, so a styled Line takes ref_audio alone for the voice and the style as its instruct.
-            return self._read(model, seed, text=text, ref_audio=str(reference), instruct=style, lang_code=lang_code)
+            # Only VoxCPM2 is given a style. Continuing a recording, it would read the style out as part of the text,
+            # so a styled Line takes ref_audio alone for the voice and the style as its instruct.
+            return {"ref_audio": str(reference), "instruct": style, "lang_code": self.lang_code(language)}
         # Qwen3-TTS Base clones from ref_audio and ref_text. VoxCPM2 takes ref_audio for the voice and continues
         # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Chatterbox takes
         # ref_audio alone. Each Model's generate ignores the others' arguments.
-        return self._read(model, seed, text=text, ref_audio=str(reference), ref_text=reference_text,
-                          prompt_audio=str(reference), prompt_text=reference_text, lang_code=lang_code)
+        return {"ref_audio": str(reference), "ref_text": reference_text, "prompt_audio": str(reference),
+                "prompt_text": reference_text, "lang_code": self.lang_code(language)}
+
+    def design(self, *, description, language):
+        # Without reference audio, VoxCPM2 reads "({instruct}){text}": a voice that fits the description.
+        return {"instruct": description, "lang_code": self.lang_code(language)}
+
+
+class _Ming(_Architecture):
+    def synthesize(self, *, voice, style, controls, language):
+        # Ming is never given a style. It takes its Voice as one more field of the caption: mlx-audio's own voice
+        # argument would refuse Delivery Controls beside it, and silently drop a Voice whose name has a space or
+        # parentheses.
+        return {"instruct": _ming_caption(ip=voice, controls=controls), "use_zero_spk_emb": True,
+                "lang_code": self.lang_code(language)}
+
+    def clone(self, *, reference, reference_text, style, controls, language):
+        # Ming ignores ref_audio without ref_text, so it always takes both. With Delivery Controls it also needs a
+        # speaker slot, if an empty one: without it, a short Line often comes back as a fraction of a second of noise.
+        arguments = {"ref_audio": str(reference), "ref_text": reference_text, "lang_code": self.lang_code(language)}
+        if controls:
+            arguments.update(instruct=_ming_caption(controls=controls), use_zero_spk_emb=True)
+        return arguments
+
+    def design(self, *, description, language):
+        # Ming designs a voice from the caption's style field and an empty speaker slot, as its README does.
+        return {"instruct": _ming_caption(style=description), "use_zero_spk_emb": True,
+                "lang_code": self.lang_code(language)}
+
+
+class _Chatterbox(_Architecture):
+    def lang_code(self, language):
+        # Chatterbox names a language by its tag, as a Narration does, and refuses the English name.
+        return language
+
+
+class _Moss(_Architecture):
+    def clone(self, *, reference, reference_text, style, controls, language):
+        # MOSS-TTS-Nano clones from ref_audio alone and reads no language tag. It loads its audio tokenizer on the
+        # first Line, from the copy `voxx install` made rather than by name.
+        [tokenizer] = self.extra_repos.values()
+        return {"ref_audio": str(reference), "audio_tokenizer_source": str(tokenizer)}
+
+
+def _architecture(model):
+    """How the Model mlx-audio loaded takes a Line's arguments. Most name their architecture in config.model_type;
+    Ming-3.0's says "dense", as Ming Omni's does, so mlx-audio marks it with `ming3` instead."""
+    if getattr(model, "ming3", False):
+        return _Ming
+    model_type = getattr(getattr(model, "config", None), "model_type", "")
+    return {"chatterbox": _Chatterbox, "moss_tts_nano": _Moss}.get(model_type, _Architecture)
+
+
+class MlxAudioEngine:
+    # mlx-audio's Models share no typed interface.
+    model: Any
+    architecture: _Architecture
+
+    def load(self, path, capability, *, extra_repos):
+        # mlx-audio loads Models that speak and Models that listen through different loaders.
+        if capability in ("transcribe", "align"):
+            self.model = load_stt(path)
+        else:
+            self.model = load_tts(path)
+            self.architecture = _architecture(self.model)(extra_repos)
+
+    def synthesize(self, text, *, model, voice, style, controls, language, seed):
+        return self._read(model, seed, text=text, **self.architecture.synthesize(voice=voice, style=style,
+                                                                                 controls=controls, language=language))
+
+    def clone(self, text, *, model, reference, reference_text, style, controls, language, seed):
+        return self._read(model, seed, text=text, **self.architecture.clone(
+            reference=reference, reference_text=reference_text, style=style, controls=controls, language=language))
 
     def design(self, text, *, model, description, language, seed):
-        if self.ming:
-            # Ming designs a voice from the caption's style field and an empty speaker slot, as its README does.
-            return self._read(model, seed, text=text, instruct=_ming_caption(style=description), use_zero_spk_emb=True,
-                              lang_code=LANGUAGE_NAMES[language])
-        # Without reference audio, VoxCPM2 reads "({instruct}){text}": a voice that fits the description.
-        return self._read(model, seed, text=text, instruct=description, lang_code=LANGUAGE_NAMES[language])
+        return self._read(model, seed, text=text, **self.architecture.design(description=description, language=language))
 
     def _read(self, model, seed, **arguments):
         # mlx samples from one global generator, so seeding it before each Line makes the Line independent of the others.

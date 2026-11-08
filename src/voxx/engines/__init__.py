@@ -9,22 +9,26 @@ from voxx.models import fake_engine_enabled
 from voxx.output import BUG_HINT, VoxxError
 
 
+# A Line's Delivery Controls by field, with voxx's values, such as {"speed": "slow"}; a field the Line does not ask for
+# is left out.
+DeliveryControls = dict[str, str]
+
+
 class Engine(Protocol):
-    def load(self, path: Path, capability: str) -> None:
-        """Load the Model installed at path, to use it for capability. Called once per Model per worker; never
-        downloads (ADR 0003)."""
+    def load(self, path: Path, capability: str, *, extra_repos: dict[str, Path]) -> None:
+        """Load the Model installed at path, to use it for capability; extra_repos is where each of its extra repos is
+        installed, by repo name. Called once per Model per worker; never downloads (ADR 0003)."""
         ...
 
-    def synthesize(self, text: str, *, model: str, voice: str, style: str | None, controls: dict[str, str],
+    def synthesize(self, text: str, *, model: str, voice: str, style: str | None, controls: DeliveryControls,
                    language: str, seed: int) -> tuple[np.ndarray, int]:
         """Read one whole Line in one pass, the same way every time for the same seed. language is a BCP 47 tag.
-        style is None unless the Model reads_style, and controls, the Line's Delivery Controls by field with voxx's
-        values (such as {"speed": "slow"}), is empty unless the Model reads_controls. Returns mono float32 samples in
-        [-1, 1] and the native sample rate."""
+        style is None unless the Model reads_style, and controls is empty unless the Model reads_controls. Returns
+        mono float32 samples in [-1, 1] and the native sample rate."""
         ...
 
     def clone(self, text: str, *, model: str, reference: Path, reference_text: str, style: str | None,
-              controls: dict[str, str], language: str, seed: int) -> tuple[np.ndarray, int]:
+              controls: DeliveryControls, language: str, seed: int) -> tuple[np.ndarray, int]:
         """Read one whole Line in one pass in the voice of the Reference Recording, a WAV at reference whose words are
         reference_text; otherwise as synthesize does."""
         ...

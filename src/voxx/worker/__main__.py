@@ -10,6 +10,7 @@ from typing import cast
 
 from voxx.audio import finish, prepare_reference, write_wav
 from voxx.engines import load_engine
+from voxx.models import extra_repo_paths, find_model
 from voxx.output import VoxxError, dumps, progress
 
 
@@ -56,7 +57,7 @@ class Worker:
         if model not in self.engines:
             progress("model_loading", model=model)
             loaded = load_engine(engine)
-            loaded.load(Path(model_path), capability)
+            loaded.load(Path(model_path), capability, extra_repos=extra_repo_paths(find_model(model)))
             self.engines[model] = loaded
             progress("model_loaded", model=model)
         return self.engines[model]

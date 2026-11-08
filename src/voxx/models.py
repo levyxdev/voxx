@@ -283,6 +283,12 @@ def extra_repo_path(repo):
     return path if revision and path.is_dir() else None
 
 
+def extra_repo_paths(model) -> dict[str, Path]:
+    """The installed files of each of a Model's extra repos, by repo name, as its Engine is given them when it loads
+    the Model. An extra repo with none is left out."""
+    return {e.repo: path for e in model.extra_repos if (path := extra_repo_path(e.repo)) is not None}
+
+
 def read_manifest(model):
     """What `voxx install` recorded when it finished installing this Model, or None."""
     try:
