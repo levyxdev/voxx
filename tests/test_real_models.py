@@ -34,7 +34,11 @@ def installed_models():
     return {m["id"] for m in result["data"]["models"]}
 
 
-@pytest.fixture(params=["qwen3-tts-1.7b-customvoice", "qwen3-tts-0.6b-customvoice"])
+PRESET_SAMPLE_RATES = {"qwen3-tts-1.7b-customvoice": 24_000, "qwen3-tts-0.6b-customvoice": 24_000,
+                       "ming-3.0-tts-0.5b": 44_100}
+
+
+@pytest.fixture(params=list(PRESET_SAMPLE_RATES))
 def model(request, installed_models):
     # Every narrate times its Lines' words with Qwen3-ForcedAligner and transcribes them back with Qwen3-ASR.
     for needed in (request.param, "qwen3-forcedaligner-0.6b", "qwen3-asr-0.6b"):
@@ -58,7 +62,7 @@ def test_a_real_model_reads_every_line_to_an_audible_wav(model, language, tmp_pa
         assert line["model"] == model
         with wave.open(str(out / line["audio"])) as audio:
             assert audio.getnchannels() == 1
-            assert audio.getframerate() == line["sample_rate"] == 24_000
+            assert audio.getframerate() == line["sample_rate"] == PRESET_SAMPLE_RATES[model]
             samples = np.frombuffer(audio.readframes(audio.getnframes()), "<i2") / 32768
         seconds = len(samples) / line["sample_rate"]
         assert 1 < seconds < 15, f"{line['id']} is {seconds:.1f} s long"
@@ -108,7 +112,7 @@ def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):
 # A Reference Recording made by a Preset Voice, so the test needs no recording of a real person.
 REFERENCE = {"language": "zh", "voice": "serena", "seed": 42,
              "lines": [{"id": "reference", "text": "大家好，这是我录的一段参考音频，用来克隆我的声音。"}]}
-CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000}
+CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000, "ming-3.0-tts-0.5b": 44_100}
 
 
 @pytest.fixture(params=list(CLONE_SAMPLE_RATES))
@@ -152,28 +156,85 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
         assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
         assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
     styled = result["data"]["narration"]["lines"][1]
-    # VoxCPM2 follows style without reading it out as part of the Line; Qwen3-TTS Base ignores it and says so.
+    # VoxCPM2 follows style without reading it out as part of the Line; Qwen3-TTS Base and Ming ignore it and say so.
     assert NARRATIONS[language]["lines"][1]["style"].strip(".").lower() not in styled["transcript"].lower()
-    assert ("style_ignored" in [w["code"] for w in styled["warnings"]]) == (cloning_model == "qwen3-tts-1.7b-base")
+    assert ("style_ignored" in [w["code"] for w in styled["warnings"]]) == (cloning_model != "voxcpm2")
 
 
+DESIGN_SAMPLE_RATES = {"voxcpm2": 48_000, "ming-3.0-tts-0.5b": 44_100}
+
+
+@pytest.mark.parametrize("designer", list(DESIGN_SAMPLE_RATES))
 @pytest.mark.parametrize("language", ["zh", "en"])
-def test_voxcpm2_designs_a_voice_that_reads_the_text_without_its_description(installed_models, language, tmp_path):
-    for needed in ("voxcpm2", "qwen3-asr-0.6b"):
+def test_a_model_designs_a_voice_that_reads_the_text_without_its_description(installed_models, designer, language,
+                                                                           tmp_path):
+    for needed in (designer, "qwen3-asr-0.6b"):
         if needed not in installed_models:
             pytest.skip(f"{needed} is not installed")
     describe = {"zh": "温和的中年女声，语速偏慢", "en": "A calm middle-aged female narrator, speaking slowly"}[language]
     text = NARRATIONS[language]["lines"][0]["text"]
     out = tmp_path / "design"
     code, result = real_voxx("voice", "design", "--describe", describe, "--text", text, "--language", language,
-                             "--out", out)
+                             "--out", out, "--model", designer)
 
     assert code == 0, result
     [take] = result["data"]["design"]["takes"]
-    assert take["sample_rate"] == 48_000
+    assert take["sample_rate"] == DESIGN_SAMPLE_RATES[designer]
     with wave.open(str(out / take["audio"])) as audio:
         samples = np.frombuffer(audio.readframes(audio.getnframes()), "<i2") / 32768
     assert 1 < len(samples) / take["sample_rate"] < 15
     assert np.sqrt(np.mean(samples**2)) > 0.01
     # The known bad take reads its description out loud; the transcript is where it shows.
     assert take["error_rate"] <= 0.25, (text, take["transcript"])
+
+
+def seconds_of(path):
+    with wave.open(str(path)) as audio:
+        return audio.getnframes() / audio.getframerate()
+
+
+@pytest.mark.parametrize("language, voice", [("zh", "灵小柔"), ("en", "US_Emma")])
+def test_ming_follows_delivery_controls_in_a_preset_voice_and_in_a_cloned_voice(installed_models, language, voice,
+                                                                                tmp_path):
+    for needed in ("ming-3.0-tts-0.5b", "qwen3-tts-1.7b-customvoice", "qwen3-forcedaligner-0.6b", "qwen3-asr-0.6b"):
+        if needed not in installed_models:
+            pytest.skip(f"{needed} is not installed")
+    text = {"zh": "这是一个新的发送流程。先选好文件，再填上同事的邮箱，最后点一下发送就完成了。",
+            "en": "This is the new way to send a file. Pick the file, type your colleague's email, and press send."}[language]
+    # Cloning with an emotion once turned short Lines like this one into a fraction of a second of noise.
+    short = {"zh": "这是一个新的发送流程。", "en": "Press send, and you're done."}[language]
+    [reference] = narrate("qwen3-tts-1.7b-customvoice", REFERENCE, tmp_path / "reference")
+    voices = tmp_path / "voices"
+    code, result = real_voxx("voice", "add", "me", "--ref", tmp_path / "reference" / reference["audio"],
+                             "--model", "ming-3.0-tts-0.5b", "--voices-dir", voices)
+    assert code == 0, result
+
+    for read_in in (voice, "me"):
+        out = tmp_path / read_in
+        path = out.with_suffix(".json")
+        narration = {"language": language, "voice": read_in, "seed": 42,
+                     "lines": [{"id": "slow", "text": text, "speed": "slow"}, {"id": "fast", "text": text, "speed": "fast"},
+                               {"id": "happy", "text": short, "emotion": "happy"},
+                               {"id": "sad", "text": short, "emotion": "sad", "speed": "slow"}]}
+        path.write_text(json.dumps(narration, ensure_ascii=False), encoding="utf-8")
+        code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", voices)
+
+        assert code == 0, result
+        for line in result["data"]["narration"]["lines"]:
+            assert line["model"] == "ming-3.0-tts-0.5b"
+            assert line["warnings"] == []
+            assert line["error_rate"] <= 0.25, (read_in, line["id"], line["transcript"])
+        # Ming's speed is a nudge of about 5 to 20 percent, so only the order is certain.
+        assert seconds_of(out / "slow.wav") > seconds_of(out / "fast.wav"), read_in
+
+
+def test_ming_reads_a_preset_voice_whose_name_has_a_space_and_parentheses(installed_models, tmp_path):
+    for needed in ("ming-3.0-tts-0.5b", "qwen3-forcedaligner-0.6b", "qwen3-asr-0.6b"):
+        if needed not in installed_models:
+            pytest.skip(f"{needed} is not installed")
+    lines = narrate("ming-3.0-tts-0.5b", {**NARRATIONS["zh"], "voice": "蜡笔小新_野原美伢 (美伢)", "seed": 42},
+                    tmp_path / "out")
+
+    for line in lines:
+        assert line["voice"] == "蜡笔小新_野原美伢 (美伢)"
+        assert line["error_rate"] <= 0.25, (line["id"], line["transcript"])

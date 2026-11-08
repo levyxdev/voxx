@@ -24,6 +24,10 @@ FILE_NAME_BYTES = 255
 LINE_ID_RULE = ("An id is visible text that does not start with '.', has no '/', '\\', control or formatting characters, "
                 f"and is at most {FILE_NAME_BYTES - len(LONGEST_SUFFIX)} bytes in UTF-8.")
 NARRATION_HINT = "Run `voxx schema narrate` to see the Narration file format."
+# Delivery Controls: the delivery a Line asks for by value, where `style` asks in words. Each Model that follows them
+# has its own words for the values.
+CONTROLS = {"emotion": ("happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"),
+            "speed": ("slow", "medium", "fast"), "pitch": ("low", "medium", "high"), "volume": ("low", "medium", "high")}
 
 
 def load_narration(path):
@@ -94,7 +98,7 @@ def canonical_case(tag):
 
 
 def line_setting(narration, line, field):
-    """A Line's voice, style or seed: its own, else the Narration's default, else None."""
+    """A Line's voice, style, Delivery Control or seed: its own, else the Narration's default, else None."""
     return line.get(field, narration.get(field))
 
 
@@ -102,6 +106,9 @@ def _check_settings(obj, where):
     """The settings a Narration gives every Line and a Line can override."""
     for field in ("voice", "style"):
         _optional_string(obj, field, where)
+    for field, values in CONTROLS.items():
+        if field in obj and obj[field] not in values:
+            _invalid(f"{where}.{field}", f"{field} must be one of {', '.join(values)} when given.")
     seed = obj.get("seed", 0)
     if type(seed) is not int or not 0 <= seed <= MAX_SEED:
         _invalid(f"{where}.seed", SEED_RULE)

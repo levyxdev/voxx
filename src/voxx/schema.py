@@ -1,7 +1,7 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
 from voxx.models import CAPABILITIES, LISTED_VOICES_MAX
-from voxx.narration import LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
+from voxx.narration import CONTROLS, LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
 from voxx.output import USAGE, VoxxError
 
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
@@ -21,6 +21,15 @@ INSTALL_SUMMARY = {
                    "license_url": {"type": "string"}},
 }
 
+# Delivery Controls: the delivery a Line asks for by value, where style asks in words.
+_CONTROL_WORDS = {"emotion": "Default emotion", "speed": "Default speaking rate", "pitch": "Default pitch",
+                  "volume": "Default speaking volume; each Line is still normalized to -18 LUFS, so it changes the delivery "
+                            "more than the loudness"}
+_CONTROLS = {field: {"enum": list(values), "description": f"{_CONTROL_WORDS[field]} for every Line. Only a Model that "
+                                                         "follows Delivery Controls (ming-3.0-tts-0.5b) reads it; any "
+                                                         "other ignores it with a controls_ignored warning."}
+             for field, values in CONTROLS.items()}
+
 NARRATION_INPUT = {
     "$schema": DRAFT,
     "title": "Narration",
@@ -35,8 +44,9 @@ NARRATION_INPUT = {
                                                       "Preset Voice native to the language."},
         "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
                                                       "instruction. Ignored, with a warning, by a Model that cannot follow it."},
+        **_CONTROLS,
         "seed": {**_seed, "description": "Default seed for every Line. Omit for a random one per Line; the same seed, "
-                                         "Model, Voice, style and text read the same way again."},
+                                         "Model, Voice, style, Delivery Controls and text read the same way again."},
         "lines": {
             "type": "array",
             "minItems": 1,
@@ -50,6 +60,8 @@ NARRATION_INPUT = {
                     "text": _non_empty_string,
                     "voice": {**_non_empty_string, "description": "Overrides the Narration's voice for this Line."},
                     "style": {**_non_empty_string, "description": "Overrides the Narration's style for this Line."},
+                    **{field: {**schema, "description": f"Overrides the Narration's {field} for this Line."}
+                       for field, schema in _CONTROLS.items()},
                     "seed": {**_seed, "description": "Overrides the Narration's seed for this Line."},
                 },
             },
@@ -75,7 +87,8 @@ LINE_OUTPUT_FIELDS = {
                                                "was read in."},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
-    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
+    "warnings": {"type": "array", "description": "What did not go as asked, such as a style (style_ignored) or "
+                                                  "Delivery Controls (controls_ignored) the Model ignored, a Line "
                                                   "that could not reach -18 LUFS without clipping, a Line without "
                                                   "words (not_aligned) because no Model aligns its language or the "
                                                   "aligner failed, a Line not checked (not_checked) "
@@ -83,8 +96,8 @@ LINE_OUTPUT_FIELDS = {
                                                   "(aligner_not_installed) or not checked (checker_not_installed) "
                                                   "because the Model that would do it is not installed, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
-                                                  "gives it other text, another language, another Voice or another "
-                                                  "style.",
+                                                  "gives it other text, another language, another Voice, another "
+                                                  "style or other Delivery Controls.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"},
                                           "details": MISSING_MODEL}}},

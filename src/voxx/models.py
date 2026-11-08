@@ -50,6 +50,9 @@ class Model:
     preset_voices: tuple[PresetVoice, ...] = ()
     # Whether the Model follows a Line's style; a Model that cannot reads the Line without it.
     reads_style: bool = False
+    # Whether the Model follows a Line's Delivery Controls (emotion, speed, pitch, volume); a Model that cannot reads
+    # the Line without them.
+    reads_controls: bool = False
 
     def to_json(self):
         return {"id": self.id, "capabilities": list(self.capabilities), "languages": list(self.languages),
@@ -124,20 +127,23 @@ REGISTRY = (
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
-    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06.
+    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
+    # Preset Voice or a Reference Recording it keeps the voice and ignores the style (tested in levyxdev/voxx#33).
     Model("ming-3.0-tts-0.5b", "mlx-audio", ("preset_voice", "clone", "design"), MING_LANGUAGES,
           "mlx-community/Ming-3.0-tts-0.5B-8bit", "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad", 1_617_181_518,
           _mit("https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B"), _mit("https://github.com/inclusionAI/Ming-3.0-tts"),
-          "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES)),
+          "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES),
+          reads_controls=True),
 )
 
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice
-# Models, the two fake ones share their Voices, and only the first follows style.
+# Models, the two fake ones share their Voices, and only the first follows style; it also follows Delivery Controls,
+# as Ming-3.0-tts does.
 FAKE_VOICES = (PresetVoice("fake-alice", "zh", "A test tone."), PresetVoice("fake-bob", "en", "A lower test tone."))
 FAKE_MODEL = Model("fake-tts", "fake", ("preset_voice",), ("zh", "en", "fr", "yue"),
                    "voxx-test/fake-tts", "0123456789abcdef0123456789abcdef01234567", 4096,
                    _apache("https://huggingface.co/voxx-test/fake-tts"), _apache("https://github.com/levyxdev/voxx"),
-                   VERIFIED, 24_000, FAKE_VOICES, reads_style=True)
+                   VERIFIED, 24_000, FAKE_VOICES, reads_style=True, reads_controls=True)
 FAKE_SMALL_MODEL = Model("fake-tts-small", "fake", ("preset_voice",), ("zh", "en"),
                          "voxx-test/fake-tts-small", "89abcdef0123456789abcdef0123456789abcdef", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-tts-small"),
@@ -153,11 +159,13 @@ FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
                          _apache("https://huggingface.co/voxx-test/fake-aligner"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED)
 # Clone like the two real cloning Models: the first follows style and designs as VoxCPM2 does, the other ignores style
-# as Qwen3-TTS Base does, and they read at different sample rates.
+# as Qwen3-TTS Base does, and they read at different sample rates. Only the first follows Delivery Controls, as
+# Ming-3.0-tts does.
 FAKE_CLONE_MODEL = Model("fake-clone", "fake", ("clone", "design"), ("zh", "en"),
                          "voxx-test/fake-clone", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-clone"),
-                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000, reads_style=True)
+                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000, reads_style=True,
+                         reads_controls=True)
 FAKE_CLONE_ALT_MODEL = Model("fake-clone-alt", "fake", ("clone",), ("zh", "en"),
                              "voxx-test/fake-clone-alt", "a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2", 4096,
                              _apache("https://huggingface.co/voxx-test/fake-clone-alt"),

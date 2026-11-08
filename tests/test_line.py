@@ -156,6 +156,8 @@ def test_a_line_whose_text_changed_but_is_not_read_again_is_warned_stale(install
 @pytest.mark.parametrize("change, said", [
     ({"voice": "fake-bob"}, "its voice is now 'fake-bob', not 'fake-alice'"),
     ({"style": "语气平静"}, "its style is now '语气平静', not none"),
+    ({"emotion": "sad"}, "its emotion is now 'sad', not none"),
+    ({"speed": "slow"}, "its speed is now 'slow', not none"),
 ])
 def test_a_line_whose_voice_or_style_changed_but_is_not_read_again_is_warned_stale(installed, write_narration, tmp_path,
                                                                                     change, said):

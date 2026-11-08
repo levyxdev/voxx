@@ -15,15 +15,18 @@ class Engine(Protocol):
         downloads (ADR 0003)."""
         ...
 
-    def synthesize(self, text: str, *, model: str, voice: str, style: str | None, language: str, seed: int) -> tuple[np.ndarray, int]:
+    def synthesize(self, text: str, *, model: str, voice: str, style: str | None, controls: dict[str, str],
+                   language: str, seed: int) -> tuple[np.ndarray, int]:
         """Read one whole Line in one pass, the same way every time for the same seed. language is a BCP 47 tag.
-        Returns mono float32 samples in [-1, 1] and the native sample rate."""
+        style is None unless the Model reads_style, and controls, the Line's Delivery Controls by field with voxx's
+        values (such as {"speed": "slow"}), is empty unless the Model reads_controls. Returns mono float32 samples in
+        [-1, 1] and the native sample rate."""
         ...
 
-    def clone(self, text: str, *, model: str, reference: Path, reference_text: str, style: str | None, language: str,
-              seed: int) -> tuple[np.ndarray, int]:
+    def clone(self, text: str, *, model: str, reference: Path, reference_text: str, style: str | None,
+              controls: dict[str, str], language: str, seed: int) -> tuple[np.ndarray, int]:
         """Read one whole Line in one pass in the voice of the Reference Recording, a WAV at reference whose words are
-        reference_text; otherwise as synthesize does. style is None unless the Model reads_style."""
+        reference_text; otherwise as synthesize does."""
         ...
 
     def design(self, text: str, *, model: str, description: str, language: str, seed: int) -> tuple[np.ndarray, int]:

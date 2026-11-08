@@ -173,6 +173,27 @@ def test_a_cloned_voice_follows_style_only_on_a_model_that_reads_style(installed
     assert [w["code"] for w in styled["warnings"]] == ["style_ignored"]
 
 
+def test_a_cloned_voice_follows_emotion_speed_pitch_and_volume_only_on_a_model_that_reads_them(
+        installed, recording, write_narration, tmp_path):
+    assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
+    narration = {"language": "zh", "voice": "me", "seed": 7,
+                 "lines": [{"id": "plain", "text": "一样的话"}, {"id": "slow", "text": "一样的话", "speed": "slow"},
+                           {"id": "both", "text": "一样的话", "speed": "slow", "style": "语气兴奋"}]}
+    path = write_narration(narration)
+    runs = {out: installed("narrate", path, "--out", tmp_path / out, *model)
+            for out, model in (("first", []), ("alt", ["--model", "fake-clone-alt"]))}
+
+    def audio(out, line_id):
+        return (tmp_path / out / f"{line_id}.wav").read_bytes()
+
+    assert len({audio("first", line_id) for line_id in ("plain", "slow", "both")}) == 3
+    assert [line["warnings"] for line in lines(runs["first"]).values()] == [[], [], []]
+    assert audio("alt", "slow") == audio("alt", "both") == audio("alt", "plain")
+    plain, slow, both = lines(runs["alt"]).values()
+    assert [w["code"] for w in slow["warnings"]] == ["controls_ignored"]
+    assert [w["code"] for w in both["warnings"]] == ["style_ignored", "controls_ignored"]
+
+
 def test_narrate_reads_a_cloned_voice_with_the_model_given_to_model(installed, recording, write_narration, tmp_path):
     assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
     run = installed("narrate", write_narration(NARRATION), "--out", tmp_path / "out", "--model", "fake-clone-alt")

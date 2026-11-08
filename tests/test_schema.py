@@ -14,6 +14,10 @@ def test_schema_describes_narrate(voxx):
     assert "--line" in narrate["usage"]
     assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
     assert {"voice", "style", "seed"} <= set(narrate["input"]["properties"]["lines"]["items"]["properties"])
+    for where in (narrate["input"]["properties"], narrate["input"]["properties"]["lines"]["items"]["properties"]):
+        assert where["emotion"]["enum"] == ["happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"]
+        assert where["speed"]["enum"] == ["slow", "medium", "fast"]
+        assert where["pitch"]["enum"] == where["volume"]["enum"] == ["low", "medium", "high"]
     line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
     assert {"audio", "model", "voice", "seed", "sample_rate", "warnings"} <= set(line["required"])
     assert {"unknown_voice", "unknown_model", "capability_unsupported", "voice_unsupported",

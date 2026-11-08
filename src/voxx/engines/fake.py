@@ -48,14 +48,15 @@ class FakeEngine:
     def load(self, path, capability):
         _crash_if("load")
 
-    def synthesize(self, text, *, model, voice, style, language, seed):
-        return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode())
+    def synthesize(self, text, *, model, voice, style, controls, language, seed):
+        return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode(), *_controls(controls))
 
-    def clone(self, text, *, model, reference, reference_text, style, language, seed):
+    def clone(self, text, *, model, reference, reference_text, style, controls, language, seed):
         # The pitch follows the Reference Recording, and its words or the style, as the real Engine reads one or the
         # other; the sample rate follows the Model's registry entry.
         read_from = f"style: {style}" if style else f"reference_text: {reference_text}"
-        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), read_from.encode())
+        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), read_from.encode(),
+                     *_controls(controls))
 
     def design(self, text, *, model, description, language, seed):
         return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, f"description: {description}".encode())
@@ -98,6 +99,11 @@ def _tone(text, seed, sample_rate, *voice):
         tone[(2 * np.arange(shape.spikes) + 1) * len(tone) // (2 * shape.spikes)] = shape.spike
     lead, tail = np.zeros(int(sample_rate * shape.lead)), np.zeros(int(sample_rate * shape.tail))
     return np.concatenate([lead, tone, tail]).astype(np.float32), sample_rate
+
+
+def _controls(controls):
+    """Delivery Controls as parts of a tone's voice; none leaves the tone as it was before they existed."""
+    return [f"{field}: {value}".encode() for field, value in sorted(controls.items())]
 
 
 def _words(text):

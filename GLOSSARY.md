@@ -14,6 +14,10 @@ _Avoid_: script, 文案文件, 口播稿
 旁白中有唯一 id 的一段文字，一次连续念完，对应一个音频文件。
 _Avoid_: segment, 段落, sentence
 
+**Delivery Control（念法参数）**:
+Line 按固定取值要求的念法，共四个：emotion（情绪：happy、sad、angry、fearful、disgusted、surprised、neutral）、speed（语速：slow、medium、fast）、pitch（音高：low、medium、high）、volume（音量：low、medium、high）。和 style 一样，写在 Narration 顶层是每个 Line 的默认值，写在 Line 上覆盖默认值；不能跟随的 Model 忽略它们并警告，照常念。
+_Avoid_: 控制指令, instruct, 参数
+
 **Word Timing（词级时间戳）**:
 Line 的音频里每个词（中文为字）开始和结束的时刻，相对该 Line 音频的起点。
 _Avoid_: alignment, 时间轴, 时间
