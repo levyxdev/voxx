@@ -54,6 +54,10 @@ _Avoid_: prompt audio, ref, 样本
 voxx 注册表里登记的一个可下载的 TTS、对齐或听写模型，固定到一个上游版本，带有已核实的权重许可证。
 _Avoid_: checkpoint, 权重
 
+**Audition（试听）**:
+新登记的 Model 留在注册表里供用户和现有 Model 比较试听、再决定去留的阶段；README、DESIGN.md 和 skill 把这样的 Model 标为 on audition（试听中）。
+_Avoid_: candidate, 候选, trial
+
 **Extra Repo（额外仓库）**:
 Model 加载时还要的另一个 Hugging Face 仓库，由 `voxx install` 和 Model 一起下载；不固定版本，安装清单记下实际下载的 revision。
 _Avoid_: dependency, 依赖, 附带模型

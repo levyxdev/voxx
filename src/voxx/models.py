@@ -164,14 +164,14 @@ REGISTRY = (
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
-    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
+    # On audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
     # Preset Voice or a Reference Recording it keeps the voice and ignores the style (tested in levyxdev/voxx#33).
     Model("ming-3.0-tts-0.5b", "mlx-audio", ("preset_voice", "clone", "design"), MING_LANGUAGES,
           "mlx-community/Ming-3.0-tts-0.5B-8bit", "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad", 1_617_181_518,
           _mit("https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B"), _mit("https://github.com/inclusionAI/Ming-3.0-tts"),
           "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES),
           reads_controls=True),
-    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06. It only clones: the mlx conversion has no voice of
+    # On audition (levyxdev/voxx#25), checked 2026-11-06. It only clones: the mlx conversion has no voice of
     # its own. It needs no reference text, but `voice add` keeps one, so the same Cloned Voice can be read by another
     # Model. It loads S3TokenizerV2 by name at every load; that repo states no license, so it carries that of the
     # CosyVoice2 weights it was converted from. Japanese, Hebrew and Russian are read without the extra text
@@ -183,7 +183,7 @@ REGISTRY = (
           extra_repos=(ExtraRepo("mlx-community/S3TokenizerV2", 494_869_110,
                                  _apache("https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B"),
                                  ("model.safetensors", "config.json")),)),
-    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06: small and fast, a draft tier for Cloned Voices.
+    # On audition (levyxdev/voxx#25), checked 2026-11-06: small and fast, a draft tier for Cloned Voices.
     # Its model card still asks not to redistribute it before a LICENSE file is published; that sentence is stale, and
     # the publisher confirmed the weights are Apache-2.0 (OpenMOSS/MOSS-TTS-Nano#91). The mlx conversion only clones:
     # the ONNX release's built-in voices are not part of it. It needs no reference text, but `voice add` keeps one, so
@@ -193,7 +193,7 @@ REGISTRY = (
           _apache("https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M"),
           _apache("https://github.com/OpenMOSS/MOSS-TTS-Nano"), "2026-11-06", 48_000,
           extra_repos=(MOSS_AUDIO_TOKENIZER,)),
-    # A candidate on audition (levyxdev/voxx#25), checked 2026-11-06. It only designs, in every language Qwen3-TTS
+    # On audition (levyxdev/voxx#25), checked 2026-11-06. It only designs, in every language Qwen3-TTS
     # reads; it has no Voices of its own. The description goes in as a chat turn of its own, before the text it reads,
     # so it is not read out the way VoxCPM2 sometimes reads its description.
     Model("qwen3-tts-1.7b-voicedesign", "mlx-audio", ("design",), QWEN3_TTS_LANGUAGES,
