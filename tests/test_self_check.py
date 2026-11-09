@@ -1,4 +1,4 @@
-"""The self-check: voxx transcribes every Line it read and reports how far the transcript is from the text."""
+"""The self-check: with --check, voxx transcribes every Line it read and reports how far the transcript is from the text."""
 
 import json
 import shutil
@@ -10,7 +10,7 @@ HEARD = "VOXX_TEST_FAKE_HEARD"
 
 def narrate(installed, write_narration, tmp_path, narration, heard=None):
     env = {HEARD: json.dumps(heard, ensure_ascii=False)} if heard else None
-    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", env=env)
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", "--check", env=env)
     assert run.exit_code == 0, run.result
     return run.result["data"]["narration"]["lines"]
 
@@ -103,7 +103,7 @@ def test_narrate_without_the_transcriber_installed_reads_every_line_unchecked_an
 
 def test_a_high_error_rate_is_reported_not_retried(installed, write_narration, tmp_path):
     narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "点一下发送"}]}
-    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out",
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", "--check",
                     env={HEARD: json.dumps({"点一下发送": "完全不对的话"})})
 
     assert run.exit_code == 0
@@ -123,7 +123,29 @@ def test_a_line_read_as_silence_is_transcribed_as_nothing(installed, write_narra
 
 def test_a_worker_that_crashes_while_transcribing_is_a_structured_internal_error(installed, write_narration, tmp_path):
     narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "一"}]}
-    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", env={"VOXX_TEST_FAKE_CRASH": "transcribe"})
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", "--check", env={"VOXX_TEST_FAKE_CRASH": "transcribe"})
 
     assert assert_error(run, 1, "worker_crashed")["details"]["signal"] == "SIGKILL"
     assert not (tmp_path / "out" / "narration.json").exists()
+
+
+def test_without_check_a_line_is_neither_transcribed_nor_warned_about(installed, write_narration, tmp_path):
+    # The transcriber is never loaded: a worker that would die transcribing reads every Line.
+    narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "点一下"}, {"id": "b", "text": "就完成了"}]}
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", env={"VOXX_TEST_FAKE_CRASH": "transcribe"})
+
+    assert run.exit_code == 0, run.result
+    for line in run.result["data"]["narration"]["lines"]:
+        assert line["words"]
+        assert "transcript" not in line and "error_rate" not in line
+        assert line["warnings"] == []
+
+
+def test_without_check_a_missing_transcriber_is_no_warning(installed, write_narration, tmp_path):
+    shutil.rmtree(installed.home / "models" / "fake-asr")
+    narration = {"language": "zh", "voice": "fake-alice", "lines": [{"id": "a", "text": "点一下"}]}
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out")
+
+    assert run.exit_code == 0, run.result
+    [line] = run.result["data"]["narration"]["lines"]
+    assert line["warnings"] == []

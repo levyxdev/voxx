@@ -9,7 +9,7 @@ from pathlib import Path
 
 from voxx.files import replacing, staging, writable_out
 from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, transcriber_for
-from voxx.narration import MAX_SEED, check_narration, line_setting, load_narration
+from voxx.narration import CONTROLS, MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
 from voxx.voices import resolve_voice
@@ -20,9 +20,10 @@ OUTPUT_NAME = "narration.json"
 READ_ALL_HINT = "Read the whole Narration first: run `voxx narrate` without --line."
 
 
-def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None):
+def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None, check=False):
     """Read every Line, or with `line_ids` only those Lines, keeping every other Line of the earlier output as it is.
-    Cloned Voices and Designed Voices are found in `voices_dir`, else in $VOXX_HOME/voices."""
+    Cloned Voices and Designed Voices are found in `voices_dir`, else in $VOXX_HOME/voices. With `check`, each Line
+    read is transcribed back (ADR 0008)."""
     narration = load_narration(narration_path)
     out = Path(out_dir).resolve()
     chosen = find_model(model_id) if model_id is not None else None
@@ -34,7 +35,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
     # Plan every Line before starting the worker, so a bad Voice fails fast. Only the Models that read are required
     # (ADR 0006): a Line whose aligner or transcriber is not installed is read without it.
-    plans = [_plan_line(narration, line, chosen, voices_dir, earlier_seeds.get(line["id"])) for line in to_read]
+    plans = [_plan_line(narration, line, chosen, voices_dir, check, earlier_seeds.get(line["id"])) for line in to_read]
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
     writable_out(out)
 
@@ -56,9 +57,9 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
     return {"path": str(path), "narration": narration}
 
 
-def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
-    """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), style and
-    seed, the Model that times its words, and the Model that transcribes it back.
+def _plan_line(narration, line, chosen, voices_dir, check, earlier_seed=None):
+    """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), style,
+    Delivery Controls and seed, the Model that times its words, and with `check` the Model that transcribes it back.
 
     A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
@@ -67,6 +68,11 @@ def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
     if style is not None and not model.reads_style:
         style = None
         warnings.append({"code": "style_ignored", "message": f"Model {model.id} cannot follow style; read the Line without it."})
+    controls = {f: v for f in CONTROLS if (v := line_setting(narration, line, f)) is not None}
+    if controls and not model.reads_controls:
+        warnings.append({"code": "controls_ignored", "message": f"Model {model.id} cannot follow {', '.join(controls)}; "
+                                                                "read the Line without them."})
+        controls = {}
     aligner = aligner_for(model, narration["language"])
     if aligner is None:
         warnings.append({"code": "not_aligned", "message": f"No Model can align {narration['language']!r}, "
@@ -74,26 +80,26 @@ def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
     elif not is_installed(aligner):
         warnings.append(_not_installed("aligner_not_installed", aligner, "words"))
         aligner = None
-    # The self-check: a Line is transcribed back, unless no Model can transcribe its language.
-    transcriber = transcriber_for(model, narration["language"])
-    if transcriber is None:
+    # The self-check, only when asked for: a Line is transcribed back, unless no Model can transcribe its language.
+    transcriber = transcriber_for(model, narration["language"]) if check else None
+    if check and transcriber is None:
         warnings.append({"code": "not_checked", "message": f"No Model can transcribe {narration['language']!r}, "
                                                            "so the Line has no transcript or error_rate."})
-    elif not is_installed(transcriber):
-        warnings.append(_not_installed("checker_not_installed", transcriber, "transcript or error_rate"))
+    elif transcriber is not None and not is_installed(transcriber):
+        warnings.append(_not_installed("checker_not_installed", transcriber, "transcript or error_rate", "--line and --check"))
         transcriber = None
     seed = line_setting(narration, line, "seed")
     while seed is None or seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
-    return {"model": model, "voice": voice, "stored": stored, "style": style, "warnings": warnings, "aligner": aligner,
-            "transcriber": transcriber, "seed": seed}
+    return {"model": model, "voice": voice, "stored": stored, "style": style, "controls": controls, "warnings": warnings,
+            "aligner": aligner, "transcriber": transcriber, "seed": seed}
 
 
-def _not_installed(code, model, fields):
+def _not_installed(code, model, fields, read_again="--line"):
     """The warning on a Line read without a Model that only completes it, because that Model is not installed."""
     return {"code": code, "message": f"Model {model.id} is not installed, so the Line has no {fields}. Tell the user "
                                      f"its size and license from details; once they agree, run `voxx install {model.id}` "
-                                     "and read the Line again with --line.",
+                                     f"and read the Line again with {read_again}.",
             "details": {**model.install_summary(), "command": f"voxx install {model.id}"}}
 
 
@@ -104,9 +110,9 @@ def _read_line(worker, narration, line, plan, stage):
     model = plan["model"]
     if stored := plan["stored"]:
         voice = {"capability": "clone", "reference": {"audio": str(stored.reference), "text": stored.reference_text},
-                 "style": plan["style"]}
+                 "style": plan["style"], "controls": plan["controls"]}
     else:
-        voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"]}
+        voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"], "controls": plan["controls"]}
     result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
                          text=line["text"], language=narration["language"], seed=plan["seed"], path=str(stage / audio),
                          **voice)
@@ -179,9 +185,10 @@ def _lines_to_keep(narration, earlier, to_read, chosen, voices_dir):
         _, voice, _ = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen, voices_dir)
         if voice != old.get("voice"):
             changes.append(f"its voice is now {voice!r}, not {old.get('voice')!r}")
-        style, old_style = line_setting(narration, line, "style"), line_setting(earlier, old, "style")
-        if style != old_style:
-            changes.append(f"its style is now {_or_none(style)}, not {_or_none(old_style)}")
+        for field in ("style", *CONTROLS):
+            value, old_value = line_setting(narration, line, field), line_setting(earlier, old, field)
+            if value != old_value:
+                changes.append(f"its {field} is now {_or_none(value)}, not {_or_none(old_value)}")
         if changes:
             warnings.append({"code": "stale_audio", "message": f"The audio reads {old['text']!r} in {earlier['language']!r}, "
                                                                f"but {' and '.join(changes)}. Pass --line {line['id']} to read it again."})

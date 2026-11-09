@@ -2,15 +2,20 @@
 
 import json
 import os
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from voxx.ming_voices import MING_VOICES
 from voxx.output import NOT_INSTALLED, UNSUPPORTED, USAGE, VoxxError
 
 # Set to 1 only in tests: registers the fake Engine and its Model.
 FAKE_ENGINE_ENV = "VOXX_TEST_FAKE_ENGINE"
 
 CAPABILITIES = ("preset_voice", "clone", "design", "align", "transcribe")
+# `voxx voices` lists the Preset Voices of a Model with more than this only when asked to, so that hundreds of names do
+# not fill an agent's context by default.
+LISTED_VOICES_MAX = 20
 
 
 @dataclass(frozen=True)
@@ -28,6 +33,18 @@ class PresetVoice:
 
 
 @dataclass(frozen=True)
+class ExtraRepo:
+    """A Hugging Face repo a Model's Engine loads by name alongside the Model's own. Not pinned: `voxx install`
+    downloads its current revision and records it (ADR 0003)."""
+    repo: str
+    # The size of `files` when voxx checked the repo; a later revision may differ.
+    size_bytes: int
+    license: License
+    # Glob patterns of the files the Engine loads, as its own download would filter them; only these are installed.
+    files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Model:
     id: str
     engine: str
@@ -36,7 +53,8 @@ class Model:
     # What `voxx install` downloads: a Hugging Face repo pinned to one commit, so the license and size stay as verified.
     repo: str
     revision: str
-    size_bytes: int
+    # The size of the repo alone; what voxx reports as a Model's size_bytes is its download_bytes.
+    repo_bytes: int
     weights_license: License
     code_license: License
     verified: str
@@ -45,24 +63,46 @@ class Model:
     preset_voices: tuple[PresetVoice, ...] = ()
     # Whether the Model follows a Line's style; a Model that cannot reads the Line without it.
     reads_style: bool = False
+    # Whether the Model follows a Line's Delivery Controls (emotion, speed, pitch, volume); a Model that cannot reads
+    # the Line without them.
+    reads_controls: bool = False
+    # Repos the Engine also loads, downloaded with the Model by `voxx install`.
+    extra_repos: tuple[ExtraRepo, ...] = ()
+
+    @property
+    def download_bytes(self):
+        """What `voxx install` downloads: the Model's repo and its extra repos, at the sizes voxx checked."""
+        return self.repo_bytes + sum(e.size_bytes for e in self.extra_repos)
 
     def to_json(self):
-        return {"id": self.id, "capabilities": list(self.capabilities), "languages": list(self.languages),
-                "size_bytes": self.size_bytes, "sample_rate": self.sample_rate,
-                "weights_license": vars(self.weights_license), "code_license": vars(self.code_license),
-                "verified": self.verified, "repo": self.repo, "revision": self.revision}
+        listed = {"id": self.id, "capabilities": list(self.capabilities), "languages": list(self.languages),
+                  "size_bytes": self.download_bytes, "sample_rate": self.sample_rate,
+                  "weights_license": vars(self.weights_license), "code_license": vars(self.code_license),
+                  "verified": self.verified, "repo": self.repo, "revision": self.revision}
+        if self.extra_repos:
+            listed["extra_repos"] = [{"repo": e.repo, "size_bytes": e.size_bytes, "license": vars(e.license)}
+                                     for e in self.extra_repos]
+        return listed
 
     def voice_names(self):
         return tuple(v.name for v in self.preset_voices)
 
     def install_summary(self):
-        """What the user hears before agreeing to `voxx install`."""
-        return {"model": self.id, "size_bytes": self.size_bytes, "license": self.weights_license.id,
-                "license_url": self.weights_license.url}
+        """What the user hears before agreeing to `voxx install`, extra repos included."""
+        summary = {"model": self.id, "size_bytes": self.download_bytes, "license": self.weights_license.id,
+                   "license_url": self.weights_license.url}
+        if self.extra_repos:
+            summary["extra_repos"] = [{"repo": e.repo, "size_bytes": e.size_bytes, "license": e.license.id,
+                                       "license_url": e.license.url} for e in self.extra_repos]
+        return summary
 
 
 def _apache(url):
     return License("Apache-2.0", url)
+
+
+def _mit(url):
+    return License("MIT", url)
 
 
 # Only Models whose weights allow commercial use (ADR 0003). Weights licenses are the upstream repo's; the mlx
@@ -87,6 +127,8 @@ QWEN3_ASR_CODE = _apache("https://github.com/QwenLM/Qwen3-ASR")
 QWEN3_ASR_LANGUAGES = ("zh", "en", "yue", "ar", "de", "fr", "es", "pt", "id", "it", "ko", "ru", "th", "vi", "ja", "tr", "hi",
                        "ms", "nl", "sv", "da", "fi", "pl", "cs", "fil", "fa", "el", "ro", "hu", "mk")
 VERIFIED = "2026-10-30"
+# Ming-3.0-tts reads these languages (its cookbook's "Target languages"); its dialects are not offered.
+MING_LANGUAGES = ("zh", "en", "ja", "ko", "de", "fr", "es")
 REGISTRY = (
     # The first Model with Preset Voices is the default one.
     Model("qwen3-tts-1.7b-customvoice", "mlx-audio", ("preset_voice",), QWEN3_TTS_LANGUAGES,
@@ -113,15 +155,29 @@ REGISTRY = (
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
+    # Kept after the audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
+    # Preset Voice or a Reference Recording it keeps the voice and ignores the style (tested in levyxdev/voxx#33).
+    Model("ming-3.0-tts-0.5b", "mlx-audio", ("preset_voice", "clone", "design"), MING_LANGUAGES,
+          "mlx-community/Ming-3.0-tts-0.5B-8bit", "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad", 1_617_181_518,
+          _mit("https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B"), _mit("https://github.com/inclusionAI/Ming-3.0-tts"),
+          "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES),
+          reads_controls=True),
+    # Kept after the audition (levyxdev/voxx#25), checked 2026-11-06. It only designs, in every language Qwen3-TTS
+    # reads; it has no Voices of its own. The description goes in as a chat turn of its own, before the text it reads,
+    # so it is not read out the way VoxCPM2 sometimes reads its description.
+    Model("qwen3-tts-1.7b-voicedesign", "mlx-audio", ("design",), QWEN3_TTS_LANGUAGES,
+          "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit", "f90d617701d9f7f4ca499291e0b57f2b3c2fd2ee", 3_080_140_867,
+          _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"), QWEN3_TTS_CODE, "2026-11-06", 24_000),
 )
 
 # Installed like any other Model, from the test suite's local stand-in for Hugging Face. Like the two CustomVoice
-# Models, the two fake ones share their Voices, and only the first follows style.
+# Models, the two fake ones share their Voices, and only the first follows style; it also follows Delivery Controls,
+# as Ming-3.0-tts does.
 FAKE_VOICES = (PresetVoice("fake-alice", "zh", "A test tone."), PresetVoice("fake-bob", "en", "A lower test tone."))
 FAKE_MODEL = Model("fake-tts", "fake", ("preset_voice",), ("zh", "en", "fr", "yue"),
                    "voxx-test/fake-tts", "0123456789abcdef0123456789abcdef01234567", 4096,
                    _apache("https://huggingface.co/voxx-test/fake-tts"), _apache("https://github.com/levyxdev/voxx"),
-                   VERIFIED, 24_000, FAKE_VOICES, reads_style=True)
+                   VERIFIED, 24_000, FAKE_VOICES, reads_style=True, reads_controls=True)
 FAKE_SMALL_MODEL = Model("fake-tts-small", "fake", ("preset_voice",), ("zh", "en"),
                          "voxx-test/fake-tts-small", "89abcdef0123456789abcdef0123456789abcdef", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-tts-small"),
@@ -137,16 +193,27 @@ FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
                          _apache("https://huggingface.co/voxx-test/fake-aligner"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED)
 # Clone like the two real cloning Models: the first follows style and designs as VoxCPM2 does, the other ignores style
-# as Qwen3-TTS Base does, and they read at different sample rates.
+# as Qwen3-TTS Base does, and they read at different sample rates. Only the first follows Delivery Controls, as
+# Ming-3.0-tts does.
 FAKE_CLONE_MODEL = Model("fake-clone", "fake", ("clone", "design"), ("zh", "en"),
                          "voxx-test/fake-clone", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-clone"),
-                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000, reads_style=True)
+                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000, reads_style=True,
+                         reads_controls=True)
 FAKE_CLONE_ALT_MODEL = Model("fake-clone-alt", "fake", ("clone",), ("zh", "en"),
                              "voxx-test/fake-clone-alt", "a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2", 4096,
                              _apache("https://huggingface.co/voxx-test/fake-clone-alt"),
                              _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000)
-FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL)
+# Clones with a tokenizer from a repo of its own: the hub serves more files than it loads.
+FAKE_EXTRA_REPO = ExtraRepo("voxx-test/fake-tokenizer", 4096, _apache("https://huggingface.co/voxx-test/fake-tokenizer"),
+                            ("model.safetensors", "*.json"))
+FAKE_EXTRA_MODEL = Model("fake-clone-extra", "fake", ("clone",), ("zh", "en"),
+                         "voxx-test/fake-clone-extra", "c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0", 4096,
+                         _apache("https://huggingface.co/voxx-test/fake-clone-extra"),
+                         _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000,
+                         extra_repos=(FAKE_EXTRA_REPO,))
+FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL,
+               FAKE_EXTRA_MODEL)
 
 
 INSTALL_MANIFEST = "voxx-install.json"
@@ -164,13 +231,68 @@ def model_dir(model):
     return models_dir() / model.id
 
 
-def is_installed(model):
-    """Installed means `voxx install` finished for the revision this voxx pins; an older revision does not count."""
+def hf_cache_dir():
+    """Where extra repos are installed, laid out as a Hugging Face cache: an Engine that loads one by name finds it
+    there offline, because the worker points HF_HUB_CACHE here."""
+    return voxx_home() / "hf-cache"
+
+
+def extra_repo_dir(repo):
+    return hf_cache_dir() / ("models--" + repo.replace("/", "--"))
+
+
+def extra_repo_snapshot(repo, revision):
+    """Where `voxx install` puts an extra repo's files at a revision, as Hugging Face's cache lays them out."""
+    return extra_repo_dir(repo) / "snapshots" / revision
+
+
+def extra_repo_path(repo):
+    """The installed files of an extra repo, where Hugging Face's own loader finds them: the snapshot its main ref
+    names. None if there is none."""
+    try:
+        revision = (extra_repo_dir(repo) / "refs" / "main").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    path = extra_repo_snapshot(repo, revision)
+    return path if revision and path.is_dir() else None
+
+
+def extra_repo_paths(model) -> dict[str, Path]:
+    """The installed files of each of a Model's extra repos, by repo name, as its Engine is given them when it loads
+    the Model. An extra repo with none is left out."""
+    return {e.repo: path for e in model.extra_repos if (path := extra_repo_path(e.repo)) is not None}
+
+
+def read_manifest(model):
+    """What `voxx install` recorded when it finished installing this Model, or None."""
     try:
         manifest = json.loads((model_dir(model) / INSTALL_MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        return None
+    return manifest if isinstance(manifest, dict) else None
+
+
+def is_installed(model):
+    """Installed means `voxx install` finished for the revision this voxx pins, and every extra repo's files are still
+    where the Engine looks for them; an older revision does not count."""
+    manifest = read_manifest(model)
+    if manifest is None or manifest.get("revision") != model.revision:
         return False
-    return isinstance(manifest, dict) and manifest.get("revision") == model.revision
+    try:
+        recorded = {e["repo"]: e for e in manifest.get("extra_repos", [])}
+        return all(_extra_repo_installed(recorded[e.repo]) for e in model.extra_repos)
+    except (KeyError, TypeError, AttributeError):
+        return False
+
+
+def _extra_repo_installed(entry):
+    # Every file is checked, because an Engine may go on without one: Chatterbox, once registered, read with random weights.
+    path = extra_repo_path(entry["repo"])
+    try:
+        return path is not None and path.name == entry["revision"] and all(
+            (path / f["path"]).stat().st_size == f["size"] for f in entry["files"])
+    except OSError:
+        return False
 
 
 def require_installed(required):
@@ -179,8 +301,9 @@ def require_installed(required):
     if missing:
         commands = " and ".join(f"`voxx install {m.id}`" for m in missing)
         raise VoxxError("model_not_installed", f"Not installed: {', '.join(m.id for m in missing)}.",
-                        f"Tell the user each Model's size and license from details; once they agree, run {commands}.",
-                        {"missing": [m.install_summary() for m in missing], "total_bytes": sum(m.size_bytes for m in missing)},
+                        f"Tell the user each Model's size and license from details, and the extra repos it downloads with it; "
+                        f"once they agree, run {commands}.",
+                        {"missing": [m.install_summary() for m in missing], "total_bytes": sum(m.download_bytes for m in missing)},
                         NOT_INSTALLED)
 
 
@@ -199,17 +322,28 @@ def list_models(capability=None, installed=None):
     return {"models": [m for m in listed if installed is None or m["installed"] == installed]}
 
 
-def list_preset_voices():
-    """Every Preset Voice, and the Models that read it, as `voxx voices` lists them."""
-    voices = {}
-    for model in models():
-        installed = is_installed(model)
-        for voice in model.preset_voices:
+def list_preset_voices(model=None, language=None):
+    """The Preset Voices `voxx voices` lists, each with the Models that read it, and a summary of each Model whose
+    Voices it leaves out: only `model`'s if given, else those of every Model with at most LISTED_VOICES_MAX; only those
+    native to `language` if given."""
+    voices, listed, unlisted = {}, set(), []
+    for reader in models():
+        installed = is_installed(reader)
+        own = [v for v in reader.preset_voices if language is None or v.native_language == language]
+        shown = reader is model if model is not None else len(reader.preset_voices) <= LISTED_VOICES_MAX
+        if shown:
+            listed.update(v.name for v in own)
+        elif model is None and own:
+            # A Model with too many to list unasked gets a summary instead, with the command that lists them.
+            command = f"voxx voices --model {reader.id}" + (f" --language {language}" if language else "")
+            unlisted.append({"model": reader.id, "installed": installed, "voices": len(own),
+                             "native_languages": dict(Counter(v.native_language for v in own)), "command": command})
+        for voice in own:
             entry = voices.setdefault(voice.name, {"name": voice.name, "kind": "preset", "native_language": voice.native_language,
                                                    "description": voice.description, "languages": [], "models": []})
-            entry["languages"] += [l for l in model.languages if l not in entry["languages"]]
-            entry["models"].append({"model": model.id, "installed": installed})
-    return list(voices.values())
+            entry["languages"] += [l for l in reader.languages if l not in entry["languages"]]
+            entry["models"].append({"model": reader.id, "installed": installed})
+    return [v for name, v in voices.items() if name in listed], unlisted
 
 
 def find_model(model_id):

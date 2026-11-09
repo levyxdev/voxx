@@ -10,7 +10,7 @@ from scipy.ndimage import minimum_filter1d, uniform_filter1d
 from scipy.signal import resample_poly
 
 from voxx.files import replacing
-from voxx.output import USAGE, VoxxError
+from voxx.output import BUG_HINT, USAGE, VoxxError
 
 LOUDNESS = -18.0  # LUFS, integrated
 TOLERANCE = 0.5  # LU a Line may fall short of LOUDNESS before it warns
@@ -27,6 +27,10 @@ REFERENCE_SAMPLE_RATE = 24_000
 def finish(samples, sample_rate):
     """The same loudness and the same short silences for every Line, at the Engine's native sample rate.
     Returns the samples and the Line's warnings."""
+    if samples.ndim != 1:
+        # Trimming pads every axis: a [samples, channels] Line would grow to gigabytes before anything noticed.
+        raise VoxxError("engine_not_mono", f"The Engine returned audio shaped {samples.shape}, not one channel.",
+                        BUG_HINT, {"shape": list(samples.shape)})
     samples = _trim(samples.astype(np.float64), round(sample_rate * SILENCE))
     loudness = _loudness(samples, sample_rate)
     if not np.isfinite(loudness):

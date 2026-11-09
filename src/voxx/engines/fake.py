@@ -7,6 +7,7 @@ import unicodedata
 import wave
 import zlib
 from collections import Counter
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
@@ -45,17 +46,26 @@ class FakeEngine:
     # A tone carries no words, so the fake Engine transcribes the text it last read in this worker.
     last_read = None
 
-    def load(self, path, capability):
+    def load(self, path, capability, *, extra_repos):
         _crash_if("load")
+        # As an Engine loads a tokenizer: by repo name, from the Hugging Face cache, with no revision. That must find
+        # the files the Engine is given by path.
+        for repo, installed in extra_repos.items():
+            from huggingface_hub import snapshot_download
 
-    def synthesize(self, text, *, model, voice, style, language, seed):
-        return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode())
+            found = Path(snapshot_download(repo))
+            if found != installed:
+                raise RuntimeError(f"Hugging Face's loader finds {repo} at {found}, not at {installed}.")
 
-    def clone(self, text, *, model, reference, reference_text, style, language, seed):
+    def synthesize(self, text, *, model, voice, style, controls, language, seed):
+        return _tone(text, seed, SAMPLE_RATE, voice.encode(), (style or "").encode(), *_controls(controls))
+
+    def clone(self, text, *, model, reference, reference_text, style, controls, language, seed):
         # The pitch follows the Reference Recording, and its words or the style, as the real Engine reads one or the
         # other; the sample rate follows the Model's registry entry.
         read_from = f"style: {style}" if style else f"reference_text: {reference_text}"
-        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), read_from.encode())
+        return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, reference.read_bytes(), read_from.encode(),
+                     *_controls(controls))
 
     def design(self, text, *, model, description, language, seed):
         return _tone(text, seed, find_model(model).sample_rate or SAMPLE_RATE, f"description: {description}".encode())
@@ -98,6 +108,11 @@ def _tone(text, seed, sample_rate, *voice):
         tone[(2 * np.arange(shape.spikes) + 1) * len(tone) // (2 * shape.spikes)] = shape.spike
     lead, tail = np.zeros(int(sample_rate * shape.lead)), np.zeros(int(sample_rate * shape.tail))
     return np.concatenate([lead, tone, tail]).astype(np.float32), sample_rate
+
+
+def _controls(controls):
+    """Delivery Controls as parts of a tone's voice; none leaves the tone as it was before they existed."""
+    return [f"{field}: {value}".encode() for field, value in sorted(controls.items())]
 
 
 def _words(text):

@@ -21,9 +21,9 @@ OUTPUT_NAME = "design.json"
 ARGS_HINT = "Run `voxx schema voice design` to see its arguments."
 
 
-def design(descriptions, text, language, out_dir, takes=1, model_id=None):
+def design(descriptions, text, language, out_dir, takes=1, model_id=None, check=False):
     """Reads `text` `takes` times for each description, each time with a new seed, into <out_dir>/take-<n>.wav, and
-    writes <out_dir>/design.json. Each Design Take is transcribed back to check it, as a Line is."""
+    writes <out_dir>/design.json. With `check`, each Design Take is transcribed back, as a Line is (ADR 0008)."""
     if not descriptions or not all(d.strip() for d in descriptions):
         _invalid("Each --describe must be a non-empty description of the voice.")
     if not text.strip():
@@ -45,17 +45,17 @@ def design(descriptions, text, language, out_dir, takes=1, model_id=None):
         raise unsupported_capability(model, "design", "design a voice")
     check_language(model, language)
     require_installed([model])
-    # The self-check is what shows a take that read its description out loud, but without it the takes still play
-    # (ADR 0006).
-    transcriber, warnings = transcriber_for(model, language), []
-    if transcriber is None:
+    # The self-check, only when asked for, shows a take that read its description out loud; without the transcriber
+    # the takes still play (ADR 0006).
+    transcriber, warnings = (transcriber_for(model, language) if check else None), []
+    if check and transcriber is None:
         warnings.append({"code": "not_checked", "message": f"No Model can transcribe {language!r}, so the Design Take "
                                                            "has no transcript or error_rate."})
-    elif not is_installed(transcriber):
+    elif transcriber is not None and not is_installed(transcriber):
         warnings.append({"code": "checker_not_installed",
                          "message": f"Model {transcriber.id} is not installed, so the Design Take has no transcript or "
                                     "error_rate. Tell the user its size and license from details; once they agree, run "
-                                    f"`voxx install {transcriber.id}` and design again into a new --out.",
+                                    f"`voxx install {transcriber.id}` and design again with --check into a new --out.",
                          "details": {**transcriber.install_summary(), "command": f"voxx install {transcriber.id}"}})
         transcriber = None
     writable_out(out)

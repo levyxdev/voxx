@@ -14,6 +14,10 @@ def test_schema_describes_narrate(voxx):
     assert "--line" in narrate["usage"]
     assert narrate["input"]["properties"]["language"]["pattern"] == "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
     assert {"voice", "style", "seed"} <= set(narrate["input"]["properties"]["lines"]["items"]["properties"])
+    for where in (narrate["input"]["properties"], narrate["input"]["properties"]["lines"]["items"]["properties"]):
+        assert where["emotion"]["enum"] == ["happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"]
+        assert where["speed"]["enum"] == ["slow", "medium", "fast"]
+        assert where["pitch"]["enum"] == where["volume"]["enum"] == ["low", "medium", "high"]
     line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
     assert {"audio", "model", "voice", "seed", "sample_rate", "warnings"} <= set(line["required"])
     assert {"unknown_voice", "unknown_model", "capability_unsupported", "voice_unsupported",
@@ -35,8 +39,16 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert {"name", "kind", "reference_text", "model", "languages", "models", "path"} <= set(cloned["required"])
     assert (cloned["properties"]["kind"]["const"], designed["properties"]["kind"]["const"]) == ("cloned", "designed")
     assert {"description", "design_model", "take", "seed"} <= set(designed["required"]) - set(cloned["required"])
+    assert {"model", "language", "voices_dir"} <= set(commands["voices"]["arguments"]["properties"])
+    assert {"voices", "unlisted"} <= set(commands["voices"]["result"]["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
     assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
+    # Extra repos, where a Model has any: in the listing, in what the user is told before install, and in its result.
+    assert {"repo", "size_bytes", "license"} <= set(model["properties"]["extra_repos"]["items"]["required"])
+    summary = commands["narrate"]["errors"]["model_not_installed"]["properties"]["missing"]["items"]
+    assert {"repo", "size_bytes", "license", "license_url"} <= set(summary["properties"]["extra_repos"]["items"]["required"])
+    assert {"repo", "revision", "size_bytes", "path"} <= set(
+        commands["install"]["result"]["properties"]["extra_repos"]["items"]["required"])
 
 
 def test_schema_describes_one_command(voxx):

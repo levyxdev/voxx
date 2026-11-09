@@ -92,6 +92,12 @@ def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_pat
     {"language": "zh", "lines": [{"id": "a\u2028b", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "开" * 82, "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a", "text": ""}]},
+    {"language": "zh", "emotion": "excited", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "emotion": "高兴"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "speed": "slower"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "speed": 1.2}]},
+    {"language": "zh", "pitch": "Low", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "volume": None}]},
 ])
 def test_an_invalid_narration_is_an_argument_error(installed, write_narration, tmp_path, narration):
     out = tmp_path / "out"
@@ -120,7 +126,7 @@ def test_a_language_tag_a_model_has_not_registered_is_unsupported_even_if_its_la
 
 def test_a_language_can_be_any_tag_a_model_registers(installed, write_narration, tmp_path):
     narration = {"language": "yue", "voice": "fake-alice", "lines": [{"id": "a", "text": "撳一下發送"}]}
-    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out")
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", "--check")
 
     assert run.exit_code == 0, run.result
     [line] = lines_of(run)
@@ -177,7 +183,7 @@ def test_a_run_that_fails_at_a_later_line_leaves_the_earlier_output_as_it_was(in
     files = snapshot(out)
 
     # The first Line is read in full before the worker dies at the second.
-    run = installed("narrate", write_narration(TWO_LINES), "--out", out, env={"VOXX_TEST_FAKE_CRASH": step})
+    run = installed("narrate", write_narration(TWO_LINES), "--out", out, "--check", env={"VOXX_TEST_FAKE_CRASH": step})
 
     assert_error(run, 1, "worker_crashed")
     assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["intro"]
@@ -205,7 +211,7 @@ def test_narrate_with_only_the_model_that_reads_installed_reads_every_line_and_w
     assert voxx("install", "fake-tts").exit_code == 0
     hub.requests.clear()
     out = tmp_path / "out"
-    run = voxx("narrate", write_narration(TWO_LINES), "--out", out)
+    run = voxx("narrate", write_narration(TWO_LINES), "--out", out, "--check")
 
     assert run.exit_code == 0, run.result
     for line in lines_of(run):
@@ -288,6 +294,39 @@ def test_a_model_that_ignores_style_reads_the_line_without_it_and_warns(installe
     assert [w["code"] for w in styled["warnings"]] == ["style_ignored"]
     assert styled["style"] == "语气兴奋"
     assert [l["warnings"] for l in lines_of(full_run)] == [[], []]
+
+
+CONTROLLED = {"language": "zh", "voice": "fake-alice", "seed": 7,
+              "lines": [{"id": "plain", "text": "一样的话"}, {"id": "happy", "text": "一样的话", "emotion": "happy"},
+                        {"id": "sad", "text": "一样的话", "emotion": "sad"},
+                        {"id": "all", "text": "一样的话", "emotion": "sad", "speed": "slow", "pitch": "low", "volume": "high"}]}
+
+
+def test_a_model_that_follows_emotion_speed_pitch_and_volume_reads_them(installed, write_narration, tmp_path):
+    out = tmp_path / "out"
+    run = installed("narrate", write_narration(CONTROLLED), "--out", out, "--model", "fake-tts")
+
+    assert len({audio_of(out, line_id) for line_id in ("plain", "happy", "sad", "all")}) == 4
+    assert [line["warnings"] for line in lines_of(run)] == [[], [], [], []]
+    # A Narration's value is every Line's default.
+    default = {**CONTROLLED, "emotion": "happy", "lines": [{"id": "happy", "text": "一样的话"}]}
+    installed("narrate", write_narration(default), "--out", tmp_path / "default", "--model", "fake-tts")
+    assert audio_of(tmp_path / "default", "happy") == audio_of(out, "happy")
+
+
+def test_a_model_that_cannot_follow_emotion_speed_pitch_or_volume_reads_the_line_without_them_and_warns(
+        installed, write_narration, tmp_path):
+    out = tmp_path / "out"
+    run = installed("narrate", write_narration(CONTROLLED), "--out", out, "--model", "fake-tts-small")
+
+    assert audio_of(out, "plain") == audio_of(out, "happy") == audio_of(out, "all")
+    plain, happy, _, every = lines_of(run)
+    assert plain["warnings"] == []
+    assert [w["code"] for w in happy["warnings"]] == ["controls_ignored"]
+    assert "emotion" in happy["warnings"][0]["message"]
+    assert [w["code"] for w in every["warnings"]] == ["controls_ignored"]
+    assert all(field in every["warnings"][0]["message"] for field in ("emotion", "speed", "pitch", "volume"))
+    assert (every["emotion"], every["speed"]) == ("sad", "slow")
 
 
 def test_a_given_seed_is_used_and_reproduces_the_line(installed, write_narration, tmp_path):

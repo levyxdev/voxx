@@ -14,6 +14,10 @@ _Avoid_: script, 文案文件, 口播稿
 旁白中有唯一 id 的一段文字，一次连续念完，对应一个音频文件。
 _Avoid_: segment, 段落, sentence
 
+**Delivery Control（念法参数）**:
+Line 按固定取值要求的念法，共四个：emotion（情绪：happy、sad、angry、fearful、disgusted、surprised、neutral）、speed（语速：slow、medium、fast）、pitch（音高：low、medium、high）、volume（音量：low、medium、high）。和 style 一样，写在 Narration 顶层是每个 Line 的默认值，写在 Line 上覆盖默认值；不能跟随的 Model 忽略它们并警告，照常念。
+_Avoid_: 控制指令, instruct, 参数
+
 **Word Timing（词级时间戳）**:
 Line 的音频里每个词（中文为字）开始和结束的时刻，相对该 Line 音频的起点。
 _Avoid_: alignment, 时间轴, 时间
@@ -49,6 +53,14 @@ _Avoid_: prompt audio, ref, 样本
 **Model（模型）**:
 voxx 注册表里登记的一个可下载的 TTS、对齐或听写模型，固定到一个上游版本，带有已核实的权重许可证。
 _Avoid_: checkpoint, 权重
+
+**Audition（试听）**:
+新登记的 Model 留在注册表里供用户和现有 Model 比较试听、再决定去留的阶段；README、DESIGN.md 和 skill 把这样的 Model 标为 on audition（试听中）。
+_Avoid_: candidate, 候选, trial
+
+**Extra Repo（额外仓库）**:
+Model 加载时还要的另一个 Hugging Face 仓库，由 `voxx install` 和 Model 一起下载；不固定版本，安装清单记下实际下载的 revision。
+_Avoid_: dependency, 依赖, 附带模型
 
 **Capability（能力）**:
 一个 Model 能做的事：念 Preset Voice（preset_voice）、克隆（clone）、设计音色（design）、对齐（align）或听写（transcribe）。

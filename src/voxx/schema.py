@@ -1,7 +1,7 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
-from voxx.models import CAPABILITIES
-from voxx.narration import LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
+from voxx.models import CAPABILITIES, LISTED_VOICES_MAX
+from voxx.narration import CONTROLS, LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
 from voxx.output import USAGE, VoxxError
 
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
@@ -12,14 +12,32 @@ _language = {"type": "string", "pattern": LANGUAGE_PATTERN,
 _seed = {"type": "integer", "minimum": 0, "maximum": MAX_SEED}
 _model_id = {"type": "string", "description": "A Model id from `voxx models`."}
 
+_EXTRA_REPOS = ("Hugging Face repos the Model's Engine also loads, downloaded with it. Present only for a Model that has "
+                "any. Not pinned: `voxx install` downloads each one's current revision, so its size can differ from "
+                "the one voxx checked.")
 INSTALL_SUMMARY = {
     "type": "object",
     "description": "What to tell the user before running `voxx install <model>`.",
     "required": ["model", "size_bytes", "license", "license_url"],
-    "properties": {"model": _model_id, "size_bytes": {"type": "integer"},
+    "properties": {"model": _model_id,
+                   "size_bytes": {"type": "integer", "description": "Download size, extra repos included."},
                    "license": {"type": "string", "description": "SPDX id of the weights license."},
-                   "license_url": {"type": "string"}},
+                   "license_url": {"type": "string"},
+                   "extra_repos": {"type": "array", "description": _EXTRA_REPOS + " Tell the user about them too.",
+                                   "items": {"type": "object", "required": ["repo", "size_bytes", "license", "license_url"],
+                                             "properties": {"repo": {"type": "string"}, "size_bytes": {"type": "integer"},
+                                                            "license": {"type": "string", "description": "SPDX id."},
+                                                            "license_url": {"type": "string"}}}}},
 }
+
+# Delivery Controls: the delivery a Line asks for by value, where style asks in words.
+_CONTROL_WORDS = {"emotion": "Default emotion", "speed": "Default speaking rate", "pitch": "Default pitch",
+                  "volume": "Default speaking volume; each Line is still normalized to -18 LUFS, so it cannot make a "
+                            "Line louder"}
+_CONTROLS = {field: {"enum": list(values), "description": f"{_CONTROL_WORDS[field]} for every Line. Only a Model that "
+                                                         "follows Delivery Controls (ming-3.0-tts-0.5b) reads it; any "
+                                                         "other ignores it with a controls_ignored warning."}
+             for field, values in CONTROLS.items()}
 
 NARRATION_INPUT = {
     "$schema": DRAFT,
@@ -35,8 +53,9 @@ NARRATION_INPUT = {
                                                       "Preset Voice native to the language."},
         "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
                                                       "instruction. Ignored, with a warning, by a Model that cannot follow it."},
+        **_CONTROLS,
         "seed": {**_seed, "description": "Default seed for every Line. Omit for a random one per Line; the same seed, "
-                                         "Model, Voice, style and text read the same way again."},
+                                         "Model, Voice, style, Delivery Controls and text read the same way again."},
         "lines": {
             "type": "array",
             "minItems": 1,
@@ -50,6 +69,8 @@ NARRATION_INPUT = {
                     "text": _non_empty_string,
                     "voice": {**_non_empty_string, "description": "Overrides the Narration's voice for this Line."},
                     "style": {**_non_empty_string, "description": "Overrides the Narration's style for this Line."},
+                    **{field: {**schema, "description": f"Overrides the Narration's {field} for this Line."}
+                       for field, schema in _CONTROLS.items()},
                     "seed": {**_seed, "description": "Overrides the Narration's seed for this Line."},
                 },
             },
@@ -75,16 +96,18 @@ LINE_OUTPUT_FIELDS = {
                                                "was read in."},
     "seed": {"type": "integer", "description": "Seed the Line was read with."},
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
-    "warnings": {"type": "array", "description": "What did not go as asked, such as a style the Model ignored, a Line "
+    "warnings": {"type": "array", "description": "What did not go as asked, such as a style (style_ignored) or "
+                                                  "Delivery Controls (controls_ignored) the Model ignored, a Line "
                                                   "that could not reach -18 LUFS without clipping, a Line without "
                                                   "words (not_aligned) because no Model aligns its language or the "
-                                                  "aligner failed, a Line not checked (not_checked) "
-                                                  "because no Model can transcribe its language, a Line without words "
-                                                  "(aligner_not_installed) or not checked (checker_not_installed) "
+                                                  "aligner failed, a Line read with --check but not checked "
+                                                  "(not_checked) because no Model can transcribe its language, a Line "
+                                                  "without words (aligner_not_installed) or, with --check, not checked "
+                                                  "(checker_not_installed) "
                                                   "because the Model that would do it is not installed, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
-                                                  "gives it other text, another language, another Voice or another "
-                                                  "style.",
+                                                  "gives it other text, another language, another Voice, another "
+                                                  "style or other Delivery Controls.",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"},
                                           "details": MISSING_MODEL}}},
@@ -102,7 +125,8 @@ ALIGN_FIELDS = {
                                        "end": {"type": "number", "minimum": 0}}}},
 }
 
-# Only on Lines an installed Model transcribed; any other Line has a not_checked or checker_not_installed warning instead.
+# Only on Lines read with --check that an installed Model transcribed; any other Line read with --check has a
+# not_checked or checker_not_installed warning instead.
 SELF_CHECK_FIELDS = {
     "transcript": {"type": "string", "description": "The Line's audio, transcribed by the Model that transcribes its language."},
     "error_rate": {"type": "number", "minimum": 0,
@@ -141,14 +165,19 @@ MODEL = {
         "id": _model_id,
         "capabilities": {"type": "array", "items": {"enum": list(CAPABILITIES)}},
         "languages": {"type": "array", "items": _language},
-        "size_bytes": {"type": "integer", "description": "Download size."},
+        "size_bytes": {"type": "integer", "description": "Download size, extra repos included."},
         "sample_rate": {"type": ["integer", "null"], "description": "Native output sample rate in Hz; null if the Model does not speak."},
         "weights_license": {**_license, "description": "License of the weights; every listed Model allows commercial use."},
         "code_license": {**_license, "description": "License of the upstream code."},
         "verified": {"type": "string", "format": "date", "description": "When the licenses were last checked."},
         "repo": {"type": "string", "description": "Hugging Face repo `voxx install` downloads."},
         "revision": {"type": "string", "description": "The pinned commit of that repo."},
-        "installed": {"type": "boolean"},
+        "installed": {"type": "boolean", "description": "False if an extra repo is missing too."},
+        "extra_repos": {"type": "array", "description": _EXTRA_REPOS,
+                        "items": {"type": "object", "required": ["repo", "size_bytes", "license"],
+                                  "properties": {"repo": {"type": "string"},
+                                                 "size_bytes": {"type": "integer", "description": "Size when checked."},
+                                                 "license": _license}}},
     },
 }
 
@@ -220,7 +249,7 @@ _ADD_WARNINGS = {"type": "array", "description": "What did not go as asked, such
 MODEL_NOT_INSTALLED = {
     "$schema": DRAFT,
     "description": "details of a model_not_installed error (exit code 3): the Models that read the Lines. A missing "
-                   "aligner or transcriber is a warning on each Line instead.",
+                   "aligner, or with --check transcriber, is a warning on each Line instead.",
     "type": "object",
     "required": ["missing", "total_bytes"],
     "properties": {
@@ -231,11 +260,12 @@ MODEL_NOT_INSTALLED = {
 
 COMMANDS = {
     "narrate": {
-        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--voices-dir <dir>]",
-        "description": "Read every Line of a Narration, time each word, transcribe each Line back to check it, and "
-                       "write <dir>/<id>.wav per "
-                       "Line and <dir>/narration.json. Only the Model that reads must be installed: without the "
-                       "aligner or the transcriber, the Lines are read without words or the check, with a warning. "
+        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--voices-dir <dir>] "
+                 "[--check]",
+        "description": "Read every Line of a Narration, time each word, and write <dir>/<id>.wav per Line and "
+                       "<dir>/narration.json. With --check, also transcribe each Line back to check it. Only the Model "
+                       "that reads must be installed: without the aligner, or with --check the transcriber, the Lines "
+                       "are read without words or the check, with a warning. "
                        "The completed Narration, read again with the same --model, gives the same audio. "
                        "With --line, read only those Lines again and keep every other Line, and its audio file, "
                        "as <dir>/narration.json from the earlier run has it.",
@@ -257,6 +287,11 @@ COMMANDS = {
                 "voices_dir": {**_voices_dir, "description": "Where to find the Cloned Voices and Designed Voices "
                                                              "the Narration names (--voices-dir): the directory they "
                                                              "were added to; omit for $VOXX_HOME/voices."},
+                "check": {"type": "boolean", "default": False,
+                          "description": "Transcribe each Line back and report transcript and error_rate (--check). Off "
+                                         "by default: it loads the transcriber beside the reader, which takes more "
+                                         "memory and time, and the user listens anyway. Pass it when the user asks "
+                                         "for the check or will not listen to every Line."},
             },
         },
         "input": NARRATION_INPUT,
@@ -364,14 +399,14 @@ COMMANDS = {
     },
     "voice design": {
         "usage": "voxx voice design --describe <description> [--describe <description>]... --text <text> "
-                 "--language <tag> --out <dir> [--takes <n>] [--model <model>]",
+                 "--language <tag> --out <dir> [--takes <n>] [--model <model>] [--check]",
         "description": "Design new voices from text descriptions: read --text --takes times for each description, each "
                        "time with a new seed and so in a new voice, as Design Takes for the user to listen to and choose "
                        "from. Writes <dir>/take-<n>.wav, numbered in the order of the descriptions, and "
-                       "<dir>/design.json. Stores no Voice. Each take is transcribed back to check it, as a Line is: a "
-                       "take that reads its description out loud shows it in its transcript. Only the Model that "
-                       "designs must be installed: without the transcriber, the takes come without the check, with a "
-                       "warning.",
+                       "<dir>/design.json. Stores no Voice. With --check, each take is transcribed back to check it, as a "
+                       "Line is: a take that reads its description out loud shows it in its transcript. Only the "
+                       "Model that designs must be installed: with --check but without the transcriber, the takes "
+                       "come without the check, with a warning.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
@@ -392,6 +427,11 @@ COMMANDS = {
                           "description": "How many Design Takes to read for each description (--takes)."},
                 "model": {**_model_id, "description": "The Model that designs (--model). Omit for the default, the "
                                                       "first Model with the design capability in `voxx models`."},
+                "check": {"type": "boolean", "default": False,
+                          "description": "Transcribe each Design Take back and report transcript and error_rate (--check). Off "
+                                         "by default: it loads the transcriber beside the reader, which takes more "
+                                         "memory and time, and the user listens anyway. Pass it when the user asks "
+                                         "for the check or will not listen to every take."},
             },
         },
         "result": {
@@ -422,12 +462,13 @@ COMMANDS = {
                                 "sample_rate": LINE_OUTPUT_FIELDS["sample_rate"],
                                 "warnings": {**LINE_OUTPUT_FIELDS["warnings"],
                                              "description": "What did not go as asked, such as a take that could not "
-                                                            "reach -18 LUFS without clipping, or a take not checked "
-                                                            "because no Model transcribes its language (not_checked) "
+                                                            "reach -18 LUFS without clipping, or a take read with "
+                                                            "--check but not checked because no Model transcribes its "
+                                                            "language (not_checked) "
                                                             "or the one that would is not installed "
                                                             "(checker_not_installed)."},
                                 "transcript": {**SELF_CHECK_FIELDS["transcript"],
-                                               "description": "The take, transcribed back; only when it was checked."},
+                                               "description": "The take, transcribed back; only with --check."},
                                 "error_rate": SELF_CHECK_FIELDS["error_rate"],
                             },
                         }},
@@ -438,8 +479,8 @@ COMMANDS = {
         "errors": {
             "model_not_installed": {**MODEL_NOT_INSTALLED,
                                     "description": "details of a model_not_installed error (exit code 3): the Model "
-                                                   "that designs. A missing transcriber is a warning on each take "
-                                                   "instead."},
+                                                   "that designs. With --check, a missing transcriber is a warning on "
+                                                   "each take instead."},
             "invalid_arguments": {"description": "Exit 2: a description or the text is empty, or --takes is below 1."},
             "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
@@ -451,17 +492,39 @@ COMMANDS = {
         },
     },
     "voices": {
-        "usage": "voxx voices [--voices-dir <dir>]",
+        "usage": "voxx voices [--model <model>] [--language <language>] [--voices-dir <dir>]",
         "description": "List the Preset Voices and the Models that read them, then the Cloned Voices and Designed "
-                       "Voices in the voices dir.",
-        "arguments": {"$schema": DRAFT, "type": "object", "properties": {"voices_dir": _voices_dir}},
+                       f"Voices in the voices dir. A Model with more than {LISTED_VOICES_MAX} Preset Voices, such as "
+                       "ming-3.0-tts-0.5b, is only summarized in unlisted unless --model names it.",
+        "arguments": {"$schema": DRAFT, "type": "object", "properties": {
+            "model": {**_model_id, "description": "Only the Voices this Model reads (--model): every one of its Preset "
+                                                  "Voices, and the Cloned Voices and Designed Voices if it clones."},
+            "language": {**_language, "description": "Only Preset Voices native to this language, and Cloned Voices and "
+                                                     "Designed Voices a Model reads in it (--language)."},
+            "voices_dir": _voices_dir}},
         "result": {
             "$schema": DRAFT,
             "type": "object",
-            "required": ["voices"],
-            "properties": {"voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE, DESIGNED_VOICE]}}},
+            "required": ["voices", "unlisted"],
+            "properties": {
+                "voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE, DESIGNED_VOICE]}},
+                "unlisted": {
+                    "type": "array",
+                    "description": "Each Model whose Preset Voices are left out of voices; run command to list them.",
+                    "items": {"type": "object", "required": ["model", "installed", "voices", "native_languages", "command"],
+                              "properties": {"model": _model_id, "installed": {"type": "boolean"},
+                                             "voices": {"type": "integer", "description": "How many are left out."},
+                                             "native_languages": {"type": "object",
+                                                                  "additionalProperties": {"type": "integer"},
+                                                                  "description": "How many of them are native to each "
+                                                                                 "language."},
+                                             "command": {"type": "string"}}},
+                },
+            },
         },
         "errors": {
+            "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
+            "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
             "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
                                                     "details.path, cannot be read; add the Voice again with "
                                                     "--overwrite, or remove the directory."},
@@ -483,8 +546,9 @@ COMMANDS = {
     },
     "install": {
         "usage": "voxx install <model>",
-        "description": "Download a Model into $VOXX_HOME/models. The only command that downloads; ask the user first. "
-                       "Resumes an interrupted download; honors HF_ENDPOINT for a Hugging Face mirror.",
+        "description": "Download a Model into $VOXX_HOME/models, and its extra repos, if any, into $VOXX_HOME/hf-cache. "
+                       "The only command that downloads; ask the user first. Resumes an interrupted download; honors "
+                       "HF_ENDPOINT for a Hugging Face mirror.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
@@ -495,8 +559,17 @@ COMMANDS = {
             "$schema": DRAFT,
             "type": "object",
             "required": ["model", "path", "size_bytes", "already_installed"],
-            "properties": {"model": _model_id, "path": {"type": "string"}, "size_bytes": {"type": "integer"},
-                           "already_installed": {"type": "boolean", "description": "True if nothing was downloaded."}},
+            "properties": {"model": _model_id, "path": {"type": "string"},
+                           "size_bytes": {"type": "integer", "description": "Installed size, extra repos included."},
+                           "already_installed": {"type": "boolean", "description": "True if nothing was downloaded."},
+                           "extra_repos": {"type": "array", "description": "The extra repos installed with the Model, "
+                                                                           "at the revision downloaded. Present only "
+                                                                           "for a Model that has any.",
+                                           "items": {"type": "object", "required": ["repo", "revision", "size_bytes", "path"],
+                                                     "properties": {"repo": {"type": "string"},
+                                                                    "revision": {"type": "string"},
+                                                                    "size_bytes": {"type": "integer"},
+                                                                    "path": {"type": "string"}}}}},
         },
         "errors": {
             "unknown_model": {"description": "Exit 2: no Model by that id; details.known_models lists them."},
@@ -562,7 +635,8 @@ CONTRACT = {
         "0": "Success.",
         "1": "Internal error, including a crashed worker: report it.",
         "2": "Invalid arguments or input: fix them.",
-        "3": "Model not installed: tell the user its size and license, and run `voxx install` once they agree.",
+        "3": "Model not installed: tell the user its size and license, and any extra repos it downloads with it, and "
+             "run `voxx install` once they agree.",
         "4": "The Model cannot do this: pick another Model or Voice.",
     },
 }

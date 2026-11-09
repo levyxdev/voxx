@@ -15,11 +15,11 @@ The first `scripts/voxx` run downloads voxx and its Python dependencies, includi
 
 voxx downloads a Model only through `voxx install <model>`, and no other command ever downloads one. A command that needs a missing Model fails with exit 3, and `details` gives each Model's size, license and license link:
 
-1. Tell the user each missing Model's id, size, license and license link, exactly as `details` gives them, and the total. Check the free space `doctor` reports.
+1. Tell the user each missing Model's id, size, license and license link, exactly as `details` gives them, and the total. A Model with `extra_repos` downloads those repos with it, and its size includes them: name each one with its size, license and license link too, and say that it is fetched at its latest revision, so its size may differ a little. Check the free space `doctor` reports.
 2. Run `voxx install <model>` for each one they agree to, in the background if your shell would time out: a Model is one to three GB.
 3. If a download stops or fails, run the same `install` again: it resumes where it stopped. When Hugging Face is slow or unreachable, such as from mainland China, set `HF_ENDPOINT` to a mirror, for example `HF_ENDPOINT=https://hf-mirror.com`, for that `install`.
 
-Only the Model that reads must be installed. The aligner, which adds word timings for Subtitles, and the transcriber, which checks each Line, are worth offering too: without them every Line warns `aligner_not_installed` or `checker_not_installed`, with the same `details`.
+Only the Model that reads must be installed. The aligner, which adds word timings for Subtitles, is worth offering too: without it every Line warns `aligner_not_installed`, with the same `details`. The transcriber is needed only for `narrate --check` and `voice design --check`, and for `voice add` without `--ref-text`; offer it when one of those comes up.
 
 ## Check
 
@@ -29,7 +29,7 @@ Run `voxx doctor` again: `platform.supported` is true and the Models appear unde
 
 voxx has no uninstall command.
 
-- **A Model**: delete `$VOXX_HOME/models/<id>/`. `doctor` reports `$VOXX_HOME` (by default `~/.voxx`).
+- **A Model**: delete `$VOXX_HOME/models/<id>/`. `doctor` reports `$VOXX_HOME` (by default `~/.voxx`). A Model's extra repos are under `$VOXX_HOME/hf-cache/`, one folder each, named `models--<owner>--<repo>`; delete one only if no other installed Model lists it in `voxx models`.
 - **Cloned Voices and Designed Voices** are the user's work: `voxx voices` lists them with their paths. Ask about each before deleting its folder.
 - **voxx itself**: `uv cache clean voxx` removes it from uv's cache. Leave uv, which other tools use.
 - **This skill**: remove it with the tool that installed it, for example `/plugin uninstall voxx` in Claude Code.

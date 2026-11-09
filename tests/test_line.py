@@ -22,8 +22,8 @@ def with_line(narration, line_id, **fields):
     return {**narration, "lines": [{**l, **fields} if l["id"] == line_id else l for l in narration["lines"]]}
 
 
-def read_all(installed, write_narration, out, narration=THREE_LINES):
-    run = installed("narrate", write_narration(narration), "--out", out)
+def read_all(installed, write_narration, out, narration=THREE_LINES, check=False):
+    run = installed("narrate", write_narration(narration), "--out", out, *(["--check"] if check else []))
     assert run.exit_code == 0, run.result
     return run
 
@@ -156,6 +156,8 @@ def test_a_line_whose_text_changed_but_is_not_read_again_is_warned_stale(install
 @pytest.mark.parametrize("change, said", [
     ({"voice": "fake-bob"}, "its voice is now 'fake-bob', not 'fake-alice'"),
     ({"style": "语气平静"}, "its style is now '语气平静', not none"),
+    ({"emotion": "sad"}, "its emotion is now 'sad', not none"),
+    ({"speed": "slow"}, "its speed is now 'slow', not none"),
 ])
 def test_a_line_whose_voice_or_style_changed_but_is_not_read_again_is_warned_stale(installed, write_narration, tmp_path,
                                                                                     change, said):
@@ -199,7 +201,7 @@ def test_line_that_fails_leaves_the_earlier_output_as_it_was(installed, write_na
     files = snapshot(out)
 
     run = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "intro", "--line", "send",
-                    env={"VOXX_TEST_FAKE_CRASH": step})
+                    "--check", env={"VOXX_TEST_FAKE_CRASH": step})
 
     assert_error(run, 1, "worker_crashed")
     assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["intro"]
@@ -257,10 +259,10 @@ def test_a_line_read_again_without_an_aligner_or_transcriber_installed_is_read_w
                                                                                           dropped, still):
     # The completed Narration given back carries every Line's words and self-check from the earlier run.
     out = tmp_path / "out"
-    before = lines_by_id(read_all(installed, write_narration, out))
+    before = lines_by_id(read_all(installed, write_narration, out, check=True))
     shutil.rmtree(installed.home / "models" / removed)
 
-    run = installed("narrate", out / "narration.json", "--out", out, "--line", "send")
+    run = installed("narrate", out / "narration.json", "--out", out, "--line", "send", "--check")
 
     assert run.exit_code == 0, run.result
     after = lines_by_id(run)

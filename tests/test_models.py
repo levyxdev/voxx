@@ -1,10 +1,13 @@
+# Each Model's capabilities, download size, license, and the date its license was checked.
 REAL_MODELS = {
-    "qwen3-tts-1.7b-customvoice": (["preset_voice"], 3_080_141_538),
-    "qwen3-tts-0.6b-customvoice": (["preset_voice"], 1_973_575_388),
-    "qwen3-tts-1.7b-base": (["clone"], 3_104_158_788),
-    "voxcpm2": (["clone", "design"], 3_226_617_581),
-    "qwen3-forcedaligner-0.6b": (["align"], 1_276_475_979),
-    "qwen3-asr-0.6b": (["transcribe"], 1_010_773_761),
+    "qwen3-tts-1.7b-customvoice": (["preset_voice"], 3_080_141_538, "Apache-2.0", "2026-10-30"),
+    "qwen3-tts-0.6b-customvoice": (["preset_voice"], 1_973_575_388, "Apache-2.0", "2026-10-30"),
+    "qwen3-tts-1.7b-base": (["clone"], 3_104_158_788, "Apache-2.0", "2026-10-30"),
+    "voxcpm2": (["clone", "design"], 3_226_617_581, "Apache-2.0", "2026-10-30"),
+    "qwen3-forcedaligner-0.6b": (["align"], 1_276_475_979, "Apache-2.0", "2026-10-30"),
+    "qwen3-asr-0.6b": (["transcribe"], 1_010_773_761, "Apache-2.0", "2026-10-30"),
+    "ming-3.0-tts-0.5b": (["preset_voice", "clone", "design"], 1_617_181_518, "MIT", "2026-11-06"),
+    "qwen3-tts-1.7b-voicedesign": (["design"], 3_080_140_867, "Apache-2.0", "2026-11-06"),
 }
 
 
@@ -17,22 +20,32 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
 
     assert run.exit_code == 0
     models = by_id(run)
-    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt"} == set(models)
-    for id, (capabilities, size) in REAL_MODELS.items():
+    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt", "fake-clone-extra"} == set(models)
+    for id, (capabilities, size, license, verified) in REAL_MODELS.items():
         model = models[id]
         assert model["capabilities"] == capabilities
         assert model["size_bytes"] == size
         assert model["installed"] is False
-        assert model["weights_license"]["id"] == "Apache-2.0"
+        assert model["weights_license"]["id"] == model["code_license"]["id"] == license
         assert model["weights_license"]["url"].startswith("https://huggingface.co/")
         assert model["code_license"]["url"].startswith("https://github.com/")
-        assert model["verified"] == "2026-10-30"
+        assert model["verified"] == verified
     # Each Model reads the languages it supports upstream.
     assert models["qwen3-tts-1.7b-customvoice"]["languages"] == ["zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es"]
     # Qwen3-ASR transcribes every language Qwen3-TTS reads, so each of their Lines is checked.
     assert set(models["qwen3-tts-1.7b-customvoice"]["languages"]) <= set(models["qwen3-asr-0.6b"]["languages"])
     assert models["qwen3-tts-1.7b-customvoice"]["sample_rate"] == 24_000
     assert models["voxcpm2"]["sample_rate"] == 48_000
+    assert models["ming-3.0-tts-0.5b"]["languages"] == ["zh", "en", "ja", "ko", "de", "fr", "es"]
+    assert models["ming-3.0-tts-0.5b"]["sample_rate"] == 44_100
+    assert models["ming-3.0-tts-0.5b"]["repo"] == "mlx-community/Ming-3.0-tts-0.5B-8bit"
+    assert models["ming-3.0-tts-0.5b"]["revision"] == "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad"
+    voice_design = models["qwen3-tts-1.7b-voicedesign"]
+    assert voice_design["languages"] == ["zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es"]
+    assert voice_design["sample_rate"] == 24_000
+    assert (voice_design["repo"], voice_design["revision"]) == ("mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit",
+                                                                "f90d617701d9f7f4ca499291e0b57f2b3c2fd2ee")
+    assert "extra_repos" not in voice_design
 
 
 def test_the_fake_model_is_listed_only_for_tests(voxx):
@@ -44,13 +57,13 @@ def test_the_fake_model_is_listed_only_for_tests(voxx):
 def test_models_can_be_filtered_by_capability(voxx):
     run = voxx("models", "--capability", "clone")
 
-    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "fake-clone", "fake-clone-alt"}
+    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "ming-3.0-tts-0.5b", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
 
 
-def test_voxcpm2_is_the_model_that_designs(voxx):
+def test_voxcpm2_ming_and_qwen3_voicedesign_design_voices(voxx):
     run = voxx("models", "--capability", "design")
 
-    assert set(by_id(run)) == {"voxcpm2", "fake-clone"}
+    assert set(by_id(run)) == {"voxcpm2", "ming-3.0-tts-0.5b", "qwen3-tts-1.7b-voicedesign", "fake-clone"}
 
 
 def test_an_unknown_capability_is_an_argument_error(voxx):
@@ -61,7 +74,7 @@ def test_an_unknown_capability_is_an_argument_error(voxx):
 
 
 def test_models_can_be_filtered_by_install_state(installed):
-    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt"}
+    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
     assert set(by_id(installed("models", "--not-installed"))) == set(REAL_MODELS)
     assert by_id(installed("models"))["fake-tts"]["installed"] is True
 

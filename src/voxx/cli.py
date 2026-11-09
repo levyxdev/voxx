@@ -27,12 +27,16 @@ def _parser():
     narrate.add_argument("--model")
     narrate.add_argument("--line", dest="lines", action="append", default=[])
     narrate.add_argument("--voices-dir")
+    narrate.add_argument("--check", action="store_true")
     models = commands.add_parser("models", add_help=False)
     models.add_argument("--capability", choices=CAPABILITIES)
     installed = models.add_mutually_exclusive_group()
     installed.add_argument("--installed", dest="installed", action="store_const", const=True)
     installed.add_argument("--not-installed", dest="installed", action="store_const", const=False)
-    commands.add_parser("voices", add_help=False).add_argument("--voices-dir")
+    voices = commands.add_parser("voices", add_help=False)
+    voices.add_argument("--voices-dir")
+    voices.add_argument("--model")
+    voices.add_argument("--language")
     voice = commands.add_parser("voice", add_help=False).add_subparsers(dest="voice_command", required=True,
                                                                          parser_class=_Parser)
     add = voice.add_parser("add", add_help=False)
@@ -51,6 +55,7 @@ def _parser():
     design.add_argument("--out", required=True)
     design.add_argument("--takes", type=int, default=1)
     design.add_argument("--model")
+    design.add_argument("--check", action="store_true")
     install = commands.add_parser("install", add_help=False)
     install.add_argument("model")
     commands.add_parser("doctor", add_help=False)
@@ -67,7 +72,7 @@ def main(argv=None):
         args = _parser().parse_args(argv)
         if args.command == "narrate":
             from voxx.narrate import narrate
-            data = narrate(args.narration, args.out, args.model, args.lines, args.voices_dir)
+            data = narrate(args.narration, args.out, args.model, args.lines, args.voices_dir, args.check)
         elif args.command == "install":
             from voxx.install import install
             data = install(args.model)
@@ -78,10 +83,10 @@ def main(argv=None):
             data = list_models(args.capability, args.installed)
         elif args.command == "voices":
             from voxx.voices import list_voices
-            data = list_voices(args.voices_dir)
+            data = list_voices(args.voices_dir, args.model, args.language)
         elif args.command == "voice" and args.voice_command == "design":
             from voxx.design import design
-            data = design(args.descriptions, args.text, args.language, args.out, args.takes, args.model)
+            data = design(args.descriptions, args.text, args.language, args.out, args.takes, args.model, args.check)
         elif args.command == "voice":
             from voxx.voices import add_voice
             data = add_voice(args.name, args.ref, args.ref_text, args.model, args.voices_dir, args.overwrite,
