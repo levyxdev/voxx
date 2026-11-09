@@ -10,6 +10,10 @@ from mlx_audio.tts.utils import load as load_tts
 
 from voxx.output import BUG_HINT, VoxxError
 
+# MLX keeps freed Metal buffers for reuse, by default up to the whole memory limit, and the worker holds a reader, an
+# aligner and a transcriber at once: on a 16 GB Mac that ran the machine out of memory. Keep at most this much cached.
+mx.set_cache_limit(512 * 1024**2)
+
 # Narrations name languages by BCP 47 tag; mlx-audio names them in English.
 LANGUAGE_NAMES = {"zh": "chinese", "en": "english", "ja": "japanese", "ko": "korean", "fr": "french", "de": "german",
                   "it": "italian", "pt": "portuguese", "ru": "russian", "es": "spanish", "ar": "arabic", "id": "indonesian",
@@ -139,6 +143,7 @@ class MlxAudioEngine:
         mx.random.seed(seed)
         # CustomVoice Models never split a Line; an empty split_pattern keeps the Base ones from splitting it at newlines.
         results = list(self.model.generate(**arguments, split_pattern="", verbose=False))
+        mx.clear_cache()
         if len(results) != 1:
             raise VoxxError("engine_split_line", f"mlx-audio read the Line in {len(results)} parts instead of one.",
                             BUG_HINT, {"model": model, "parts": len(results)})
@@ -149,9 +154,12 @@ class MlxAudioEngine:
     def transcribe(self, path, *, model, language):
         # Greedy decoding, so the same Line is always heard the same way; the path lets mlx-audio resample to 16 kHz.
         # No language lets Qwen3-ASR detect it.
-        return self.model.generate(str(path), language=language and LANGUAGE_NAMES[language], verbose=False).text
+        text = self.model.generate(str(path), language=language and LANGUAGE_NAMES[language], verbose=False).text
+        mx.clear_cache()
+        return text
 
     def align(self, path, *, model, text, language):
         # The aligner splits the text into words itself: by character for Chinese, by space for English.
         result = self.model.generate(str(path), text=text, language=LANGUAGE_NAMES[language])
+        mx.clear_cache()
         return [(item.text, item.start_time, item.end_time) for item in result]

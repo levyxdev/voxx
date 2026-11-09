@@ -83,3 +83,15 @@ def test_a_line_read_as_near_silence_is_not_amplified_and_warns(installed, write
 
     assert len(samples) > 0 and not samples.any()
     assert [w["code"] for w in line["warnings"]] == ["silent"]
+
+
+def test_finishing_audio_with_more_than_one_channel_fails_at_once_rather_than_padding_every_channel():
+    # Padding a [samples, channels] array pads the channel axis too, by thousands: gigabytes for one Line.
+    import pytest
+
+    from voxx.audio import finish
+    from voxx.output import VoxxError
+
+    with pytest.raises(VoxxError) as raised:
+        finish(np.zeros((48_000, 2), dtype=np.float32), 48_000)
+    assert raised.value.code == "engine_not_mono"
