@@ -6,7 +6,7 @@ A Designed Voice is a new voice made from a text description. `voice design` rea
 
 Describe the voice by its traits: age, gender, timbre, pace, tone, and the setting it speaks in, such as "a warm woman in her forties, slightly slow, calm and friendly, like explaining a product to a customer". Write the tone into the description: a Design Take's tone is how the voice sounds on every Line without a `style`.
 
-Open with the gender and age, stated plainly ("an adult man in his thirties, a male voice, mid-low pitch"), and keep away from words the Model ties to the other gender: a male voice described as "清亮" or "sweet" can come back a woman's. When a take comes back the wrong gender or age, rewrite the description; designing again with the same one only rolls the dice. The `transcript` cannot show this, so ask the user to listen for it.
+Open with the gender and age, stated plainly ("an adult man in his thirties, a male voice, mid-low pitch"), and keep away from words the Model ties to the other gender: a male voice described as "清亮" or "sweet" can come back a woman's. When a take comes back the wrong gender or age, rewrite the description; designing again with the same one only rolls the dice. Ask the user to listen for it.
 
 Describe traits only. When the user asks for a voice that sounds like a real person, a celebrity, a character's actor, or someone they know, decline that part and rewrite the request as traits ("a deep, slow, authoritative male voice"); show the user the rewritten description.
 
@@ -27,7 +27,7 @@ voice design --describe <description> [--describe <description>]... --text <text
 1. **The style**: two or three different descriptions, one take each, into `voice-design/1/`. The user picks the description they like.
 2. **The voice**: that one description with `--takes 2` or `3`, into `voice-design/2/`. Every take is a different person; the user picks one.
 
-Each take takes about 15–30 seconds, so run the command in the background when your shell would time out. Before showing the takes, read each one's `transcript`: drop a take whose transcript contains the description, or anything the text does not say, and design again if none is left. Then give the user each remaining take's absolute path with its description, and let them listen: the choice is theirs, since only they can hear the takes.
+Each take takes about 15–30 seconds, so run the command in the background when your shell would time out. Give the user each take's absolute path with its description, and let them listen: the choice is theirs, since only they can hear the takes. A take now and then reads its description out loud; if the user hears that, drop the take. With `--check`, each take also has a `transcript`, which shows such a take before the user listens: pass it when the user asks for it.
 
 ## 4. Store it
 

@@ -10,9 +10,9 @@ WARM = "温和的中年女声，语速偏慢"
 BRIGHT = "明亮的年轻男声，语气轻快"
 
 
-def design(voxx, out, *describes, takes=None, model: str | None = "fake-clone", language="zh", env=None):
+def design(voxx, out, *describes, takes=None, model: str | None = "fake-clone", language="zh", check=False, env=None):
     args = ["voice", "design", *(a for d in describes for a in ("--describe", d)), "--text", TEXT,
-            "--language", language, "--out", out]
+            "--language", language, "--out", out, *(["--check"] if check else [])]
     if takes is not None:
         args += ["--takes", takes]
     if model is not None:
@@ -27,7 +27,7 @@ def read_wav(path):
 
 def test_voice_design_reads_the_text_once_per_take_of_each_description(installed, tmp_path):
     out = tmp_path / "design"
-    run = design(installed, out, WARM, BRIGHT, takes=2)
+    run = design(installed, out, WARM, BRIGHT, takes=2, check=True)
 
     assert run.exit_code == 0, run.result
     data = run.result["data"]
@@ -50,7 +50,7 @@ def test_voice_design_reads_the_text_once_per_take_of_each_description(installed
         sound = np.flatnonzero(np.abs(samples) > 0.01 * np.abs(samples).max())
         assert abs(sound[0] / rate - 0.05) < 0.005 and abs((len(samples) - sound[-1] - 1) / rate - 0.05) < 0.005
         sounds.add(samples.tobytes())
-        # Each take is heard back, as a Line is.
+        # With --check, each take is heard back, as a Line is.
         assert (take["transcript"], take["error_rate"], take["warnings"]) == (TEXT, 0, [])
     assert len(sounds) == 4
 
@@ -114,7 +114,7 @@ def test_a_run_that_fails_leaves_no_design_json(installed, tmp_path):
 def test_voice_design_without_the_transcriber_installed_gives_takes_a_warning_instead_of_a_check(installed, tmp_path):
     (installed.home / "models" / "fake-asr" / "voxx-install.json").unlink()
 
-    run = design(installed, tmp_path / "design", WARM)
+    run = design(installed, tmp_path / "design", WARM, check=True)
 
     assert run.exit_code == 0, run.result
     [take] = run.result["data"]["design"]["takes"]
@@ -129,3 +129,14 @@ def test_voice_design_needs_a_description_text_and_one_take_or_more(installed, t
     assert_error(design(installed, tmp_path / "b", WARM, takes=0), 2, "invalid_arguments")
     assert_error(installed("voice", "design", "--text", TEXT, "--language", "zh", "--out", tmp_path / "c"),
                  2, "invalid_arguments")
+
+
+def test_voice_design_without_check_neither_transcribes_the_takes_nor_warns(installed, tmp_path):
+    (installed.home / "models" / "fake-asr" / "voxx-install.json").unlink()
+
+    run = design(installed, tmp_path / "design", WARM, env={"VOXX_TEST_FAKE_CRASH": "transcribe"})
+
+    assert run.exit_code == 0, run.result
+    [take] = run.result["data"]["design"]["takes"]
+    assert "transcript" not in take and "error_rate" not in take
+    assert take["warnings"] == []

@@ -1,5 +1,7 @@
 # 只有念所必需的 Model 没装才失败，辅助 Model 没装降级为警告
 
+2026-11-09：听写自检改为传 `--check` 才做（[ADR 0008](0008-the-self-check-is-opt-in.md)），不传时听写 Model 没装也不警告。
+
 ADR 0003 说缺模型时命令以「未安装」失败。`narrate` 原先把它用到一个 Line 用到的每个 Model 上：念的 Model、对齐 Model 和听写 Model 缺一个，整次运行就以退出码 3 失败。但三者地位不同：念的 Model 产出音频，没有它什么都做不了；对齐 Model 只产出 `words`，听写 Model 只产出 `transcript` 和 `error_rate` 这份质量报告，缺了它们音频照样能用。所以现在只有念的 Model 没装才以 `model_not_installed` 失败；对齐或听写 Model 没装时，每个 Line 照常念，只是不带相应字段，各带一条 `aligner_not_installed` 或 `checker_not_installed` 警告，details 给出那个 Model 的 id、大小、许可证和安装命令。这样用户只装一个 TTS Model 也能用 voxx，agent 仍然拿到足够的信息去问用户要不要补装。
 
 ## Considered options

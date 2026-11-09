@@ -2,11 +2,11 @@
 
 **Local narration for AI agents.**
 
-voxx is a text-to-speech CLI built only for agents. An agent writes a Narration, a list of Lines in one language, and `voxx narrate` reads each Line in one breath with a local speech Model, then hands back one WAV per Line with word timings and a self-check. The completed Narration file goes straight to [CueTake](https://github.com/levyxdev/cuetake) (`cuetake record --narration`), so a product demo can be recorded to fit its voice-over.
+voxx is a text-to-speech CLI built only for agents. An agent writes a Narration, a list of Lines in one language, and `voxx narrate` reads each Line in one breath with a local speech Model, then hands back one WAV per Line with word timings. The completed Narration file goes straight to [CueTake](https://github.com/levyxdev/cuetake) (`cuetake record --narration`), so a product demo can be recorded to fit its voice-over.
 
 - Every Line is read whole by the Model, never stitched, then trimmed to 50 ms of silence at each end and normalized to -18 LUFS, as a mono WAV at the Model's native sample rate.
 - Word timings for each Line (per character in Chinese), for Subtitles.
-- A self-check: every Line is transcribed back and compared with its text, so the agent knows which Lines to read again with a new seed, leaving the others byte for byte as they were.
+- An optional self-check: with `--check`, every Line is transcribed back and compared with its text, so the agent knows which Lines to read again with a new seed, leaving the others byte for byte as they were. It is off by default, because the user listens anyway and the transcriber costs memory and time ([ADR 0008](docs/adr/0008-the-self-check-is-opt-in.md)).
 - Preset Voices, a Cloned Voice made from a short Reference Recording, or a Designed Voice made from a text description and chosen by ear.
 - Only Models whose weights allow commercial use, run locally through [mlx-audio](https://github.com/Blaizzy/mlx-audio). Nothing is downloaded until the user agrees.
 - Every command prints one JSON object, and `voxx schema` describes them all, so an agent never guesses.
@@ -50,11 +50,11 @@ If a user hands you this repository to set up voxx:
 | `voxcpm2` | Cloned Voices and Designed Voices (default), designing voices | 3.2 GB | [Apache-2.0](https://huggingface.co/openbmb/VoxCPM2) |
 | `qwen3-tts-1.7b-base` | Cloned Voices | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) |
 | `qwen3-forcedaligner-0.6b` | Word timings | 1.3 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B) |
-| `qwen3-asr-0.6b` | Self-check, Reference Recording text | 1.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) |
+| `qwen3-asr-0.6b` | Self-check (`--check`), Reference Recording text | 1.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) |
 | `ming-3.0-tts-0.5b` | 241 Preset Voices (3 English, the rest Chinese), Cloned Voices, designing voices, and `emotion`, `speed`, `pitch` and `volume` | 1.6 GB | [MIT](https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B) |
 | `qwen3-tts-1.7b-voicedesign` | Designing voices in 10 languages | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) |
 
-Only the Model that reads must be installed; without the aligner or the transcriber, Lines are read without word timings or the self-check. `voxx install <model>` is the only command that downloads anything ([ADR 0003](docs/adr/0003-models-are-installed-only-by-an-explicit-command.md)). It fetches the 8-bit MLX conversions from Hugging Face into `~/.voxx/models` (or `$VOXX_HOME/models`), and honors `HF_ENDPOINT` for a mirror. A Model that also loads another repo, such as a tokenizer (none of today's do), gets it in the same install, at that repo's latest revision, into `$VOXX_HOME/hf-cache`; `voxx models` lists these extra repos with their sizes and licenses.
+Only the Model that reads must be installed; without the aligner, Lines are read without word timings, and with `--check` but without the transcriber, without the self-check. `voxx install <model>` is the only command that downloads anything ([ADR 0003](docs/adr/0003-models-are-installed-only-by-an-explicit-command.md)). It fetches the 8-bit MLX conversions from Hugging Face into `~/.voxx/models` (or `$VOXX_HOME/models`), and honors `HF_ENDPOINT` for a mirror. A Model that also loads another repo, such as a tokenizer (none of today's do), gets it in the same install, at that repo's latest revision, into `$VOXX_HOME/hf-cache`; `voxx models` lists these extra repos with their sizes and licenses.
 
 ## Disclaimer
 

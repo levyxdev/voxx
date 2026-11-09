@@ -140,7 +140,7 @@ def test_a_crash_while_adding_a_voice_stores_nothing(installed, recording):
 def test_narrate_reads_a_cloned_voice_with_the_model_it_was_added_with(installed, recording, write_narration, tmp_path):
     assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
     out = tmp_path / "out"
-    run = installed("narrate", write_narration(NARRATION), "--out", out)
+    run = installed("narrate", write_narration(NARRATION), "--out", out, "--check")
 
     assert run.exit_code == 0, run.result
     for line in lines(run).values():

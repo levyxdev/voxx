@@ -112,8 +112,6 @@ def test_narrate_without_the_aligner_installed_reads_every_line_without_words_an
     for line in lines:
         assert (tmp_path / "out" / line["audio"]).exists()
         assert "words" not in line
-        # The transcriber is installed, so the Line is still checked.
-        assert line["error_rate"] == 0
         [warning] = line["warnings"]
         assert warning["code"] == "aligner_not_installed"
         assert warning["details"] == {"model": "fake-aligner", "size_bytes": 4096, "license": "Apache-2.0",

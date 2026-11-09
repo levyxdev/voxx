@@ -50,7 +50,7 @@ def model(request, installed_models):
 def narrate(model, narration, out):
     path = out.with_suffix(".json")
     path.write_text(json.dumps(narration, ensure_ascii=False), encoding="utf-8")
-    code, result = real_voxx("narrate", path, "--out", out, "--model", model)
+    code, result = real_voxx("narrate", path, "--out", out, "--model", model, "--check")
     assert code == 0, result
     return result["data"]["narration"]["lines"]
 
@@ -142,7 +142,7 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
     out = tmp_path / "out"
     path = out.with_suffix(".json")
     path.write_text(json.dumps({**NARRATIONS[language], "voice": "me", "seed": 42}, ensure_ascii=False), encoding="utf-8")
-    code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", cloned_voice)
+    code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", cloned_voice, "--check")
 
     assert code == 0, result
     for line in result["data"]["narration"]["lines"]:
@@ -175,7 +175,7 @@ def test_a_model_designs_a_voice_that_reads_the_text_without_its_description(ins
     text = NARRATIONS[language]["lines"][0]["text"]
     out = tmp_path / "design"
     code, result = real_voxx("voice", "design", "--describe", describe, "--text", text, "--language", language,
-                             "--out", out, "--model", designer)
+                             "--out", out, "--model", designer, "--check")
 
     assert code == 0, result
     [take] = result["data"]["design"]["takes"]
@@ -217,7 +217,7 @@ def test_ming_follows_delivery_controls_in_a_preset_voice_and_in_a_cloned_voice(
                                {"id": "happy", "text": short, "emotion": "happy"},
                                {"id": "sad", "text": short, "emotion": "sad", "speed": "slow"}]}
         path.write_text(json.dumps(narration, ensure_ascii=False), encoding="utf-8")
-        code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", voices)
+        code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", voices, "--check")
 
         assert code == 0, result
         for line in result["data"]["narration"]["lines"]:

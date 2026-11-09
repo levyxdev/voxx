@@ -100,9 +100,10 @@ LINE_OUTPUT_FIELDS = {
                                                   "Delivery Controls (controls_ignored) the Model ignored, a Line "
                                                   "that could not reach -18 LUFS without clipping, a Line without "
                                                   "words (not_aligned) because no Model aligns its language or the "
-                                                  "aligner failed, a Line not checked (not_checked) "
-                                                  "because no Model can transcribe its language, a Line without words "
-                                                  "(aligner_not_installed) or not checked (checker_not_installed) "
+                                                  "aligner failed, a Line read with --check but not checked "
+                                                  "(not_checked) because no Model can transcribe its language, a Line "
+                                                  "without words (aligner_not_installed) or, with --check, not checked "
+                                                  "(checker_not_installed) "
                                                   "because the Model that would do it is not installed, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
                                                   "gives it other text, another language, another Voice, another "
@@ -124,7 +125,8 @@ ALIGN_FIELDS = {
                                        "end": {"type": "number", "minimum": 0}}}},
 }
 
-# Only on Lines an installed Model transcribed; any other Line has a not_checked or checker_not_installed warning instead.
+# Only on Lines read with --check that an installed Model transcribed; any other Line read with --check has a
+# not_checked or checker_not_installed warning instead.
 SELF_CHECK_FIELDS = {
     "transcript": {"type": "string", "description": "The Line's audio, transcribed by the Model that transcribes its language."},
     "error_rate": {"type": "number", "minimum": 0,
@@ -247,7 +249,7 @@ _ADD_WARNINGS = {"type": "array", "description": "What did not go as asked, such
 MODEL_NOT_INSTALLED = {
     "$schema": DRAFT,
     "description": "details of a model_not_installed error (exit code 3): the Models that read the Lines. A missing "
-                   "aligner or transcriber is a warning on each Line instead.",
+                   "aligner, or with --check transcriber, is a warning on each Line instead.",
     "type": "object",
     "required": ["missing", "total_bytes"],
     "properties": {
@@ -258,11 +260,12 @@ MODEL_NOT_INSTALLED = {
 
 COMMANDS = {
     "narrate": {
-        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--voices-dir <dir>]",
-        "description": "Read every Line of a Narration, time each word, transcribe each Line back to check it, and "
-                       "write <dir>/<id>.wav per "
-                       "Line and <dir>/narration.json. Only the Model that reads must be installed: without the "
-                       "aligner or the transcriber, the Lines are read without words or the check, with a warning. "
+        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--voices-dir <dir>] "
+                 "[--check]",
+        "description": "Read every Line of a Narration, time each word, and write <dir>/<id>.wav per Line and "
+                       "<dir>/narration.json. With --check, also transcribe each Line back to check it. Only the Model "
+                       "that reads must be installed: without the aligner, or with --check the transcriber, the Lines "
+                       "are read without words or the check, with a warning. "
                        "The completed Narration, read again with the same --model, gives the same audio. "
                        "With --line, read only those Lines again and keep every other Line, and its audio file, "
                        "as <dir>/narration.json from the earlier run has it.",
@@ -284,6 +287,11 @@ COMMANDS = {
                 "voices_dir": {**_voices_dir, "description": "Where to find the Cloned Voices and Designed Voices "
                                                              "the Narration names (--voices-dir): the directory they "
                                                              "were added to; omit for $VOXX_HOME/voices."},
+                "check": {"type": "boolean", "default": False,
+                          "description": "Transcribe each Line back and report transcript and error_rate (--check). Off "
+                                         "by default: it loads the transcriber beside the reader, which takes more "
+                                         "memory and time, and the user listens anyway. Pass it when the user asks "
+                                         "for the check or will not listen to every Line."},
             },
         },
         "input": NARRATION_INPUT,
@@ -391,14 +399,14 @@ COMMANDS = {
     },
     "voice design": {
         "usage": "voxx voice design --describe <description> [--describe <description>]... --text <text> "
-                 "--language <tag> --out <dir> [--takes <n>] [--model <model>]",
+                 "--language <tag> --out <dir> [--takes <n>] [--model <model>] [--check]",
         "description": "Design new voices from text descriptions: read --text --takes times for each description, each "
                        "time with a new seed and so in a new voice, as Design Takes for the user to listen to and choose "
                        "from. Writes <dir>/take-<n>.wav, numbered in the order of the descriptions, and "
-                       "<dir>/design.json. Stores no Voice. Each take is transcribed back to check it, as a Line is: a "
-                       "take that reads its description out loud shows it in its transcript. Only the Model that "
-                       "designs must be installed: without the transcriber, the takes come without the check, with a "
-                       "warning.",
+                       "<dir>/design.json. Stores no Voice. With --check, each take is transcribed back to check it, as a "
+                       "Line is: a take that reads its description out loud shows it in its transcript. Only the "
+                       "Model that designs must be installed: with --check but without the transcriber, the takes "
+                       "come without the check, with a warning.",
         "arguments": {
             "$schema": DRAFT,
             "type": "object",
@@ -419,6 +427,11 @@ COMMANDS = {
                           "description": "How many Design Takes to read for each description (--takes)."},
                 "model": {**_model_id, "description": "The Model that designs (--model). Omit for the default, the "
                                                       "first Model with the design capability in `voxx models`."},
+                "check": {"type": "boolean", "default": False,
+                          "description": "Transcribe each Design Take back and report transcript and error_rate (--check). Off "
+                                         "by default: it loads the transcriber beside the reader, which takes more "
+                                         "memory and time, and the user listens anyway. Pass it when the user asks "
+                                         "for the check or will not listen to every take."},
             },
         },
         "result": {
@@ -449,12 +462,13 @@ COMMANDS = {
                                 "sample_rate": LINE_OUTPUT_FIELDS["sample_rate"],
                                 "warnings": {**LINE_OUTPUT_FIELDS["warnings"],
                                              "description": "What did not go as asked, such as a take that could not "
-                                                            "reach -18 LUFS without clipping, or a take not checked "
-                                                            "because no Model transcribes its language (not_checked) "
+                                                            "reach -18 LUFS without clipping, or a take read with "
+                                                            "--check but not checked because no Model transcribes its "
+                                                            "language (not_checked) "
                                                             "or the one that would is not installed "
                                                             "(checker_not_installed)."},
                                 "transcript": {**SELF_CHECK_FIELDS["transcript"],
-                                               "description": "The take, transcribed back; only when it was checked."},
+                                               "description": "The take, transcribed back; only with --check."},
                                 "error_rate": SELF_CHECK_FIELDS["error_rate"],
                             },
                         }},
@@ -465,8 +479,8 @@ COMMANDS = {
         "errors": {
             "model_not_installed": {**MODEL_NOT_INSTALLED,
                                     "description": "details of a model_not_installed error (exit code 3): the Model "
-                                                   "that designs. A missing transcriber is a warning on each take "
-                                                   "instead."},
+                                                   "that designs. With --check, a missing transcriber is a warning on "
+                                                   "each take instead."},
             "invalid_arguments": {"description": "Exit 2: a description or the text is empty, or --takes is below 1."},
             "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},

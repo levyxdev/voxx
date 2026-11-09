@@ -5,7 +5,7 @@ description: "Voice a Narration locally with the voxx CLI: one WAV and word timi
 
 # voxx agent operating manual
 
-voxx reads each Line of a Narration in one go with a local speech Model and hands back a WAV per Line, its word timings and a self-check. The CLI does what is deterministic; you make the judgment calls: language, Voice, `style`, whether a Line needs reading again, and asking the user before anything is downloaded. Run every command through `scripts/voxx` in this skill's folder; it launches the pinned voxx version with `uvx`, and this manual writes commands without that path. Read [setup.md](setup.md) when `uvx` is missing, `doctor` reports an unsupported platform, a command exits 3 or warns that a Model is not installed, or the user wants voxx removed. Read [cloning.md](cloning.md) before cloning a voice, and [designing.md](designing.md) before designing one.
+voxx reads each Line of a Narration in one go with a local speech Model and hands back a WAV per Line and its word timings. The CLI does what is deterministic; you make the judgment calls: language, Voice, `style`, whether a Line needs reading again, and asking the user before anything is downloaded. Run every command through `scripts/voxx` in this skill's folder; it launches the pinned voxx version with `uvx`, and this manual writes commands without that path. Read [setup.md](setup.md) when `uvx` is missing, `doctor` reports an unsupported platform, a command exits 3 or warns that a Model is not installed, or the user wants voxx removed. Read [cloning.md](cloning.md) before cloning a voice, and [designing.md](designing.md) before designing one.
 
 Every command prints one JSON object on stdout and NDJSON progress on stderr. `voxx schema` describes every command's arguments, the Narration file, the results, the warnings and the exit codes; it is the reference, so look things up there rather than guessing.
 
@@ -38,14 +38,16 @@ For a quick draft, pass `--model qwen3-tts-0.6b-customvoice`: the same Preset Vo
 
 ## Checking each Line
 
-`narrate` transcribes every Line back and reports `transcript` and `error_rate` (per character in Chinese, Japanese and Korean, per word otherwise). voxx only reports; deciding is your job.
+The user listens to the Lines: give them each Line's absolute path, and read again with `--line <id>` the ones they want read again. `narrate` reads them with new seeds and leaves every other Line's file byte for byte as it was.
+
+`narrate --check` also transcribes every Line back and reports `transcript` and `error_rate` (per character in Chinese, Japanese and Korean, per word otherwise). It loads the transcriber beside the reading Model, which takes about 1 GB more memory and a few seconds more per Line, so pass it only when the user asks for the check or will not listen to every Line, such as for a long Narration. voxx only reports; deciding is your job.
 
 - **Read the `transcript` before the number.** In a short Line one wrong word or character already gives 0.1–0.2, and it is often the transcriber mishearing ("Press send" heard as "Press in") rather than the voice misreading. A Line whose transcript differs only where such a mishearing explains it is good.
 - **A Line is bad** when the transcript has a sentence the text does not, says something else, or stops early, or when `error_rate` is near or above 1. Read only the bad Lines again: `narrate` into the same `--out` with `--line <id>` for each of them reads them with new seeds and leaves every other Line's file byte for byte as it was.
 - **Read a Line again at most three times.** If it is still bad, stop and show the user its text and transcript. Offer to rewrite it, usually a product name, number or abbreviation spelled out as it is spoken, and tell them the Subtitles show the rewritten text.
-- `not_checked` means no Model can transcribe this language, so the Line went unchecked: tell the user in a sentence and ask them to listen to it.
+- `not_checked`, with `--check`, means no Model can transcribe this language, so the Line went unchecked: tell the user in a sentence and ask them to listen to it.
 - `not_aligned` means the Line has no `words`, either because no Model times words in this language or because timing this Line failed. The audio is fine, and CueTake then spreads the Subtitles over the Line by character count. When timing failed on a Line in a language other Lines were timed in, reading it again may fix it.
-- `aligner_not_installed` or `checker_not_installed` means a Model that adds word timings or the check is missing. The audio is usable as it is. Ask the user whether to install it, as [setup.md](setup.md) describes. Once it is installed, run `narrate <dir>/narration.json --out <dir>` with the same `--model`: the completed Narration carries each Line's seed, so the audio comes out the same and gains `words` and the check.
+- `aligner_not_installed` or, with `--check`, `checker_not_installed` means a Model that adds word timings or the check is missing. The audio is usable as it is. Ask the user whether to install it, as [setup.md](setup.md) describes. Once it is installed, run `narrate <dir>/narration.json --out <dir>` with the same `--model` (and `--check` for the check): the completed Narration carries each Line's seed, so the audio comes out the same and gains `words` and the check.
 - `stale_audio` after `--line` means a kept Line's audio no longer matches the Narration: its text, Voice, `style`, `emotion`, `speed`, `pitch`, `volume` or the language changed since it was read. Read that Line again too.
 
 ## Errors

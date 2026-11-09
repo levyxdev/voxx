@@ -126,7 +126,7 @@ def test_a_language_tag_a_model_has_not_registered_is_unsupported_even_if_its_la
 
 def test_a_language_can_be_any_tag_a_model_registers(installed, write_narration, tmp_path):
     narration = {"language": "yue", "voice": "fake-alice", "lines": [{"id": "a", "text": "撳一下發送"}]}
-    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out")
+    run = installed("narrate", write_narration(narration), "--out", tmp_path / "out", "--check")
 
     assert run.exit_code == 0, run.result
     [line] = lines_of(run)
@@ -183,7 +183,7 @@ def test_a_run_that_fails_at_a_later_line_leaves_the_earlier_output_as_it_was(in
     files = snapshot(out)
 
     # The first Line is read in full before the worker dies at the second.
-    run = installed("narrate", write_narration(TWO_LINES), "--out", out, env={"VOXX_TEST_FAKE_CRASH": step})
+    run = installed("narrate", write_narration(TWO_LINES), "--out", out, "--check", env={"VOXX_TEST_FAKE_CRASH": step})
 
     assert_error(run, 1, "worker_crashed")
     assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["intro"]
@@ -211,7 +211,7 @@ def test_narrate_with_only_the_model_that_reads_installed_reads_every_line_and_w
     assert voxx("install", "fake-tts").exit_code == 0
     hub.requests.clear()
     out = tmp_path / "out"
-    run = voxx("narrate", write_narration(TWO_LINES), "--out", out)
+    run = voxx("narrate", write_narration(TWO_LINES), "--out", out, "--check")
 
     assert run.exit_code == 0, run.result
     for line in lines_of(run):

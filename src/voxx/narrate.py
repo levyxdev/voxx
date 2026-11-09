@@ -20,9 +20,10 @@ OUTPUT_NAME = "narration.json"
 READ_ALL_HINT = "Read the whole Narration first: run `voxx narrate` without --line."
 
 
-def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None):
+def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None, check=False):
     """Read every Line, or with `line_ids` only those Lines, keeping every other Line of the earlier output as it is.
-    Cloned Voices and Designed Voices are found in `voices_dir`, else in $VOXX_HOME/voices."""
+    Cloned Voices and Designed Voices are found in `voices_dir`, else in $VOXX_HOME/voices. With `check`, each Line
+    read is transcribed back (ADR 0008)."""
     narration = load_narration(narration_path)
     out = Path(out_dir).resolve()
     chosen = find_model(model_id) if model_id is not None else None
@@ -34,7 +35,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
     # Plan every Line before starting the worker, so a bad Voice fails fast. Only the Models that read are required
     # (ADR 0006): a Line whose aligner or transcriber is not installed is read without it.
-    plans = [_plan_line(narration, line, chosen, voices_dir, earlier_seeds.get(line["id"])) for line in to_read]
+    plans = [_plan_line(narration, line, chosen, voices_dir, check, earlier_seeds.get(line["id"])) for line in to_read]
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
     writable_out(out)
 
@@ -56,9 +57,9 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
     return {"path": str(path), "narration": narration}
 
 
-def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
+def _plan_line(narration, line, chosen, voices_dir, check, earlier_seed=None):
     """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), style,
-    Delivery Controls and seed, the Model that times its words, and the Model that transcribes it back.
+    Delivery Controls and seed, the Model that times its words, and with `check` the Model that transcribes it back.
 
     A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
@@ -79,13 +80,13 @@ def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
     elif not is_installed(aligner):
         warnings.append(_not_installed("aligner_not_installed", aligner, "words"))
         aligner = None
-    # The self-check: a Line is transcribed back, unless no Model can transcribe its language.
-    transcriber = transcriber_for(model, narration["language"])
-    if transcriber is None:
+    # The self-check, only when asked for: a Line is transcribed back, unless no Model can transcribe its language.
+    transcriber = transcriber_for(model, narration["language"]) if check else None
+    if check and transcriber is None:
         warnings.append({"code": "not_checked", "message": f"No Model can transcribe {narration['language']!r}, "
                                                            "so the Line has no transcript or error_rate."})
-    elif not is_installed(transcriber):
-        warnings.append(_not_installed("checker_not_installed", transcriber, "transcript or error_rate"))
+    elif transcriber is not None and not is_installed(transcriber):
+        warnings.append(_not_installed("checker_not_installed", transcriber, "transcript or error_rate", "--line and --check"))
         transcriber = None
     seed = line_setting(narration, line, "seed")
     while seed is None or seed == earlier_seed:
@@ -94,11 +95,11 @@ def _plan_line(narration, line, chosen, voices_dir, earlier_seed=None):
             "aligner": aligner, "transcriber": transcriber, "seed": seed}
 
 
-def _not_installed(code, model, fields):
+def _not_installed(code, model, fields, read_again="--line"):
     """The warning on a Line read without a Model that only completes it, because that Model is not installed."""
     return {"code": code, "message": f"Model {model.id} is not installed, so the Line has no {fields}. Tell the user "
                                      f"its size and license from details; once they agree, run `voxx install {model.id}` "
-                                     "and read the Line again with --line.",
+                                     f"and read the Line again with {read_again}.",
             "details": {**model.install_summary(), "command": f"voxx install {model.id}"}}
 
 

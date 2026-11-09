@@ -19,7 +19,7 @@ voxx downloads a Model only through `voxx install <model>`, and no other command
 2. Run `voxx install <model>` for each one they agree to, in the background if your shell would time out: a Model is one to three GB.
 3. If a download stops or fails, run the same `install` again: it resumes where it stopped. When Hugging Face is slow or unreachable, such as from mainland China, set `HF_ENDPOINT` to a mirror, for example `HF_ENDPOINT=https://hf-mirror.com`, for that `install`.
 
-Only the Model that reads must be installed. The aligner, which adds word timings for Subtitles, and the transcriber, which checks each Line, are worth offering too: without them every Line warns `aligner_not_installed` or `checker_not_installed`, with the same `details`.
+Only the Model that reads must be installed. The aligner, which adds word timings for Subtitles, is worth offering too: without it every Line warns `aligner_not_installed`, with the same `details`. The transcriber is needed only for `narrate --check` and `voice design --check`, and for `voice add` without `--ref-text`; offer it when one of those comes up.
 
 ## Check
 
