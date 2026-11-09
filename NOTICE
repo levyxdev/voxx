@@ -30,10 +30,3 @@ voxx builds on the following third-party projects:
   src/voxx/ming_voices.py copies the names and descriptions of its Preset
   Voices from the cookbook in that repository.
 
-- Chatterbox (MIT License)
-  Copyright (c) 2025 Resemble AI
-  https://github.com/resemble-ai/chatterbox
-
-- MOSS-TTS-Nano (Apache License 2.0)
-  Copyright 2026 OpenMOSS Team, Fudan University, SII and MOSI
-  https://github.com/OpenMOSS/MOSS-TTS-Nano

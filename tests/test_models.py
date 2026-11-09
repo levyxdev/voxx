@@ -7,10 +7,6 @@ REAL_MODELS = {
     "qwen3-forcedaligner-0.6b": (["align"], 1_276_475_979, "Apache-2.0", "2026-10-30"),
     "qwen3-asr-0.6b": (["transcribe"], 1_010_773_761, "Apache-2.0", "2026-10-30"),
     "ming-3.0-tts-0.5b": (["preset_voice", "clone", "design"], 1_617_181_518, "MIT", "2026-11-06"),
-    # 2,713,107,406 B of its own and 494,869,110 B of S3TokenizerV2.
-    "chatterbox-multilingual-v3": (["clone"], 3_207_976_516, "MIT", "2026-11-06"),
-    # 285,462,910 B of its own and 87,976,790 B of its audio tokenizer.
-    "moss-tts-nano-100m": (["clone"], 373_439_700, "Apache-2.0", "2026-11-06"),
     "qwen3-tts-1.7b-voicedesign": (["design"], 3_080_140_867, "Apache-2.0", "2026-11-06"),
 }
 
@@ -44,24 +40,6 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
     assert models["ming-3.0-tts-0.5b"]["sample_rate"] == 44_100
     assert models["ming-3.0-tts-0.5b"]["repo"] == "mlx-community/Ming-3.0-tts-0.5B-8bit"
     assert models["ming-3.0-tts-0.5b"]["revision"] == "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad"
-    chatterbox = models["chatterbox-multilingual-v3"]
-    assert chatterbox["languages"] == ["ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms",
-                                       "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh"]
-    assert chatterbox["sample_rate"] == 24_000
-    assert (chatterbox["repo"], chatterbox["revision"]) == ("mlx-community/chatterbox-multilingual-v3",
-                                                            "03565773edd72e949572557597af8063bb49a18a")
-    # Its Engine loads S3TokenizerV2 by name; that repo has no license of its own, so it carries CosyVoice2's.
-    assert chatterbox["extra_repos"] == [{"repo": "mlx-community/S3TokenizerV2", "size_bytes": 494_869_110,
-                                          "license": {"id": "Apache-2.0",
-                                                      "url": "https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B"}}]
-    moss = models["moss-tts-nano-100m"]
-    assert moss["languages"] == ["zh", "en", "de", "es", "fr", "ja", "it", "he", "ko", "ru", "fa", "ar", "pl", "pt", "cs",
-                                 "da", "sv", "hu", "el", "tr"]
-    assert moss["sample_rate"] == 48_000
-    assert (moss["repo"], moss["revision"]) == ("mlx-community/MOSS-TTS-Nano-100M", "229a9c51bb0ffff6fd0dbe53b5bf0c441e438a79")
-    assert moss["extra_repos"] == [{"repo": "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano", "size_bytes": 87_976_790,
-                                    "license": {"id": "Apache-2.0",
-                                                "url": "https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano"}}]
     voice_design = models["qwen3-tts-1.7b-voicedesign"]
     assert voice_design["languages"] == ["zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es"]
     assert voice_design["sample_rate"] == 24_000
@@ -79,7 +57,7 @@ def test_the_fake_model_is_listed_only_for_tests(voxx):
 def test_models_can_be_filtered_by_capability(voxx):
     run = voxx("models", "--capability", "clone")
 
-    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "ming-3.0-tts-0.5b", "chatterbox-multilingual-v3", "moss-tts-nano-100m", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
+    assert set(by_id(run)) == {"qwen3-tts-1.7b-base", "voxcpm2", "ming-3.0-tts-0.5b", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
 
 
 def test_voxcpm2_ming_and_qwen3_voicedesign_design_voices(voxx):

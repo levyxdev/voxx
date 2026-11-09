@@ -1,4 +1,4 @@
-"""A Model whose Engine also loads an extra repo, as Chatterbox loads S3TokenizerV2: one `voxx install` fetches both."""
+"""A Model whose Engine also loads an extra repo, such as a tokenizer: one `voxx install` fetches both."""
 
 import json
 

@@ -10,6 +10,8 @@
 
 额外仓库**不钉版本**：`voxx install` 下载它当时的最新版，把实际下载的 revision 记进安装清单，大小和核实时不同也照样安装。原因是引擎按仓库名去拉它，不带 revision（Chatterbox 把仓库名写死在代码里），拿到的本来就是最新版；它只是 tokenizer 这类配套权重，许可证跟着上游。代价是两次安装可能装到不同的 revision，所以安装清单要记下实际装的是哪个。主仓库照旧钉住 revision，大小不符就拒绝安装。
 
+2026-11-09：试听后 Chatterbox 和 MOSS-TTS-Nano 都没留下（levyxdev/voxx#25），现在没有 Model 带额外仓库；这套机制留着，给以后加载时要别的仓库的 Model 用。
+
 额外仓库按 Hugging Face 缓存的目录结构放在 `$VOXX_HOME/hf-cache`，worker 把 `HF_HUB_CACHE` 指向这里，引擎离线时按仓库名就能找到它，也不会读到用户自己的 Hugging Face 缓存。
 
 ## Considered options

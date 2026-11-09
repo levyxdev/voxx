@@ -44,9 +44,6 @@ class _Architecture:
     """The arguments besides its text that a Line is read with, as Qwen3-TTS and VoxCPM2 take them. Each architecture
     that takes them otherwise is a subclass; `_architecture` picks one when the Model loads."""
 
-    def __init__(self, extra_repos):
-        self.extra_repos = extra_repos
-
     def lang_code(self, language):
         return LANGUAGE_NAMES[language]
 
@@ -59,8 +56,8 @@ class _Architecture:
             # so a styled Line takes ref_audio alone for the voice and the style as its instruct.
             return {"ref_audio": str(reference), "instruct": style, "lang_code": self.lang_code(language)}
         # Qwen3-TTS Base clones from ref_audio and ref_text. VoxCPM2 takes ref_audio for the voice and continues
-        # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Chatterbox takes
-        # ref_audio alone. Each Model's generate ignores the others' arguments.
+        # prompt_audio, read as prompt_text, for its closest likeness (upstream's "ultimate cloning"). Each Model's
+        # generate ignores the other's arguments.
         return {"ref_audio": str(reference), "ref_text": reference_text, "prompt_audio": str(reference),
                 "prompt_text": reference_text, "lang_code": self.lang_code(language)}
 
@@ -91,27 +88,10 @@ class _Ming(_Architecture):
                 "lang_code": self.lang_code(language)}
 
 
-class _Chatterbox(_Architecture):
-    def lang_code(self, language):
-        # Chatterbox names a language by its tag, as a Narration does, and refuses the English name.
-        return language
-
-
-class _Moss(_Architecture):
-    def clone(self, *, reference, reference_text, style, controls, language):
-        # MOSS-TTS-Nano clones from ref_audio alone and reads no language tag. It loads its audio tokenizer on the
-        # first Line, from the copy `voxx install` made rather than by name.
-        [tokenizer] = self.extra_repos.values()
-        return {"ref_audio": str(reference), "audio_tokenizer_source": str(tokenizer)}
-
-
 def _architecture(model):
-    """How the Model mlx-audio loaded takes a Line's arguments. Most name their architecture in config.model_type;
-    Ming-3.0's says "dense", as Ming Omni's does, so mlx-audio marks it with `ming3` instead."""
-    if getattr(model, "ming3", False):
-        return _Ming
-    model_type = getattr(getattr(model, "config", None), "model_type", "")
-    return {"chatterbox": _Chatterbox, "moss_tts_nano": _Moss}.get(model_type, _Architecture)
+    """How the Model mlx-audio loaded takes a Line's arguments. Ming-3.0's config names its architecture "dense", as
+    Ming Omni's does, so mlx-audio marks it with `ming3` instead."""
+    return _Ming if getattr(model, "ming3", False) else _Architecture
 
 
 class MlxAudioEngine:
@@ -120,12 +100,13 @@ class MlxAudioEngine:
     architecture: _Architecture
 
     def load(self, path, capability, *, extra_repos):
+        # No mlx-audio Model voxx registers loads an extra repo.
         # mlx-audio loads Models that speak and Models that listen through different loaders.
         if capability in ("transcribe", "align"):
             self.model = load_stt(path)
         else:
             self.model = load_tts(path)
-            self.architecture = _architecture(self.model)(extra_repos)
+            self.architecture = _architecture(self.model)()
 
     def synthesize(self, text, *, model, voice, style, controls, language, seed):
         return self._read(model, seed, text=text, **self.architecture.synthesize(voice=voice, style=style,
@@ -147,9 +128,7 @@ class MlxAudioEngine:
         if len(results) != 1:
             raise VoxxError("engine_split_line", f"mlx-audio read the Line in {len(results)} parts instead of one.",
                             BUG_HINT, {"model": model, "parts": len(results)})
-        samples = np.asarray(results[0].audio, dtype=np.float32)
-        # MOSS-TTS-Nano reads in stereo, as [samples, channels]; a Line is mono.
-        return (samples.mean(axis=1) if samples.ndim == 2 else samples), results[0].sample_rate
+        return np.asarray(results[0].audio, dtype=np.float32), results[0].sample_rate
 
     def transcribe(self, path, *, model, language):
         # Greedy decoding, so the same Line is always heard the same way; the path lets mlx-audio resample to 16 kHz.

@@ -129,16 +129,6 @@ QWEN3_ASR_LANGUAGES = ("zh", "en", "yue", "ar", "de", "fr", "es", "pt", "id", "i
 VERIFIED = "2026-10-30"
 # Ming-3.0-tts reads these languages (its cookbook's "Target languages"); its dialects are not offered.
 MING_LANGUAGES = ("zh", "en", "ja", "ko", "de", "fr", "es")
-# The 23 languages of Chatterbox Multilingual V3, as its mlx-audio code lists them (SUPPORTED_LANGUAGES).
-CHATTERBOX_LANGUAGES = ("ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms", "nl", "no", "pl",
-                        "pt", "ru", "sv", "sw", "tr", "zh")
-# The 20 languages on MOSS-TTS-Nano's model card.
-MOSS_TTS_NANO_LANGUAGES = ("zh", "en", "de", "es", "fr", "ja", "it", "he", "ko", "ru", "fa", "ar", "pl", "pt", "cs", "da", "sv",
-                           "hu", "el", "tr")
-# MOSS-TTS-Nano's codec, which its mlx-audio code would otherwise download by name on the first Line.
-MOSS_AUDIO_TOKENIZER = ExtraRepo("OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano", 87_976_790,
-                                 _apache("https://huggingface.co/OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano"),
-                                 ("*.json", "*.safetensors", "*.index.json", "*.md"))
 REGISTRY = (
     # The first Model with Preset Voices is the default one.
     Model("qwen3-tts-1.7b-customvoice", "mlx-audio", ("preset_voice",), QWEN3_TTS_LANGUAGES,
@@ -165,36 +155,14 @@ REGISTRY = (
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
-    # On audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
+    # Kept after the audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
     # Preset Voice or a Reference Recording it keeps the voice and ignores the style (tested in levyxdev/voxx#33).
     Model("ming-3.0-tts-0.5b", "mlx-audio", ("preset_voice", "clone", "design"), MING_LANGUAGES,
           "mlx-community/Ming-3.0-tts-0.5B-8bit", "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad", 1_617_181_518,
           _mit("https://huggingface.co/inclusionAI/Ming-3.0-tts-0.5B"), _mit("https://github.com/inclusionAI/Ming-3.0-tts"),
           "2026-11-06", 44_100, tuple(PresetVoice(*v) for v in MING_VOICES),
           reads_controls=True),
-    # On audition (levyxdev/voxx#25), checked 2026-11-06. It only clones: the mlx conversion has no voice of
-    # its own. It needs no reference text, but `voice add` keeps one, so the same Cloned Voice can be read by another
-    # Model. It loads S3TokenizerV2 by name at every load; that repo states no license, so it carries that of the
-    # CosyVoice2 weights it was converted from. Japanese, Hebrew and Russian are read without the extra text
-    # processing mlx-audio applies when optional packages voxx does not install are present.
-    Model("chatterbox-multilingual-v3", "mlx-audio", ("clone",), CHATTERBOX_LANGUAGES,
-          "mlx-community/chatterbox-multilingual-v3", "03565773edd72e949572557597af8063bb49a18a", 2_713_107_406,
-          _mit("https://huggingface.co/ResembleAI/chatterbox"), _mit("https://github.com/resemble-ai/chatterbox"),
-          "2026-11-06", 24_000,
-          extra_repos=(ExtraRepo("mlx-community/S3TokenizerV2", 494_869_110,
-                                 _apache("https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B"),
-                                 ("model.safetensors", "config.json")),)),
-    # On audition (levyxdev/voxx#25), checked 2026-11-06: small and fast, a draft tier for Cloned Voices.
-    # Its model card still asks not to redistribute it before a LICENSE file is published; that sentence is stale, and
-    # the publisher confirmed the weights are Apache-2.0 (OpenMOSS/MOSS-TTS-Nano#91). The mlx conversion only clones:
-    # the ONNX release's built-in voices are not part of it. It needs no reference text, but `voice add` keeps one, so
-    # the same Cloned Voice can be read by another Model. Its Engine is given the audio tokenizer's installed path.
-    Model("moss-tts-nano-100m", "mlx-audio", ("clone",), MOSS_TTS_NANO_LANGUAGES,
-          "mlx-community/MOSS-TTS-Nano-100M", "229a9c51bb0ffff6fd0dbe53b5bf0c441e438a79", 285_462_910,
-          _apache("https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M"),
-          _apache("https://github.com/OpenMOSS/MOSS-TTS-Nano"), "2026-11-06", 48_000,
-          extra_repos=(MOSS_AUDIO_TOKENIZER,)),
-    # On audition (levyxdev/voxx#25), checked 2026-11-06. It only designs, in every language Qwen3-TTS
+    # Kept after the audition (levyxdev/voxx#25), checked 2026-11-06. It only designs, in every language Qwen3-TTS
     # reads; it has no Voices of its own. The description goes in as a chat turn of its own, before the text it reads,
     # so it is not read out the way VoxCPM2 sometimes reads its description.
     Model("qwen3-tts-1.7b-voicedesign", "mlx-audio", ("design",), QWEN3_TTS_LANGUAGES,
@@ -236,7 +204,7 @@ FAKE_CLONE_ALT_MODEL = Model("fake-clone-alt", "fake", ("clone",), ("zh", "en"),
                              "voxx-test/fake-clone-alt", "a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2", 4096,
                              _apache("https://huggingface.co/voxx-test/fake-clone-alt"),
                              _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000)
-# Clones with a tokenizer from a repo of its own, as Chatterbox does: the hub serves more files than it loads.
+# Clones with a tokenizer from a repo of its own: the hub serves more files than it loads.
 FAKE_EXTRA_REPO = ExtraRepo("voxx-test/fake-tokenizer", 4096, _apache("https://huggingface.co/voxx-test/fake-tokenizer"),
                             ("model.safetensors", "*.json"))
 FAKE_EXTRA_MODEL = Model("fake-clone-extra", "fake", ("clone",), ("zh", "en"),
@@ -318,7 +286,7 @@ def is_installed(model):
 
 
 def _extra_repo_installed(entry):
-    # Every file is checked, because an Engine may go on without one: Chatterbox reads with random weights.
+    # Every file is checked, because an Engine may go on without one: Chatterbox, once registered, read with random weights.
     path = extra_repo_path(entry["repo"])
     try:
         return path is not None and path.name == entry["revision"] and all(

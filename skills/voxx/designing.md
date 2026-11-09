@@ -14,7 +14,7 @@ Describe traits only. When the user asks for a voice that sounds like a real per
 
 Write it as in [cloning.md](cloning.md) step 2: two or three sentences in the Narration's language, about 10 seconds aloud, in everyday words, in the tone the Narration should have, written as spoken. Pass that language as `--language`.
 
-The default designing Model, VoxCPM2, designs only in Chinese and English. For another language, pass `--model` a Model whose `languages` include it (`voxx models --capability design`): Qwen3-TTS VoiceDesign, on audition, designs in 10 languages.
+The default designing Model, VoxCPM2, designs only in Chinese and English. For another language, pass `--model` a Model whose `languages` include it (`voxx models --capability design`): Qwen3-TTS VoiceDesign designs in 10 languages.
 
 ## 3. Let the user choose
 

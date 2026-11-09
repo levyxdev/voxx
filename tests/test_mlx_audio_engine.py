@@ -20,22 +20,20 @@ class RecordingModel:
     """Stands in for a Model mlx-audio loaded: Ming-3.0 marks itself with `ming3`, the others name their architecture
     in config.model_type."""
 
-    def __init__(self, model_type, ming3=False, channels=1):
+    def __init__(self, model_type, ming3=False):
         self.config = SimpleNamespace(model_type=model_type)
         self.ming3 = ming3
-        self.channels = channels
         self.arguments = {}
 
     def generate(self, **arguments):
         self.arguments = arguments
-        shape = (4410, self.channels) if self.channels > 1 else (4410,)
-        yield SimpleNamespace(audio=np.full(shape, 0.1, dtype=np.float32), sample_rate=44_100)
+        yield SimpleNamespace(audio=np.full(4410, 0.1, dtype=np.float32), sample_rate=44_100)
 
 
-def loaded(monkeypatch, model, capability="preset_voice", extra_repos=None):
+def loaded(monkeypatch, model, capability="preset_voice"):
     monkeypatch.setattr(mlx_audio, "load_tts", lambda path: model)
     engine = MlxAudioEngine()
-    engine.load(Path("/models/any"), capability, extra_repos=extra_repos or {})
+    engine.load(Path("/models/any"), capability, extra_repos={})
     return engine
 
 
@@ -152,27 +150,3 @@ def test_voxcpm2_designs_from_the_description_as_instruct(monkeypatch):
 
     assert arguments(engine) == {"text": "Hello.", "instruct": "A calm man.", "lang_code": "english", "split_pattern": "",
                                  "verbose": False}
-
-
-def test_chatterbox_is_given_the_language_tag_itself(monkeypatch):
-    engine = loaded(monkeypatch, RecordingModel("chatterbox"), "clone")
-
-    engine.clone("Hei.", model="chatterbox-multilingual-v3", reference=REFERENCE, reference_text="Hei.", style=None,
-                 controls={}, language="no", seed=1)
-
-    assert arguments(engine)["lang_code"] == "no"
-    assert arguments(engine)["ref_audio"] == "me.wav"
-
-
-def test_moss_clones_with_the_installed_audio_tokenizer_and_reads_in_mono(monkeypatch):
-    tokenizer = Path("/voxx/hf-cache/models--OpenMOSS-Team--MOSS-Audio-Tokenizer-Nano/snapshots/0123")
-    engine = loaded(monkeypatch, RecordingModel("moss_tts_nano", channels=2), "clone",
-                    extra_repos={"OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano": tokenizer})
-
-    samples, sample_rate = engine.clone("你好。", model="moss-tts-nano-100m", reference=REFERENCE,
-                                        reference_text=REFERENCE_TEXT, style=None, controls={}, language="zh", seed=1)
-
-    assert arguments(engine) == {"text": "你好。", "ref_audio": "me.wav", "audio_tokenizer_source": str(tokenizer),
-                                 "split_pattern": "", "verbose": False}
-    assert samples.shape == (4410,)
-    assert sample_rate == 44_100

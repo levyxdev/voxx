@@ -48,8 +48,8 @@ class FakeEngine:
 
     def load(self, path, capability, *, extra_repos):
         _crash_if("load")
-        # As Chatterbox loads S3TokenizerV2: by repo name, from the Hugging Face cache, with no revision. That must
-        # find the files MOSS-TTS-Nano is given by path.
+        # As an Engine loads a tokenizer: by repo name, from the Hugging Face cache, with no revision. That must find
+        # the files the Engine is given by path.
         for repo, installed in extra_repos.items():
             from huggingface_hub import snapshot_download
 

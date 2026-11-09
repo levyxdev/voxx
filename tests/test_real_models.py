@@ -112,12 +112,7 @@ def test_the_same_seed_reads_a_line_the_same_way(model, tmp_path):
 # A Reference Recording made by a Preset Voice, so the test needs no recording of a real person.
 REFERENCE = {"language": "zh", "voice": "serena", "seed": 42,
              "lines": [{"id": "reference", "text": "大家好，这是我录的一段参考音频，用来克隆我的声音。"}]}
-CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000, "ming-3.0-tts-0.5b": 44_100,
-                      "chatterbox-multilingual-v3": 24_000, "moss-tts-nano-100m": 48_000}
-# MOSS-TTS-Nano, a 0.1B draft tier, misreads the short English Line about one seed in three: at seed 42 Qwen3-ASR hears
-# "Press send" as "Person" (2 words of 5); seeds 1, 3 and 5 read it word for word. A bad Line is read again with a new
-# seed, so the test allows that one slip rather than a seed picked to pass.
-CLONE_ERROR_RATES = {"moss-tts-nano-100m": 0.4}
+CLONE_SAMPLE_RATES = {"voxcpm2": 48_000, "qwen3-tts-1.7b-base": 24_000, "ming-3.0-tts-0.5b": 44_100}
 
 
 @pytest.fixture(params=list(CLONE_SAMPLE_RATES))
@@ -159,7 +154,7 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
         seconds = len(samples) / line["sample_rate"]
         assert 1 < seconds < 15, f"{line['id']} is {seconds:.1f} s long"
         assert np.sqrt(np.mean(samples**2)) > 0.01, f"{line['id']} is silent"
-        assert line["error_rate"] <= CLONE_ERROR_RATES.get(cloning_model, 0.25), (line["id"], line["text"], line["transcript"])
+        assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
     styled = result["data"]["narration"]["lines"][1]
     # VoxCPM2 follows style without reading it out as part of the Line; the others ignore it and say so.
     assert NARRATIONS[language]["lines"][1]["style"].strip(".").lower() not in styled["transcript"].lower()
