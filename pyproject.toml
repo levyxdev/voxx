@@ -1,6 +1,6 @@
 [project]
 name = "voxx"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local text-to-speech CLI for agents: narrate each Line to a WAV with word timings"
 readme = "README.md"
 license = "Apache-2.0"
