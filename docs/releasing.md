@@ -35,11 +35,20 @@ uvx --from ./dist/voxx-<version>-py3-none-any.whl voxx doctor
 
 ## 4. Publish
 
-These steps are the maintainer's, by hand; nothing in the repository runs them.
+These steps are the maintainer's, by hand; nothing in the repository runs them. Upload before `main` moves: `main` is what `npx skills add` installs, so its launcher must never pin a version PyPI lacks ([git workflow](git-workflow.md)).
 
-1. Merge the release commit into `main`.
+1. Commit the release on `dev` (or the hotfix branch) and push it.
 2. Upload: `uv publish dist/*`, with a PyPI token for the `voxx` project in `UV_PUBLISH_TOKEN`.
 3. Check that `uvx voxx@<version> doctor` runs from PyPI.
-4. Tag that commit `v<version>` and push the tag: `git tag v<version> && git push origin v<version>`.
+4. Fast-forward `main` to the release commit, tag it, and push both:
+
+   ```sh
+   git switch main
+   git merge --ff-only dev
+   git tag v<version>
+   git push origin main v<version>
+   git switch dev
+   ```
+
 5. Create a GitHub release from the tag.
 

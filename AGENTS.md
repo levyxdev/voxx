@@ -12,6 +12,10 @@ Issue 和 spec 都放在 GitHub Issues（levyxdev/voxx），用 `gh` 操作。Se
 
 Single-context：根目录放 `GLOSSARY.md`，ADR 放 `docs/adr/`。See `docs/agents/domain.md`.
 
+## 分支
+
+主干是 `dev`：直接提交并推到 `origin dev`，skills 里说的 `main` 都按 `dev` 算。`main` 只在发布时动。发布、热修，或者 skill 要求开 PR、拉分支时，先读 `docs/git-workflow.md`.
+
 ## 检查
 
 改完代码跑 `uv run basedpyright`（零错误）和 `uv run pytest`（全部通过）。改动碰到 Engine 或真实模型时，再用 `VOXX_TEST_REAL=1 uv run pytest tests/test_real_models.py` 跑慢测试，它用的是本机已安装的模型。
