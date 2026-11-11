@@ -12,10 +12,6 @@ The five default labels: needs-triage, needs-info, ready-for-agent, ready-for-hu
 
 Single-context: `GLOSSARY.md` at the root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
 
-## Language
-
-Reply to the user in Chinese. Write code, comments, docs, commit messages, issues and PRs in English. Chinese that is data stays Chinese: narration text in tests and examples, Preset Voice names, the control words a Model reads.
-
 ## Branches
 
 `dev` is the trunk: commit straight to it and push to `origin dev`; wherever a skill says `main`, read `dev`. `main` moves only at a release. Before releasing, hotfixing, or opening a PR or branch a skill asks for, read `docs/git-workflow.md`.
