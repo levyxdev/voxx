@@ -10,6 +10,7 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 from conftest import VOXX
@@ -39,6 +40,7 @@ def test_the_plugin_has_the_version_being_released():
     assert plugin["version"] == VERSION
 
 
+@pytest.mark.skipif(os.environ.get("VOXX_TEST_RELEASE") != "1", reason="set VOXX_TEST_RELEASE=1 to build the release")
 def test_the_build_makes_a_wheel_and_an_sdist(tmp_path):
     uv = shutil.which("uv")
     assert uv, "uv builds the release"

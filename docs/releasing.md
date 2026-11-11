@@ -17,8 +17,11 @@ Set the same version in all three places, then run `uv lock`:
 ```sh
 uv run basedpyright
 uv run pytest
-VOXX_TEST_REAL=1 uv run pytest tests/test_real_models.py
+VOXX_TEST_REAL=1 uv run pytest -n 0 tests/test_real_models.py
+VOXX_TEST_RELEASE=1 uv run pytest tests/test_release.py
 ```
+
+The real Models load one at a time (`-n 0`): several in parallel would run out of memory. `VOXX_TEST_RELEASE=1` also builds the wheel and the sdist and checks what they ship; the default `uv run pytest` skips that.
 
 ## 3. Build
 
