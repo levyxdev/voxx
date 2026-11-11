@@ -1,6 +1,7 @@
 """Slow tests with the real Models, in the user's own $VOXX_HOME. Opt in with VOXX_TEST_REAL=1; a test skips when
 its Model is not installed. Listening is still a person's job: these only catch audio that is broken or silent."""
 
+import fcntl
 import json
 import os
 import subprocess
@@ -25,6 +26,15 @@ def real_voxx(*args):
     env = {k: v for k, v in os.environ.items() if not k.startswith("VOXX_TEST_")}
     process = subprocess.run([str(VOXX), *map(str, args)], capture_output=True, encoding="utf-8", timeout=900, env=env)
     return process.returncode, json.loads(process.stdout)
+
+
+@pytest.fixture(autouse=True)
+def one_model_at_a_time(tmp_path_factory):
+    """Several real Models loading at once would run out of memory, so the xdist workers take turns: they share the
+    parent of their base temp directories, and a lock there lets one test at a time run."""
+    with open(tmp_path_factory.getbasetemp().parent / "voxx-real-models.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 @pytest.fixture(scope="module")

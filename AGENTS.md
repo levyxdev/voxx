@@ -18,4 +18,4 @@ Single-context: `GLOSSARY.md` at the root, ADRs in `docs/adr/`. See `docs/agents
 
 ## Checks
 
-After changing code, run `uv run basedpyright` (zero errors) and `uv run pytest` (all passing). When a change touches an Engine or a real Model, also run the slow tests with `VOXX_TEST_REAL=1 uv run pytest -n 0 tests/test_real_models.py`; they use the Models installed on this machine, one at a time. When a change touches packaging (`pyproject.toml`'s build sections, the skill, the plugin), also run `VOXX_TEST_RELEASE=1 uv run pytest tests/test_release.py`.
+After changing code, run `uv run basedpyright` (zero errors) and `uv run pytest` (all passing). When a change touches an Engine or a real Model, also run the slow tests with `VOXX_TEST_REAL=1 uv run pytest tests/test_real_models.py`; they use the Models installed on this machine. When a change touches packaging (`pyproject.toml`'s build sections, the skill, the plugin), also run `VOXX_TEST_RELEASE=1 uv run pytest tests/test_release.py`.

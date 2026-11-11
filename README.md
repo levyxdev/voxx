@@ -78,10 +78,8 @@ uv run voxx schema
 ```sh
 uv run basedpyright
 uv run pytest
-# With the Models installed, one at a time:
-VOXX_TEST_REAL=1 uv run pytest -n 0 tests/test_real_models.py
-# Before a release, to build the wheel and the sdist too:
-VOXX_TEST_RELEASE=1 uv run pytest tests/test_release.py
+# With the Models installed:
+VOXX_TEST_REAL=1 uv run pytest tests/test_real_models.py
 ```
 
 The tests run `voxx` as a process, the way an agent does, against a fake Engine and a local stand-in for Hugging Face, so they need no Model and never reach Hugging Face. They run in parallel, one pytest worker per core. The design is in [docs/DESIGN.md](docs/DESIGN.md), the terms in [GLOSSARY.md](GLOSSARY.md), the decisions in [docs/adr/](docs/adr/), and the release steps in [docs/releasing.md](docs/releasing.md).
