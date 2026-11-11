@@ -1,14 +1,14 @@
-# 听写自检默认不做，`--check` 才做
+# The transcription self-check is off by default and runs with `--check`
 
-`narrate` 和 `voice design` 原先把每个 Line、每个 Design Take 都用 Qwen3-ASR 听写回来，算出 `transcript` 和 `error_rate`。这一步要把听写 Model 和念的 Model、对齐 Model 一起留在 worker 里：一次 `narrate` 峰值约 5.7 GB，16 GB 的 Mac 上和别的程序一起跑时会内存不足，每个 Line 还要多花一次听写的时间。而用户反正会自己听：机器听写只能说明念没念对字，说不出好不好听，听写本身也会听错（"Press send" 听成 "Press in"）。所以现在默认不听写，Line 和 Design Take 不带 `transcript` 和 `error_rate`，也不因为听写 Model 没装或这种语言没有听写 Model 而警告；传 `--check` 才照原样听写，缺听写 Model 时照 ADR 0006 降级为警告。
+`narrate` and `voice design` first transcribed every Line and every Design Take back with Qwen3-ASR to compute `transcript` and `error_rate`. That step keeps the transcription Model in the worker beside the reading Model and the alignment Model: one `narrate` peaks around 5.7 GB, which runs out of memory on a 16 GB Mac alongside other programs, and every Line costs one more transcription. And the user listens anyway: a machine transcription only tells whether the words were read right, not whether it sounds good, and the transcription itself mishears ("Press send" heard as "Press in"). So now nothing is transcribed by default: Lines and Design Takes carry no `transcript` or `error_rate`, and there is no warning for a missing transcription Model or for a language with none; `--check` transcribes as before, and a missing transcription Model degrades to a warning per ADR 0006.
 
 ## Considered options
 
-- **维持默认听写。** 否决：多占约 1 GB 内存和每个 Line 一次听写的时间，换来的是用户本来就要自己听的结论。
-- **去掉听写自检。** 否决：用户不方便逐个听时（Line 很多、无人值守地重念），`error_rate` 仍然是 agent 找出念错的 Line 的唯一办法。
+- **Keep transcribing by default.** Rejected: it costs about 1 GB more memory and one transcription per Line, for a verdict the user reaches by listening anyway.
+- **Drop the transcription self-check.** Rejected: when the user cannot easily listen to each Line (many Lines, unattended re-voicing), `error_rate` is still the agent's only way to find the misread Lines.
 
 ## Consequences
 
-- skill 改为让用户听；用户要求检查、或不会逐个听时，agent 才传 `--check`。
-- `voice add` 没给 `--ref-text` 时照旧用听写 Model 补参考录音的文字：那一步没有文字做不下去，和自检无关。
-- 对齐 Model 照旧默认运行：`words` 是字幕要用的，不是检查。
+- The skill now has the user listen; the agent passes `--check` only when the user asks for a check or will not listen to each Line.
+- `voice add` without `--ref-text` still uses the transcription Model to fill in the Reference Recording's text: that step cannot go on without text, and it has nothing to do with the self-check.
+- The alignment Model still runs by default: `words` is for subtitles, not for checking.

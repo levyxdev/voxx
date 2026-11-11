@@ -1,11 +1,11 @@
-# 克隆不做授权校验，责任在使用者
+# Cloning checks no consent; the user is responsible
 
-voxx 无法判断参考录音是谁的声音，任何授权声明参数都能被一句话绕过，所以代码里不设授权门槛，也不要求授权声明。使用者对所克隆声音的权利负责，这一点写进 README 的免责声明；skill 要求 agent 在克隆前提醒用户确认自己有权使用这段声音，并在发布时按平台要求声明内容由 AI 生成。voxx 也不嵌入音频水印，只在输出里记录每个 Line 用的模型、音色和 seed。
+voxx cannot tell whose voice a Reference Recording is, and any consent flag can be bypassed with one sentence, so the code sets no consent gate and asks for no consent statement. Users answer for their right to the voices they clone, as README's disclaimer says; the skill requires the agent to remind the user, before cloning, to confirm they may use the voice, and at publication to disclose that the content is AI-generated where the platform requires it. voxx embeds no audio watermark either; it only records in its output the Model, Voice and seed of each Line.
 
-用文字描述设计音色时也是同样的取舍：设计出来的音色不来自哪个真人，但描述可以写成"像某某的声音"，变相模仿真实人物。代码不检查描述；skill 要求 agent 只用年龄、性别、音色、语速、场景这类特征写描述，不写指向或模仿真实人物的描述，用户这样要求时，拒绝并改写成这些特征。
+Designing a Voice from a text description makes the same trade-off: a Designed Voice comes from no real person, but a description can say "sounds like so-and-so" and imitate a real person in effect. The code does not check descriptions; the skill requires the agent to write descriptions only from traits such as age, gender, timbre, pace and setting, never one that points at or imitates a real person, and to decline and rewrite as such traits when the user asks for that.
 
 ## Considered options
 
-- **`voice add` 必须带授权声明（DESIGN.md 草案）。** 否决：声明无法核实，只增加了使用摩擦。
-- **只允许克隆用户本人的声音。** 否决：同样无法在技术上区分是谁的声音，还会妨碍请配音员这样的正当用途。
-- **设计音色时用关键词黑名单拦住真实人名。** 否决：换个说法就能绕过，和授权声明一样只增加摩擦。
+- **`voice add` requires a consent statement (DESIGN.md draft).** Rejected: the statement cannot be verified and only adds friction.
+- **Clone only the user's own voice.** Rejected: there is no technical way to tell whose voice it is either, and it would block legitimate uses such as hiring a voice actor.
+- **A keyword blocklist of real names when designing Voices.** Rejected: rewording gets around it, so like a consent statement it only adds friction.

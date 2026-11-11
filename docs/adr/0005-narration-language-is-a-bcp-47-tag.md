@@ -1,13 +1,13 @@
-# 旁白的 language 是 BCP 47 标签，按原样和 Model 的语言比对
+# A Narration's language is a BCP 47 tag, matched as written against the Model's languages
 
-v0.1 的 spec 原来规定 `language` 用 ISO 639-1 两字母代码，但 Qwen3-ASR 支持的粤语（`yue`）和菲律宾语（`fil`）没有两字母代码，所以改用 BCP 47。BCP 47 包含 ISO 639-1，原来的 `zh`、`en` 照样有效，CueTake 也本来就把 `language` 当作语言标签处理（如 `zh-CN`）。标签只接受规范大小写（`zh-Hant-HK`，不接受 `zh-hant-hk`），并且必须和 Model 登记的某个语言完全一致，voxx 不做 `en-US` → `en` 这样的逐级回退。
+The v0.1 spec first required `language` to be an ISO 639-1 two-letter code, but Cantonese (`yue`) and Filipino (`fil`), which Qwen3-ASR supports, have no two-letter code, so it became BCP 47. BCP 47 contains ISO 639-1, so the existing `zh` and `en` stay valid, and CueTake already treats `language` as a language tag (such as `zh-CN`). Only canonical case is accepted (`zh-Hant-HK`, not `zh-hant-hk`), and the tag must exactly match a language the Model registers; voxx does no step-by-step fallback such as `en-US` → `en`.
 
 ## Considered options
 
-- **按 RFC 4647 lookup 逐级回退。** 否决：`zh-HK` 会悄悄退成 `zh`，被当作普通话念出来；完全一致时 agent 会拿到 `unsupported_language` 和 Model 实际登记的语言列表，自己改成正确的标签。
-- **不区分大小写。** 否决：只有一种写法时，比对和输出都不会出现歧义；大小写写错时，报错会给出规范写法。
+- **RFC 4647 lookup with fallback.** Rejected: `zh-HK` would quietly fall back to `zh` and be read as Mandarin; with exact matching the agent gets `unsupported_language` with the languages the Model actually registers, and corrects the tag itself.
+- **Case-insensitive matching.** Rejected: with only one spelling, neither matching nor output can be ambiguous; when the case is wrong, the error gives the canonical spelling.
 
 ## Consequences
 
-- 一个 Model 能念 `en`，不代表它能念 `en-US`：注册表登记什么，旁白就得写什么。
-- 自检也按完全一致来找能听写这种语言的 Model，所以 `en-GB` 的旁白不会交给只登记了 `en` 的 Model 听写，而是带 `not_checked` 警告。
+- A Model that reads `en` does not thereby read `en-US`: a Narration must say what the registry registers.
+- The self-check also matches exactly when looking for a Model to transcribe the language, so an `en-GB` Narration is not transcribed by a Model that registers only `en`; it gets a `not_checked` warning instead.

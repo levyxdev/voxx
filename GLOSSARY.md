@@ -1,71 +1,71 @@
 # voxx
 
-voxx 是只给 agent 用的本地语音工具：把 agent 写好的旁白逐句念出来，交回音频和词级时间戳。术语与 CueTake 共用的部分保持同名。
+voxx is a local voice tool for agents only: it reads aloud, Line by Line, a narration an agent has written, and returns the audio and word timings. Terms it shares with CueTake keep the same names.
 
 ## Language
 
-### 旁白
+### Narration
 
-**Narration（旁白）**:
-一组同一种语言、按顺序排列的 Line，是 voxx 一次合成的输入，也是它交回的清单。
-_Avoid_: script, 文案文件, 口播稿
+**Narration**:
+An ordered set of Lines in one language: the input to one voxx synthesis, and the manifest it returns.
+_Avoid_: script, copy file, voice-over script
 
-**Line（句子）**:
-旁白中有唯一 id 的一段文字，一次连续念完，对应一个音频文件。
-_Avoid_: segment, 段落, sentence
+**Line**:
+A piece of text in a Narration with a unique id, read in one continuous take, and matched by one audio file.
+_Avoid_: segment, paragraph, sentence
 
-**Delivery Control（念法参数）**:
-Line 按固定取值要求的念法，共四个：emotion（情绪：happy、sad、angry、fearful、disgusted、surprised、neutral）、speed（语速：slow、medium、fast）、pitch（音高：low、medium、high）、volume（音量：low、medium、high）。和 style 一样，写在 Narration 顶层是每个 Line 的默认值，写在 Line 上覆盖默认值；不能跟随的 Model 忽略它们并警告，照常念。
-_Avoid_: 控制指令, instruct, 参数
+**Delivery Control**:
+A way a Line asks to be read, from fixed values. There are four: emotion (happy, sad, angry, fearful, disgusted, surprised, neutral), speed (slow, medium, fast), pitch (low, medium, high) and volume (low, medium, high). Like style, set at the Narration's top level it is every Line's default, and set on a Line it overrides the default. A Model that cannot follow them ignores them with a warning and reads the Line anyway.
+_Avoid_: control instruction, instruct, parameter
 
-**Word Timing（词级时间戳）**:
-Line 的音频里每个词（中文为字）开始和结束的时刻，相对该 Line 音频的起点。
-_Avoid_: alignment, 时间轴, 时间
+**Word Timing**:
+The moments each word (each character, for Chinese) starts and ends in a Line's audio, relative to the start of that Line's audio.
+_Avoid_: alignment, timeline, time
 
-### 音色
+### Voices
 
-**Voice（音色）**:
-念一个 Line 时用的声音身份：Preset Voice、Cloned Voice 或 Designed Voice。
-_Avoid_: speaker, 声音, 角色
+**Voice**:
+The vocal identity a Line is read in: a Preset Voice, a Cloned Voice or a Designed Voice.
+_Avoid_: speaker, sound, character
 
-**Preset Voice（预设音色）**:
-模型自带、按名字选用的音色。
-_Avoid_: built-in speaker, 内置声音
+**Preset Voice**:
+A Voice a Model ships with, chosen by name.
+_Avoid_: built-in speaker, built-in sound
 
-**Cloned Voice（克隆音色）**:
-从一段真人录的参考录音得到的音色。
-_Avoid_: custom voice, 声音档案
+**Cloned Voice**:
+A Voice obtained from a Reference Recording a real person made.
+_Avoid_: custom voice, voice profile
 
-**Designed Voice（设计音色）**:
-由一段文字描述设计、从几个 Design Take 中选定后固定下来的音色。
-_Avoid_: generated voice, AI 音色, 虚拟音色
+**Designed Voice**:
+A Voice designed from a text description and fixed by choosing one of several Design Takes.
+_Avoid_: generated voice, AI voice, virtual voice
 
-**Design Take（设计候选）**:
-按同一段文字描述设计出的一个候选音色，念的是同一段试读稿，等用户试听挑选。
-_Avoid_: candidate, 样本, 试音
+**Design Take**:
+One candidate Voice designed from a text description, reading the same sample text as the others, waiting for the user to listen and choose.
+_Avoid_: candidate, sample, voice test
 
-**Reference Recording（参考录音）**:
-用来得到 Cloned Voice 或 Designed Voice 的那段录音：Cloned Voice 的是真人录的，Designed Voice 的是选中的那个 Design Take。
-_Avoid_: prompt audio, ref, 样本
+**Reference Recording**:
+The recording a Cloned Voice or Designed Voice comes from: a real person's recording for a Cloned Voice, the chosen Design Take for a Designed Voice.
+_Avoid_: prompt audio, ref, sample
 
-### 模型
+### Models
 
-**Model（模型）**:
-voxx 注册表里登记的一个可下载的 TTS、对齐或听写模型，固定到一个上游版本，带有已核实的权重许可证。
-_Avoid_: checkpoint, 权重
+**Model**:
+A downloadable TTS, alignment or transcription model registered in voxx's registry, pinned to one upstream revision, with a checked weight license.
+_Avoid_: checkpoint, weights
 
-**Audition（试听）**:
-新登记的 Model 留在注册表里供用户和现有 Model 比较试听、再决定去留的阶段；README、DESIGN.md 和 skill 把这样的 Model 标为 on audition（试听中）。
-_Avoid_: candidate, 候选, trial
+**Audition**:
+The stage in which a newly registered Model stays in the registry so the user can listen to it beside the existing Models before deciding whether it stays; README, DESIGN.md and the skill mark such a Model "on audition".
+_Avoid_: candidate, trial
 
-**Extra Repo（额外仓库）**:
-Model 加载时还要的另一个 Hugging Face 仓库，由 `voxx install` 和 Model 一起下载；不固定版本，安装清单记下实际下载的 revision。
-_Avoid_: dependency, 依赖, 附带模型
+**Extra Repo**:
+Another Hugging Face repo a Model needs when it loads, downloaded with the Model by `voxx install`; it is not pinned, and the install manifest records the revision actually downloaded.
+_Avoid_: dependency, bundled model
 
-**Capability（能力）**:
-一个 Model 能做的事：念 Preset Voice（preset_voice）、克隆（clone）、设计音色（design）、对齐（align）或听写（transcribe）。
-_Avoid_: feature, task, 功能
+**Capability**:
+Something a Model can do: read Preset Voices (preset_voice), clone (clone), design Voices (design), align (align) or transcribe (transcribe).
+_Avoid_: feature, task
 
-**Engine（引擎）**:
-实际加载并运行 Model 的推理库，一个 Engine 可以运行多个 Model。
-_Avoid_: backend, runtime, 框架
+**Engine**:
+The inference library that actually loads and runs a Model; one Engine can run several Models.
+_Avoid_: backend, runtime, framework

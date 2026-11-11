@@ -1,15 +1,15 @@
-# 只有念所必需的 Model 没装才失败，辅助 Model 没装降级为警告
+# Only a missing Model needed to read fails; a missing helper Model degrades to a warning
 
-2026-11-09：听写自检改为传 `--check` 才做（[ADR 0008](0008-the-self-check-is-opt-in.md)），不传时听写 Model 没装也不警告。
+2026-11-09: the transcription self-check now runs only with `--check` ([ADR 0008](0008-the-self-check-is-opt-in.md)); without it, a missing transcription Model gives no warning either.
 
-ADR 0003 说缺模型时命令以「未安装」失败。`narrate` 原先把它用到一个 Line 用到的每个 Model 上：念的 Model、对齐 Model 和听写 Model 缺一个，整次运行就以退出码 3 失败。但三者地位不同：念的 Model 产出音频，没有它什么都做不了；对齐 Model 只产出 `words`，听写 Model 只产出 `transcript` 和 `error_rate` 这份质量报告，缺了它们音频照样能用。所以现在只有念的 Model 没装才以 `model_not_installed` 失败；对齐或听写 Model 没装时，每个 Line 照常念，只是不带相应字段，各带一条 `aligner_not_installed` 或 `checker_not_installed` 警告，details 给出那个 Model 的 id、大小、许可证和安装命令。这样用户只装一个 TTS Model 也能用 voxx，agent 仍然拿到足够的信息去问用户要不要补装。
+ADR 0003 says a command fails as "not installed" when a Model is missing. `narrate` first applied that to every Model a Line uses: if any of the reading Model, the alignment Model or the transcription Model was missing, the whole run failed with exit code 3. But the three are not equal: the reading Model makes the audio, and without it nothing works; the alignment Model only makes `words`, and the transcription Model only makes the quality report `transcript` and `error_rate`; without them the audio is still usable. So now only a missing reading Model fails, with `model_not_installed`; when the alignment or transcription Model is missing, each Line is read as usual, just without those fields, each with an `aligner_not_installed` or `checker_not_installed` warning whose details give that Model's id, size, license and install command. So a user can use voxx with just one TTS Model installed, and the agent still has enough to ask the user whether to install the rest.
 
 ## Considered options
 
-- **维持全部必需。** 否决：第一次用 voxx 要先下三个 Model，其中两个对很多用途（不需要字幕、自己会听）只是锦上添花。
-- **辅助 Model 缺失时只在结果顶层报一次。** 否决：警告和缺的字段都在 Line 上，agent 逐个 Line 判断时不必再回头看别处；`--line` 重念的 Line 也自然带上自己的警告。
+- **Keep them all required.** Rejected: a first use of voxx would need three Models downloaded, two of which are only nice-to-haves for many uses (no subtitles needed, or the user listens anyway).
+- **Report a missing helper Model once, at the result's top level.** Rejected: the warning and the missing field both sit on the Line, so an agent judging Line by Line need not look elsewhere; a Line re-voiced with `--line` naturally carries its own warning too.
 
 ## Consequences
 
-- 警告 code 和「这种语言没有 Model」的 `not_aligned`/`not_checked` 分开：后者装什么都补不上，前者装一个 Model 再 `--line` 重念就能补上。
-- 规则只看这一步能不能做下去。`voice add` 没给参考录音文字时要靠听写 Model 补文字，那一步没有它做不下去，所以那里听写 Model 仍是必需的。
+- These warning codes are separate from `not_aligned`/`not_checked`, meaning no Model exists for the language: installing nothing can fix the latter, while the former is fixed by installing one Model and re-voicing with `--line`.
+- The rule looks only at whether the step can go on. `voice add` without Reference Recording text needs the transcription Model to fill in the text, and that step cannot go on without it, so there the transcription Model is still required.
