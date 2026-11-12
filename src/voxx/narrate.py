@@ -42,7 +42,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), voices_dir=None
     progress("narration_started", lines=len(plans))
     path = out / OUTPUT_NAME
     with staging(out) as stage:
-        with WorkerProcess() as worker:
+        with WorkerProcess("narrate") as worker:
             for index, (line, plan) in enumerate(zip(to_read, plans), start=1):
                 progress("line_started", id=line["id"], index=index, total=len(plans))
                 _read_line(worker, narration, line, plan, stage)

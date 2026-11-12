@@ -3,6 +3,7 @@
 import json
 import os
 import signal
+import time
 import unicodedata
 import wave
 import zlib
@@ -27,6 +28,9 @@ REFERENCE_HEARD = "这是我自己的声音。"
 # A JSON object from a Line's text to the [word, start, end] list the fake Engine aligns it to instead, or to the
 # error it fails with; any other Line's words are spread evenly over the sound in its WAV.
 ALIGNED_ENV = "VOXX_TEST_FAKE_ALIGNED"
+# A directory: loading a Model there marks `loaded-<pid of the voxx command>` and waits until the test creates `go`, so
+# a test can hold a run in the middle of using a Model. After a minute without `go` the load fails instead.
+PAUSE_ENV = "VOXX_TEST_FAKE_PAUSE"
 
 
 class Shape(NamedTuple):
@@ -48,6 +52,7 @@ class FakeEngine:
 
     def load(self, path, capability, *, extra_repos):
         _crash_if("load")
+        _pause()
         # As an Engine loads a tokenizer: by repo name, from the Hugging Face cache, with no revision. That must find
         # the files the Engine is given by path.
         for repo, installed in extra_repos.items():
@@ -140,3 +145,16 @@ def _crash_if(step):
     crash_step, _, nth = os.environ.get(CRASH_ENV, "").partition(":")
     if crash_step == step and _reached[step] == int(nth or 1):
         os.kill(os.getpid(), signal.SIGKILL)
+
+
+def _pause():
+    if PAUSE_ENV not in os.environ:
+        return
+    paused = Path(os.environ[PAUSE_ENV])
+    # The worker's parent is the voxx command that started it.
+    (paused / f"loaded-{os.getppid()}").touch()
+    deadline = time.monotonic() + 60
+    while not (paused / "go").exists():
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"No {paused / 'go'} after a minute.")
+        time.sleep(0.05)

@@ -81,6 +81,7 @@ The agent only ever runs the `voxx` CLI and never sees the worker.
 - The CLI is light: it parses arguments, reads the registry and the Narration file, manages Voices and prints JSON. It does not import mlx, so commands like `models` and `schema` return at once.
 - To synthesize, the CLI starts `python -m voxx.worker` as a **subprocess** and exchanges JSON-RPC messages over its stdin/stdout ("load the Model", "synthesize this Line", "align this Line", …), with stderr relaying progress.
 - Once the Narration is read, the worker exits and the memory its Models held is released. When the worker crashes (say, out of GPU memory), the CLI can still return a structured JSON error to the agent.
+- Workers take turns: before starting one, the CLI takes a lock under `$VOXX_HOME` and holds it until the worker exits, so a second `narrate`, `voice design` or `voice add` waits, with a `waiting` event naming the command and PID it waits for. Two runs side by side share one GPU, so they finish little sooner, and once their Models outgrow memory the Mac swaps and both slow down several times over ([ADR 0009](adr/0009-one-model-run-at-a-time.md)).
 
 JSON-RPC over stdio is the same transport MCP and LSP use, but here it is only a private pipe between voxx's two halves, not an interface for agents. The agent's interface is the CLI alone; like CueTake, voxx does no MCP. The decision is in [ADR 0002](adr/0002-synthesis-runs-in-a-worker-process.md).
 

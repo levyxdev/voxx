@@ -623,7 +623,9 @@ COMMANDS = {
 
 CONTRACT = {
     "stdout": "Exactly one JSON object: {\"ok\": true, \"data\": <result>} or {\"ok\": false, \"error\": <error>}.",
-    "stderr": "NDJSON progress events, each an object with an \"event\" field.",
+    "stderr": ("NDJSON progress events, each an object with an \"event\" field. A command that loads a Model waits while "
+               "another one runs under the same $VOXX_HOME, and says so first with {\"event\": \"waiting\", \"command\": "
+               "<the command it waits for>, \"pid\": <its process id>}."),
     "error": {
         "$schema": DRAFT,
         "type": "object",

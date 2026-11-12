@@ -52,16 +52,35 @@ class Voxx:
     hub: FakeHub
 
     def __call__(self, *args, env=None):
-        process = subprocess.run(
-            [str(VOXX), *map(str, args)], capture_output=True, encoding="utf-8", timeout=60,
-            env={**os.environ, "VOXX_HOME": str(self.home), "VOXX_TEST_FAKE_ENGINE": "1", "HF_ENDPOINT": self.hub.url,
-                 **(env or {})})
+        process = subprocess.run(self._command(args), capture_output=True, encoding="utf-8", timeout=60, env=self._env(env))
+        return self._read_run(process.returncode, process.stdout, process.stderr)
+
+    def start(self, *args, env=None):
+        """Starts `voxx` without waiting for it; `finish` waits for it and reads it as `__call__` does."""
+        return subprocess.Popen(self._command(args), stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
+                                env=self._env(env))
+
+    def finish(self, process):
+        """The rest of a started run: its result, and the events it has not yet been read for."""
+        stdout, stderr = process.communicate(timeout=60)
+        return self._read_run(process.returncode, stdout, stderr)
+
+    @staticmethod
+    def _command(args):
+        return [str(VOXX), *map(str, args)]
+
+    def _env(self, env):
+        return {**os.environ, "VOXX_HOME": str(self.home), "VOXX_TEST_FAKE_ENGINE": "1", "HF_ENDPOINT": self.hub.url,
+                **(env or {})}
+
+    @staticmethod
+    def _read_run(exit_code, stdout, stderr):
         # stdout is exactly one JSON object; stderr is only NDJSON events.
-        result = json.loads(process.stdout)
-        assert process.stdout.count("\n") == 1, process.stdout
-        events = [json.loads(line) for line in process.stderr.splitlines()]
-        assert all(isinstance(e, dict) and "event" in e for e in events), process.stderr
-        return Run(process.returncode, result, events)
+        result = json.loads(stdout)
+        assert stdout.count("\n") == 1, stdout
+        events = [json.loads(line) for line in stderr.splitlines()]
+        assert all(isinstance(e, dict) and "event" in e for e in events), stderr
+        return Run(exit_code, result, events)
 
 
 def fake_hub():

@@ -175,7 +175,7 @@ def add_voice(name, ref=None, ref_text=None, model_id=None, directory=None, over
 
     words = (ref_text or "").strip()
     with staging(root) as stage:
-        with WorkerProcess() as worker:
+        with WorkerProcess("voice add") as worker:
             prepared = worker.call("prepare_reference", source=str(source), path=str(stage / REFERENCE_FILE))
             if transcriber is not None:
                 words = worker.call("transcribe_line", model=transcriber.id, engine=transcriber.engine,

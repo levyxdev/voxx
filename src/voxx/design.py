@@ -68,7 +68,7 @@ def design(descriptions, text, language, out_dir, takes=1, model_id=None, check=
     result = {"model": model.id, "language": language, "text": text, "takes": []}
     progress("design_started", takes=len(planned))
     with staging(out) as stage:
-        with WorkerProcess() as worker:
+        with WorkerProcess("voice design") as worker:
             for number, (description, seed) in enumerate(planned, start=1):
                 progress("take_started", take=number, total=len(planned))
                 audio = f"take-{number}.wav"

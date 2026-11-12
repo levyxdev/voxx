@@ -15,7 +15,7 @@ Every command prints one JSON object on stdout and NDJSON progress on stderr. `v
 2. Settle the language. Use the one the user names; otherwise the language of the video's audience; otherwise the language the user writes to you in. Write it as a BCP 47 tag in canonical case, exactly as the Model registers it (`voxx models`): Mandarin is `zh`. voxx never guesses `language` and never falls back from `en-US` to `en`.
 3. Settle the Voice with the user ([Voices](#voices)).
 4. Write the Narration file in the user's project ([Writing Lines](#writing-lines)).
-5. Run `narrate <file> --out <dir>`. One run loads the Model once for every Line, so voice the whole Narration in one call. A long Narration takes minutes: run it in the background when your shell would time out.
+5. Run `narrate <file> --out <dir>`. One run loads the Model once for every Line, so voice the whole Narration in one call. A long Narration takes minutes: run it in the background when your shell would time out. Run one `narrate`, `voice design` or `voice add` at a time: they take turns anyway, so starting several at once finishes no sooner. One that waits for its turn says so with a `waiting` event naming the command it waits for; it is not stuck.
 6. Check every Line ([Checking each Line](#checking-each-line)) and read the ones that need it again with `--line`.
 7. Deliver ([Delivering](#delivering)).
 

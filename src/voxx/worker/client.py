@@ -2,24 +2,43 @@
 
 import collections
 import contextlib
+import fcntl
 import json
 import os
 import signal
 import subprocess
 import sys
 import threading
+import time
 from typing import IO, cast
 
-from voxx.models import hf_cache_dir
-from voxx.output import BUG_HINT, INTERNAL, VoxxError, emit_event
+from voxx.models import hf_cache_dir, voxx_home
+from voxx.output import BUG_HINT, INTERNAL, VoxxError, emit_event, progress
 
 # Model libraries reach for Hugging Face on their own; only `voxx install` may download (ADR 0003).
 OFFLINE = {"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
 CRASH_HINT = "The worker process died, often because memory ran out. Close other apps or use a smaller Model, then retry."
+# Held by whichever command's worker is running, so workers take turns (ADR 0009).
+LOCK_FILE = "worker.lock"
+# How many times a waiting command reads who holds the lock before it waits without knowing.
+HOLDER_READS = 20
 
 
 class WorkerProcess:
+    def __init__(self, command):
+        # The voxx command starting the worker, such as "narrate", which a command waiting for its turn is told.
+        self.command = command
+
     def __enter__(self):
+        self.lock = _take_turn(self.command)
+        try:
+            self._start()
+        except BaseException:
+            _give_turn(self.lock)
+            raise
+        return self
+
+    def _start(self):
         self.process = subprocess.Popen(
             [sys.executable, "-m", "voxx.worker"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, encoding="utf-8", bufsize=1,
@@ -32,7 +51,6 @@ class WorkerProcess:
         self.stderr_thread = threading.Thread(target=self._forward_stderr, daemon=True)
         self.stderr_thread.start()
         self.next_id = 0
-        return self
 
     def call(self, method, **params):
         self.next_id += 1
@@ -61,8 +79,11 @@ class WorkerProcess:
         finally:
             with contextlib.suppress(BrokenPipeError):
                 self.stdin.close()
-            self._reap()
-            self.stdout.close()
+            try:
+                self._reap()
+                self.stdout.close()
+            finally:
+                _give_turn(self.lock)
 
     def _reap(self):
         """Waits for the worker to exit, killing it if it will not, and drains its stderr."""
@@ -94,3 +115,45 @@ class WorkerProcess:
                 event = None
             emit_event(event if isinstance(event, dict) and "event" in event else {"event": "log", "source": "worker", "message": line})
         self.stderr.close()
+
+
+def _take_turn(command):
+    """Waits until no other worker runs under this $VOXX_HOME, then holds the lock in the open file it returns; closing
+    the file, or the process dying, releases it."""
+    home = voxx_home()
+    home.mkdir(parents=True, exist_ok=True)
+    lock = os.fdopen(os.open(home / LOCK_FILE, os.O_RDWR | os.O_CREAT, 0o644), "r+", encoding="utf-8")
+    for attempt in range(HOLDER_READS):
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:
+            holder = _holder(lock)
+            # A holder that has just taken the lock has not yet written who it is.
+            if holder or attempt == HOLDER_READS - 1:
+                progress("waiting", **holder)
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                break
+            time.sleep(0.05)
+    lock.seek(0)
+    lock.truncate()
+    lock.write(json.dumps({"command": command, "pid": os.getpid()}))
+    lock.flush()
+    return lock
+
+
+def _holder(lock):
+    """The command and PID the lock's holder wrote into it, or nothing if it has not written them yet."""
+    lock.seek(0)
+    try:
+        holder = json.loads(lock.read())
+    except ValueError:
+        return {}
+    return holder if isinstance(holder, dict) else {}
+
+
+def _give_turn(lock):
+    """Clears who holds the lock, so no waiting command names a run that has finished, then releases it."""
+    lock.seek(0)
+    lock.truncate()
+    lock.close()
