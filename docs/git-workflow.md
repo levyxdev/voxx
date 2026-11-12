@@ -8,7 +8,7 @@ Two long-lived branches:
 ## Mapping to the skills
 
 - Where the mattpocock skills say `main` they mean the trunk, which here is `dev`: `/code-review`'s fixed point, the branch `/prototype` branches from, and a PR's base (`gh pr create --base dev`) all count from `dev`.
-- Close issues with `gh issue close`, as `docs/agents/issue-tracker.md` says. A `Closes #n` in a commit message takes effect only once the commit reaches the default branch `main`, that is, at the release.
+- Close an issue once the commit that resolves it is pushed to `origin dev`: comment what landed, with the commit hash, then close it, as `docs/agents/issue-tracker.md` says. In the commit message, refer to the issue as `#n`; a `Closes #n` would wait for the release to take effect, after the issue is already closed.
 
 ## Releasing
 

@@ -14,7 +14,7 @@ Single-context: `GLOSSARY.md` at the root, ADRs in `docs/adr/`. See `docs/agents
 
 ## Branches
 
-`dev` is the trunk: commit straight to it and push to `origin dev`; wherever a skill says `main`, read `dev`. `main` moves only at a release. Before releasing, hotfixing, or opening a PR or branch a skill asks for, read `docs/git-workflow.md`.
+`dev` is the trunk: commit straight to it, push to `origin dev`, then close the issue the push resolves; wherever a skill says `main`, read `dev`. `main` moves only at a release. Before releasing, hotfixing, or opening a PR or branch a skill asks for, read `docs/git-workflow.md`.
 
 ## Checks
 
