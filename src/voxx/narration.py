@@ -97,8 +97,16 @@ def canonical_case(tag):
     return canonical if re.fullmatch(LANGUAGE_PATTERN, canonical) else None
 
 
+def check_language_arg(language, hint):
+    """A --language that is not a BCP 47 tag in canonical case fails, naming its canonical form when it has one."""
+    if not re.fullmatch(LANGUAGE_PATTERN, language):
+        canonical = canonical_case(language)
+        raise VoxxError("invalid_language", f"--language {language!r}: {LANGUAGE_RULE}"
+                        + (f" Write it as {canonical!r}." if canonical else ""), hint, {"language": language}, USAGE)
+
+
 def line_setting(narration, line, field):
-    """A Line's voice, style, Delivery Control or seed: its own, else the Narration's default, else None."""
+    """A Line's voice, style, Delivery Control or seed: its own, else the Narration's, else None."""
     return line.get(field, narration.get(field))
 
 

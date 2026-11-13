@@ -147,6 +147,7 @@ def test_schema_describes_voice_default_and_which_voices_are_defaults(voxx):
     assert {"name", "language", "clear"} == set(voice_default["arguments"]["properties"])
     assert set(voice_default["result"]["required"]) == {"language", "voice"}
     assert {"unknown_voice", "unsupported_language", "invalid_language"} <= set(voice_default["errors"])
+    assert "defaults" in commands["voices"]["result"]["required"]
     for kind in commands["voices"]["result"]["properties"]["voices"]["items"]["oneOf"]:
         assert "default_for" in kind["required"]
     assert "default_voice" in commands["narrate"]["errors"]["unknown_voice"]["description"]

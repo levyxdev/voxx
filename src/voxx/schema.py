@@ -310,6 +310,8 @@ COMMANDS = {
                                              "this name; details.known_voices lists them. Any error about the Voice "
                                              "carries details.default_voice ({language, voice}) when the Voice is the "
                                              "Default Voice of the language, read because the Narration names none."},
+            "invalid_default_voices": {"description": "Exit 2: $VOXX_HOME/default-voices.json, details.path, is not as "
+                                                      "voxx wrote it; delete it and set the Default Voices again."},
             "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
                                                     "details.path, cannot be read; add the Voice again with --overwrite."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
@@ -413,6 +415,8 @@ COMMANDS = {
             "unsupported_language": {"description": "Exit 4: the Model that reads this Voice cannot read the language."},
             "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
             "invalid_arguments": {"description": "Exit 2: neither a Voice nor --clear, or both."},
+            "invalid_default_voices": {"description": "Exit 2: $VOXX_HOME/default-voices.json, details.path, is not as "
+                                                      "voxx wrote it; delete it and set the Default Voices again."},
         },
     },
     "voice design": {
@@ -522,9 +526,12 @@ COMMANDS = {
         "result": {
             "$schema": DRAFT,
             "type": "object",
-            "required": ["voices", "unlisted"],
+            "required": ["voices", "unlisted", "defaults"],
             "properties": {
                 "voices": {"type": "array", "items": {"oneOf": [PRESET_VOICE, CLONED_VOICE, DESIGNED_VOICE]}},
+                "defaults": {"type": "object", "additionalProperties": {"type": "string"},
+                             "description": "The Default Voice of each language that has one, by language tag, "
+                                            "whatever --model and --language filter out of voices."},
                 "unlisted": {
                     "type": "array",
                     "description": "Each Model whose Preset Voices are left out of voices; run command to list them.",

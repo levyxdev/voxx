@@ -5,14 +5,13 @@ The output directory gets its Design Takes first and design.json last, so design
 there; a run that fails leaves no design.json, and a second run into the same directory is refused."""
 
 import json
-import re
 import secrets
 from pathlib import Path
 
 from voxx.files import replacing, staging, writable_out
 from voxx.models import (check_language, default_design_model, find_model, is_installed, model_dir, require_installed,
                          transcriber_for, unsupported_capability)
-from voxx.narration import LANGUAGE_PATTERN, LANGUAGE_RULE, MAX_SEED, canonical_case
+from voxx.narration import MAX_SEED, check_language_arg
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
 from voxx.worker.client import WorkerProcess
@@ -30,10 +29,7 @@ def design(descriptions, text, language, out_dir, takes=1, model_id=None, check=
         _invalid("--text must be the words each Design Take reads.")
     if takes < 1:
         _invalid("--takes must be 1 or more.")
-    if not re.fullmatch(LANGUAGE_PATTERN, language):
-        canonical = canonical_case(language)
-        raise VoxxError("invalid_language", f"--language {language!r}: {LANGUAGE_RULE}"
-                        + (f" Write it as {canonical!r}." if canonical else ""), ARGS_HINT, {"language": language}, USAGE)
+    check_language_arg(language, ARGS_HINT)
     out = Path(out_dir).resolve()
     path = out / OUTPUT_NAME
     if path.exists():

@@ -6,7 +6,6 @@ Recording: a recording of a person for a Cloned Voice, the chosen Design Take fo
 way, by a Model that clones. The voices dir is $VOXX_HOME/voices, the only one (ADR 0010)."""
 
 import json
-import re
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -17,7 +16,7 @@ from voxx.files import staging
 from voxx.models import (check_language, default_clone_model, find_model, is_installed, list_preset_voices, model_dir,
                          models, preset_voice_names, require_installed, resolve_preset_voice, transcriber_for,
                          unsupported_capability, voxx_home)
-from voxx.narration import FILE_NAME_BYTES, LANGUAGE_PATTERN, LANGUAGE_RULE, canonical_case, is_file_name
+from voxx.narration import FILE_NAME_BYTES, check_language_arg, is_file_name
 from voxx.output import UNSUPPORTED, USAGE, VoxxError
 from voxx.worker.client import WorkerProcess
 
@@ -72,7 +71,7 @@ def list_voices(model_id=None, language=None):
     only the Voices that Model reads, and with `language`, only Preset Voices native to it and the other Voices a
     Model reads in it."""
     if language is not None:
-        _check_language_arg(language)
+        check_language_arg(language, ARGS_HINT)
     model = find_model(model_id) if model_id is not None else None
     presets, unlisted = list_preset_voices(model, language)
     # Every Model that clones reads every Cloned Voice and Designed Voice.
@@ -80,22 +79,30 @@ def list_voices(model_id=None, language=None):
     stored = [v for v in stored if language is None or language in (model.languages if model else v["languages"])]
     defaults = default_voices()
     voices = [{**v, "default_for": sorted(l for l, name in defaults.items() if name == v["name"])} for v in [*presets, *stored]]
-    return {"voices": voices, "unlisted": unlisted}
+    return {"voices": voices, "unlisted": unlisted, "defaults": defaults}
 
 
 def default_voices():
     """The Default Voice of each language that has one, by language tag."""
+    path = voxx_home() / DEFAULT_VOICES_FILE
     try:
-        return json.loads((voxx_home() / DEFAULT_VOICES_FILE).read_text(encoding="utf-8"))
+        defaults = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
+    except ValueError:
+        defaults = None
+    if not isinstance(defaults, dict) or not all(isinstance(v, str) for v in defaults.values()):
+        raise VoxxError("invalid_default_voices", f"{path} does not hold the Default Voices as voxx wrote them.",
+                        "Delete the file and set each Default Voice again with `voxx voice default`.",
+                        {"path": str(path)}, USAGE)
+    return defaults
 
 
 def set_default_voice(name, language, clear=False):
     """`voxx voice default`: make `name` the Default Voice of `language`, or with `clear`, leave it without one."""
     if clear == (name is not None):
         _invalid("Name the Voice to make the default of --language, or pass --clear to leave it without one.")
-    _check_language_arg(language)
+    check_language_arg(language, ARGS_HINT)
     defaults = default_voices()
     if clear:
         defaults.pop(language, None)
@@ -261,13 +268,6 @@ def _load(path):
                         "Add the Voice again with `voxx voice add --overwrite`, or remove its directory.",
                         {"path": str(file)}, USAGE)
     return StoredVoice(path=path, transcribed_by=transcribed_by, design=design, **fields)
-
-
-def _check_language_arg(language):
-    if not re.fullmatch(LANGUAGE_PATTERN, language):
-        canonical = canonical_case(language)
-        raise VoxxError("invalid_language", f"--language {language!r}: {LANGUAGE_RULE}"
-                        + (f" Write it as {canonical!r}." if canonical else ""), ARGS_HINT, {"language": language}, USAGE)
 
 
 def _invalid(message):

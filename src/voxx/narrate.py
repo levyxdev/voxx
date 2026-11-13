@@ -104,7 +104,8 @@ def _resolve_voice_of(narration, line, chosen):
     try:
         return resolve_voice(voice, language, chosen)
     except VoxxError as e:
-        if voice is None:
+        # An error about the language, such as a --model that cannot read it, is not the default's doing.
+        if voice is None or e.code == "unsupported_language" and chosen is not None:
             raise
         e.details = {**e.details, "default_voice": {"language": language, "voice": voice}}
         e.hint = (f"{voice!r} is the Default Voice of {language}, read because the Narration names no voice. {e.hint} "

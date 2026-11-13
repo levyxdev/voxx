@@ -61,7 +61,7 @@ def test_voices_says_which_languages_each_voice_is_the_default_of_and_clear_take
     assert installed("voice", "default", "fake-bob", "--language", "zh").exit_code == 0
     assert installed("voice", "default", "fake-bob", "--language", "en").exit_code == 0
 
-    assert {k: v for k, v in default_for(installed("voices", "--model", "fake-tts")).items()} == {
+    assert default_for(installed("voices", "--model", "fake-tts")) == {
         "fake-alice": [], "fake-bob": ["en", "zh"]}
 
     run = installed("voice", "default", "--language", "zh", "--clear")
@@ -103,3 +103,37 @@ def test_a_default_voice_that_cannot_be_read_fails_as_one_the_narration_names_wo
     (installed.home / "voices" / "me").rmdir()
     error = assert_error(installed("narrate", path, "--out", tmp_path / "out"), 2, "unknown_voice")
     assert error["details"]["default_voice"] == {"language": "zh", "voice": "me"}
+
+
+def test_a_default_voices_file_voxx_did_not_write_is_an_error_that_says_how_to_recover(installed, write_narration,
+                                                                                        tmp_path):
+    (installed.home / "default-voices.json").write_text('["fake-bob"]', encoding="utf-8")
+
+    error = assert_error(installed("narrate", write_narration(NO_VOICE), "--out", tmp_path / "out"), 2,
+                         "invalid_default_voices")
+    assert error["details"]["path"] == str(installed.home / "default-voices.json")
+
+
+def test_voices_lists_every_default_voice_even_one_its_filters_leave_out(installed):
+    # fake-alice is native to zh, so --language en leaves it out of voices.
+    assert installed("voice", "default", "fake-alice", "--language", "en").exit_code == 0
+
+    run = installed("voices", "--model", "fake-tts", "--language", "en")
+
+    assert "fake-alice" not in default_for(run)
+    assert run.result["data"]["defaults"] == {"en": "fake-alice"}
+
+
+def test_reading_one_line_again_after_the_default_changed_warns_that_the_other_lines_sound_otherwise(
+        installed, write_narration, tmp_path):
+    out, path = tmp_path / "out", write_narration(NO_VOICE)
+    assert installed("voice", "default", "fake-bob", "--language", "zh").exit_code == 0
+    assert installed("narrate", path, "--out", out).exit_code == 0
+
+    assert installed("voice", "default", "fake-alice", "--language", "zh").exit_code == 0
+    run = installed("narrate", path, "--out", out, "--line", "intro")
+
+    lines = {line["id"]: line for line in run.result["data"]["narration"]["lines"]}
+    assert lines["intro"]["voice"] == "fake-alice"
+    assert lines["send"]["voice"] == "fake-bob"
+    assert [w["code"] for w in lines["send"]["warnings"]] == ["stale_audio"]
