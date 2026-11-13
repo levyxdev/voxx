@@ -46,7 +46,6 @@ If a user hands you this repository to set up voxx:
 | Model | Used for | Download | Weights license |
 | --- | --- | --- | --- |
 | `qwen3-tts-1.7b-customvoice` | Preset Voices (default) | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) |
-| `qwen3-tts-0.6b-customvoice` | Preset Voices, fast drafts | 2.0 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice) |
 | `voxcpm2` | Cloned Voices and Designed Voices (default), designing voices | 3.2 GB | [Apache-2.0](https://huggingface.co/openbmb/VoxCPM2) |
 | `qwen3-tts-1.7b-base` | Cloned Voices | 3.1 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) |
 | `qwen3-forcedaligner-0.6b` | Word timings | 1.3 GB | [Apache-2.0](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B) |

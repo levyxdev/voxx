@@ -1,7 +1,6 @@
 # Each Model's capabilities, download size, license, and the date its license was checked.
 REAL_MODELS = {
     "qwen3-tts-1.7b-customvoice": (["preset_voice"], 3_080_141_538, "Apache-2.0", "2026-10-30"),
-    "qwen3-tts-0.6b-customvoice": (["preset_voice"], 1_973_575_388, "Apache-2.0", "2026-10-30"),
     "qwen3-tts-1.7b-base": (["clone"], 3_104_158_788, "Apache-2.0", "2026-10-30"),
     "voxcpm2": (["clone", "design"], 3_226_617_581, "Apache-2.0", "2026-10-30"),
     "qwen3-forcedaligner-0.6b": (["align"], 1_276_475_979, "Apache-2.0", "2026-10-30"),

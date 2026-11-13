@@ -44,7 +44,7 @@ Input:
 ```
 
 - `language`: a BCP 47 tag in canonical case (such as zh, yue, en-US), one language per Narration, which must exactly match a language the Model registers (ADR 0005). Which languages work follows the Model that reads it (Qwen3-TTS supports zh, en, ja, ko, fr, de, it, pt, ru, es); voxx sets no limit of its own, and exits 4 when the Model does not read the language.
-- `voice`, `style` and `seed` set defaults at the top level, and a single Line can override them. `style` is natural language, passed to the Model as its instruct. A Model without `style` support (the 0.6B fast tier, Qwen3-TTS Base) still reads the Line and only says in its `warnings` that it ignored `style`.
+- `voice`, `style` and `seed` set defaults at the top level, and a single Line can override them. `style` is natural language, passed to the Model as its instruct. A Model without `style` support (Qwen3-TTS Base, Ming-3.0-tts) still reads the Line and only says in its `warnings` that it ignored `style`.
 - The four Delivery Controls are also top-level defaults with Line overrides: `emotion` (happy, sad, angry, fearful, disgusted, surprised, neutral), `speed` (slow, medium, fast), `pitch` and `volume` (both low, medium, high). Only Ming-3.0-tts follows them: voxx translates the values into Ming's Chinese values and joins them with the Preset Voice into the caption Ming reads (a JSON string); when cloning it also needs an all-zero speaker embedding, or short Lines often come out as a fraction of a second of noise. Ming does not follow `style` (with a Preset Voice or a Reference Recording the voice holds, but `style` has no effect, measured in levyxdev/voxx#33), so it ignores it with a warning. Other Models still read the Line, and list what they ignored under `controls_ignored` in `warnings`. A Line is still normalized to -18 LUFS at the end, so `volume` cannot change loudness. Measured (levyxdev/voxx#33): emotion is the clearest; speed differs by only 5% to 20%, less when combined with emotion; pitch shows a little only in Chinese; volume shows no measurable difference.
 - Without `voice`, the Model's first Voice native to the language is used (vivian for Chinese, ryan for English), or its first Voice if none is.
 - Without `seed`, voxx picks one at random. The seed is set again before each Line is synthesized, so the same Model, Voice, `style`, text and seed give a byte-identical WAV on the same machine (verified by the real-model tests), independent of the order of the Lines. Feeding the output Narration file back as input with the same `--model` reproduces the previous run (the input ignores `model` on a Line).
@@ -93,7 +93,7 @@ Only Models whose weight license allows commercial use are registered ([ADR 0003
 
 | Use | Model |
 |---|---|
-| Preset Voice (default) | Qwen3-TTS-12Hz-1.7B-CustomVoice; 0.6B as the fast tier |
+| Preset Voice (default) | Qwen3-TTS-12Hz-1.7B-CustomVoice |
 | Cloned Voice and Designed Voice (default), voice design | VoxCPM2 |
 | Cloned Voice (for comparison) | Qwen3-TTS-12Hz-1.7B-Base |
 | Preset Voice, Cloned Voice, voice design, Delivery Control | Ming-3.0-tts-0.5B (levyxdev/voxx#33) |

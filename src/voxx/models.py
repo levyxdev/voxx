@@ -135,11 +135,6 @@ REGISTRY = (
           "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit", "41d3337e8b7f2843a75841595fc14e4b9a7a4b96", 3_080_141_538,
           _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"), QWEN3_TTS_CODE, VERIFIED, 24_000,
           QWEN3_TTS_VOICES, reads_style=True),
-    # The fast tier: the same Voices, but it ignores style.
-    Model("qwen3-tts-0.6b-customvoice", "mlx-audio", ("preset_voice",), QWEN3_TTS_LANGUAGES,
-          "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit", "049ef77fe8816b536193c0c25f9a214d17921282", 1_973_575_388,
-          _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"), QWEN3_TTS_CODE, VERIFIED, 24_000,
-          QWEN3_TTS_VOICES),
     # The first Model that clones is the one a new Cloned Voice is read with; the other is there to compare by ear.
     # The first Model that designs is the one `voxx voice design` uses.
     Model("voxcpm2", "mlx-audio", ("clone", "design"), ("zh", "en"),

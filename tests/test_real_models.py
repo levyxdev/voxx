@@ -44,8 +44,7 @@ def installed_models():
     return {m["id"] for m in result["data"]["models"]}
 
 
-PRESET_SAMPLE_RATES = {"qwen3-tts-1.7b-customvoice": 24_000, "qwen3-tts-0.6b-customvoice": 24_000,
-                       "ming-3.0-tts-0.5b": 44_100}
+PRESET_SAMPLE_RATES = {"qwen3-tts-1.7b-customvoice": 24_000, "ming-3.0-tts-0.5b": 44_100}
 
 
 @pytest.fixture(params=list(PRESET_SAMPLE_RATES))

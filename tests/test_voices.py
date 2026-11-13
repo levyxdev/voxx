@@ -2,7 +2,7 @@ from conftest import assert_error
 from test_clone import write_recording
 
 QWEN3_TTS_LANGUAGES =["zh", "en", "ja", "ko", "fr", "de", "it", "pt", "ru", "es"]
-CUSTOM_VOICE_MODELS = ["qwen3-tts-1.7b-customvoice", "qwen3-tts-0.6b-customvoice"]
+CUSTOM_VOICE_MODELS = ["qwen3-tts-1.7b-customvoice"]
 
 
 def by_name(run):
