@@ -34,7 +34,10 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), check=False):
         earlier_seeds = {line["id"]: line.get("seed") for line in earlier["lines"]}
     # Plan every Line before starting the worker, so a bad Voice fails fast. Only the Models that read are required
     # (ADR 0006): a Line whose aligner or transcriber is not installed is read without it.
-    plans = [_plan_line(narration, line, chosen, check, earlier_seeds.get(line["id"])) for line in to_read]
+    # A Line that names no seed takes one shared by the whole run, since a seed per Line made the Lines of one Voice
+    # sound like different speakers (levyxdev/voxx#44).
+    shared_seed = secrets.randbelow(MAX_SEED + 1)
+    plans = [_plan_line(narration, line, chosen, check, shared_seed, earlier_seeds.get(line["id"])) for line in to_read]
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
     writable_out(out)
 
@@ -56,17 +59,23 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), check=False):
     return {"path": str(path), "narration": narration}
 
 
-def _plan_line(narration, line, chosen, check, earlier_seed=None):
+def _plan_line(narration, line, chosen, check, shared_seed, earlier_seed=None):
     """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), style,
     Delivery Controls and seed, the Model that times its words, and with `check` the Model that transcribes it back.
 
-    A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
+    A Line that names no seed, nor its Narration, is read with `shared_seed`. A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
     model, voice, stored = _resolve_voice_of(narration, line, chosen)
     style, warnings = line_setting(narration, line, "style"), []
     if style is not None and not model.reads_style:
         style = None
         warnings.append({"code": "style_ignored", "message": f"Model {model.id} cannot follow style; read the Line without it."})
+    elif style is not None and stored is not None and "style" not in line:
+        # A cloning Model reads a Line with style from the Reference Recording alone, so it sounds less like the voice.
+        warnings.append({"code": "style_weakens_clone",
+                         "message": f"The Narration's style makes Model {model.id} read {voice!r} less like itself, so "
+                                    "its Lines may sound like different speakers. Leave style off the top of the "
+                                    "Narration and give it only to the Lines that need a different delivery."})
     controls = {f: v for f in CONTROLS if (v := line_setting(narration, line, f)) is not None}
     if controls and not model.reads_controls:
         warnings.append({"code": "controls_ignored", "message": f"Model {model.id} cannot follow {', '.join(controls)}; "
@@ -88,7 +97,9 @@ def _plan_line(narration, line, chosen, check, earlier_seed=None):
         warnings.append(_not_installed("checker_not_installed", transcriber, "transcript or error_rate", "--line and --check"))
         transcriber = None
     seed = line_setting(narration, line, "seed")
-    while seed is None or seed == earlier_seed:
+    if seed is None:
+        seed = shared_seed
+    while seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
     return {"model": model, "voice": voice, "stored": stored, "style": style, "controls": controls, "warnings": warnings,
             "aligner": aligner, "transcriber": transcriber, "seed": seed}

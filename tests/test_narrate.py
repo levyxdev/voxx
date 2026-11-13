@@ -341,6 +341,15 @@ def test_a_given_seed_is_used_and_reproduces_the_line(installed, write_narration
     assert audio_of(first, "a") != audio_of(first, "b")
 
 
+def test_lines_without_a_seed_share_one_random_seed(installed, write_narration, tmp_path):
+    # A seed per Line made the Lines of one Voice sound like different speakers (levyxdev/voxx#44).
+    first = lines_of(installed("narrate", write_narration(TWO_LINES), "--out", tmp_path / "first"))
+    second = lines_of(installed("narrate", write_narration(TWO_LINES), "--out", tmp_path / "second"))
+
+    assert first[0]["seed"] == first[1]["seed"]
+    assert second[0]["seed"] != first[0]["seed"]
+
+
 def test_the_completed_narration_reads_again_to_the_same_audio(installed, write_narration, tmp_path):
     first, second = tmp_path / "first", tmp_path / "second"
     installed("narrate", write_narration(TWO_LINES), "--out", first)

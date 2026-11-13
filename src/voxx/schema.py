@@ -53,9 +53,11 @@ NARRATION_INPUT = {
                                                       "Default Voice of the language (`voxx voice default`), else the "
                                                       "Model's first Preset Voice native to the language."},
         "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
-                                                      "instruction. Ignored, with a warning, by a Model that cannot follow it."},
+                                                      "instruction. Ignored, with a warning, by a Model that cannot follow it. "
+                                                      "Leave it out with a Cloned Voice or Designed Voice: a Line "
+                                                      "with style sounds less like it."},
         **_CONTROLS,
-        "seed": {**_seed, "description": "Default seed for every Line. Omit for a random one per Line; the same seed, "
+        "seed": {**_seed, "description": "Default seed for every Line. Omit for one random seed shared by every Line; the same seed, "
                                          "Model, Voice, style, Delivery Controls and text read the same way again."},
         "lines": {
             "type": "array",
@@ -99,6 +101,8 @@ LINE_OUTPUT_FIELDS = {
     "sample_rate": {"type": "integer", "description": "The Model's native sample rate, in Hz."},
     "warnings": {"type": "array", "description": "What did not go as asked, such as a style (style_ignored) or "
                                                   "Delivery Controls (controls_ignored) the Model ignored, a Line "
+                                                  "of a Cloned Voice or Designed Voice that takes the Narration's "
+                                                  "style and so may sound less like it (style_weakens_clone), a Line "
                                                   "that could not reach -18 LUFS without clipping, a Line without "
                                                   "words (not_aligned) because no Model aligns its language or the "
                                                   "aligner failed, a Line read with --check but not checked "

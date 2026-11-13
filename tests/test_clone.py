@@ -173,6 +173,23 @@ def test_a_cloned_voice_follows_style_only_on_a_model_that_reads_style(installed
     assert [w["code"] for w in styled["warnings"]] == ["style_ignored"]
 
 
+def test_a_cloned_voice_warns_on_every_line_that_takes_the_narrations_style(installed, recording, write_narration,
+                                                                          tmp_path):
+    assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
+    narration = {"language": "zh", "voice": "me", "seed": 7, "style": "语气轻松",
+                 "lines": [{"id": "default", "text": "一样的话"}, {"id": "own", "text": "一样的话", "style": "语气兴奋"}]}
+    path = write_narration(narration)
+    run = installed("narrate", path, "--out", tmp_path / "out")
+    alt = installed("narrate", path, "--out", tmp_path / "alt", "--model", "fake-clone-alt")
+
+    default, own = lines(run).values()
+    assert [w["code"] for w in default["warnings"]] == ["style_weakens_clone"]
+    # A Line's own style is how the skill asks for a different delivery, so it is not warned.
+    assert own["warnings"] == []
+    # A Model that ignores style says so instead.
+    assert [[w["code"] for w in line["warnings"]] for line in lines(alt).values()] == [["style_ignored"]] * 2
+
+
 def test_a_cloned_voice_follows_emotion_speed_pitch_and_volume_only_on_a_model_that_reads_them(
         installed, recording, write_narration, tmp_path):
     assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
