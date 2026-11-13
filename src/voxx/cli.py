@@ -45,6 +45,10 @@ def _parser():
     add.add_argument("--take", type=int)
     add.add_argument("--model")
     add.add_argument("--overwrite", action="store_true")
+    default = voice.add_parser("default", add_help=False)
+    default.add_argument("name", nargs="?")
+    default.add_argument("--language", required=True)
+    default.add_argument("--clear", action="store_true")
     design = voice.add_parser("design", add_help=False)
     design.add_argument("--describe", dest="descriptions", action="append", required=True)
     design.add_argument("--text", required=True)
@@ -81,6 +85,9 @@ def main(argv=None):
         elif args.command == "voices":
             from voxx.voices import list_voices
             data = list_voices(args.model, args.language)
+        elif args.command == "voice" and args.voice_command == "default":
+            from voxx.voices import set_default_voice
+            data = set_default_voice(args.name, args.language, args.clear)
         elif args.command == "voice" and args.voice_command == "design":
             from voxx.design import design
             data = design(args.descriptions, args.text, args.language, args.out, args.takes, args.model, args.check)

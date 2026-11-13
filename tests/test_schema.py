@@ -137,3 +137,16 @@ def test_schema_describes_voice_design(voxx):
     assert {"transcript", "error_rate"} <= set(take["properties"])
     assert {"model_not_installed", "capability_unsupported", "unsupported_language", "invalid_language",
             "design_exists", "invalid_out"} <= set(voice_design["errors"])
+
+
+def test_schema_describes_voice_default_and_which_voices_are_defaults(voxx):
+    commands = voxx("schema").result["data"]["commands"]
+
+    voice_default = commands["voice default"]
+    assert voice_default["arguments"]["required"] == ["language"]
+    assert {"name", "language", "clear"} == set(voice_default["arguments"]["properties"])
+    assert set(voice_default["result"]["required"]) == {"language", "voice"}
+    assert {"unknown_voice", "unsupported_language", "invalid_language"} <= set(voice_default["errors"])
+    for kind in commands["voices"]["result"]["properties"]["voices"]["items"]["oneOf"]:
+        assert "default_for" in kind["required"]
+    assert "default_voice" in commands["narrate"]["errors"]["unknown_voice"]["description"]

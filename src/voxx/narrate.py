@@ -12,7 +12,7 @@ from voxx.models import aligner_for, find_model, is_installed, model_dir, requir
 from voxx.narration import CONTROLS, MAX_SEED, check_narration, line_setting, load_narration
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
-from voxx.voices import resolve_voice
+from voxx.voices import default_voices, resolve_voice
 from voxx.words import word_timings
 from voxx.worker.client import WorkerProcess
 
@@ -62,7 +62,7 @@ def _plan_line(narration, line, chosen, check, earlier_seed=None):
 
     A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
-    model, voice, stored = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+    model, voice, stored = _resolve_voice_of(narration, line, chosen)
     style, warnings = line_setting(narration, line, "style"), []
     if style is not None and not model.reads_style:
         style = None
@@ -92,6 +92,25 @@ def _plan_line(narration, line, chosen, check, earlier_seed=None):
         seed = secrets.randbelow(MAX_SEED + 1)
     return {"model": model, "voice": voice, "stored": stored, "style": style, "controls": controls, "warnings": warnings,
             "aligner": aligner, "transcriber": transcriber, "seed": seed}
+
+
+def _resolve_voice_of(narration, line, chosen):
+    """`resolve_voice` for the Voice a Line names, else its Narration's, else the Default Voice of its language. A Default
+    Voice that cannot be read fails as a Voice the Narration names would, and says it is the default."""
+    language, voice = narration["language"], line_setting(narration, line, "voice")
+    if voice is not None:
+        return resolve_voice(voice, language, chosen)
+    voice = default_voices().get(language)
+    try:
+        return resolve_voice(voice, language, chosen)
+    except VoxxError as e:
+        if voice is None:
+            raise
+        e.details = {**e.details, "default_voice": {"language": language, "voice": voice}}
+        e.hint = (f"{voice!r} is the Default Voice of {language}, read because the Narration names no voice. {e.hint} "
+                  f"Or name a Voice in the Narration, or change the default with `voxx voice default <name> "
+                  f"--language {language}`, or `--clear` it.")
+        raise
 
 
 def _not_installed(code, model, fields, read_again="--line"):
@@ -181,7 +200,7 @@ def _lines_to_keep(narration, earlier, to_read, chosen):
         if narration["language"] != earlier["language"]:
             changes.append(f"the Narration's language is now {narration['language']!r}")
         # The Voice this run would read the Line with, as _plan_line resolves it.
-        _, voice, _ = resolve_voice(line_setting(narration, line, "voice"), narration["language"], chosen)
+        _, voice, _ = _resolve_voice_of(narration, line, chosen)
         if voice != old.get("voice"):
             changes.append(f"its voice is now {voice!r}, not {old.get('voice')!r}")
         for field in ("style", *CONTROLS):

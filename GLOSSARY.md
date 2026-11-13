@@ -40,6 +40,10 @@ _Avoid_: custom voice, voice profile
 A Voice designed from a text description and fixed by choosing one of several Design Takes.
 _Avoid_: generated voice, AI voice, virtual voice
 
+**Default Voice**:
+The Voice a Line is read in when neither it nor its Narration names one: at most one per language, set by the user, and kept for every later Narration on the machine.
+_Avoid_: preferred voice, fallback voice, my voice
+
 **Design Take**:
 One candidate Voice designed from a text description, reading the same sample text as the others, waiting for the user to listen and choose.
 _Avoid_: candidate, sample, voice test

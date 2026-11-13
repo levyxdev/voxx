@@ -47,10 +47,11 @@ NARRATION_INPUT = {
     "required": ["language", "lines"],
     "properties": {
         "language": {**_language, "description": f"{LANGUAGE_RULE} The Model must read it; see `voxx models`."},
-        "voice": {**_non_empty_string, "description": "Default Voice for every Line, from `voxx voices`: a Preset Voice, "
-                                                      "or a Cloned Voice or Designed Voice from `voxx voice add`, read "
-                                                      "by the Model it was added with. Omit for the Model's first "
-                                                      "Preset Voice native to the language."},
+        "voice": {**_non_empty_string, "description": "The Voice of every Line that names none, from `voxx voices`: a "
+                                                      "Preset Voice, or a Cloned Voice or Designed Voice from `voxx "
+                                                      "voice add`, read by the Model it was added with. Omit for the "
+                                                      "Default Voice of the language (`voxx voice default`), else the "
+                                                      "Model's first Preset Voice native to the language."},
         "style": {**_non_empty_string, "description": "Default delivery, in natural language; passed to the Model as an "
                                                       "instruction. Ignored, with a warning, by a Model that cannot follow it."},
         **_CONTROLS,
@@ -184,9 +185,12 @@ MODEL = {
 _installed_models = {"type": "array", "items": {"type": "object", "required": ["model", "installed"],
                                                "properties": {"model": _model_id, "installed": {"type": "boolean"}}}}
 
+_default_for = {"type": "array", "items": _language,
+                "description": "The languages this Voice is the Default Voice of (`voxx voice default`)."}
+
 PRESET_VOICE = {
     "type": "object",
-    "required": ["name", "kind", "native_language", "description", "languages", "models"],
+    "required": ["name", "kind", "native_language", "description", "languages", "models", "default_for"],
     "properties": {
         "name": {"type": "string", "description": "What a Narration's voice names."},
         "kind": {"const": "preset"},
@@ -194,13 +198,14 @@ PRESET_VOICE = {
         "description": {"type": "string", "description": "How the Voice sounds, from the Model's makers."},
         "languages": {"type": "array", "items": _language, "description": "Languages a Model reads this Voice in."},
         "models": {**_installed_models, "description": "The Models that have this Voice."},
+        "default_for": _default_for,
     },
 }
 
 CLONED_VOICE = {
     "type": "object",
     "required": ["name", "kind", "reference_text", "model", "languages", "models", "path", "source", "created",
-                 "transcribed_by"],
+                 "transcribed_by", "default_for"],
     "properties": {
         "name": {"type": "string", "description": "What a Narration's voice names."},
         "kind": {"const": "cloned"},
@@ -216,6 +221,7 @@ CLONED_VOICE = {
         "created": {"type": "string", "format": "date-time"},
         "transcribed_by": {"type": ["string", "null"],
                            "description": "The Model that transcribed reference_text; null if --ref-text gave it."},
+        "default_for": _default_for,
     },
 }
 
@@ -301,7 +307,9 @@ COMMANDS = {
             "model_not_installed": MODEL_NOT_INSTALLED,
             "invalid_narration": {"description": "Exit 2: details.at points at what is wrong in the Narration file."},
             "unknown_voice": {"description": "Exit 2: no Preset Voice, Cloned Voice or Designed Voice has "
-                                             "this name; details.known_voices lists them."},
+                                             "this name; details.known_voices lists them. Any error about the Voice "
+                                             "carries details.default_voice ({language, voice}) when the Voice is the "
+                                             "Default Voice of the language, read because the Narration names none."},
             "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
                                                     "details.path, cannot be read; add the Voice again with --overwrite."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
@@ -384,6 +392,27 @@ COMMANDS = {
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
             "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot clone."},
             "cannot_transcribe": {"description": "Exit 4: no Model can transcribe for this Model; pass --ref-text."},
+        },
+    },
+    "voice default": {
+        "usage": "voxx voice default (<name> | --clear) --language <tag>",
+        "description": "Make a Voice the Default Voice of a language, or with --clear leave the language without one. "
+                       "A Line of a Narration in that language that names no voice, and whose Narration names none, is "
+                       "read in it, on this machine, in every project. Set one only after the user agrees. `voxx "
+                       "voices` lists the languages each Voice is the default of in default_for.",
+        "arguments": {"$schema": DRAFT, "type": "object", "required": ["language"], "properties": {
+            "name": {**_non_empty_string, "description": "The Voice (positional), as `voxx voices` lists it; some Model "
+                                                         "must read it in --language."},
+            "language": {**_language, "description": "The language whose Default Voice this is (--language)."},
+            "clear": {"type": "boolean", "description": "Leave the language without a Default Voice (--clear)."}}},
+        "result": {"$schema": DRAFT, "type": "object", "required": ["language", "voice"], "properties": {
+            "language": _language,
+            "voice": {"type": ["string", "null"], "description": "Its Default Voice now; null after --clear."}}},
+        "errors": {
+            "unknown_voice": {"description": "Exit 2: no Voice has this name; details.known_voices lists them."},
+            "unsupported_language": {"description": "Exit 4: the Model that reads this Voice cannot read the language."},
+            "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
+            "invalid_arguments": {"description": "Exit 2: neither a Voice nor --clear, or both."},
         },
     },
     "voice design": {
