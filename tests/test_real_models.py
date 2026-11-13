@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import wave
+from pathlib import Path
 
 import numpy as np
 import pyloudnorm
@@ -22,8 +23,11 @@ NARRATIONS = {
 }
 
 
-def real_voxx(*args):
+def real_voxx(*args, home=None):
+    """voxx with the user's $VOXX_HOME, or with `home`, such as `real_home`."""
     env = {k: v for k, v in os.environ.items() if not k.startswith("VOXX_TEST_")}
+    if home is not None:
+        env["VOXX_HOME"] = str(home)
     process = subprocess.run([str(VOXX), *map(str, args)], capture_output=True, encoding="utf-8", timeout=900, env=env)
     return process.returncode, json.loads(process.stdout)
 
@@ -35,6 +39,19 @@ def one_model_at_a_time(tmp_path_factory):
     with open(tmp_path_factory.getbasetemp().parent / "voxx-real-models.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         yield
+
+
+@pytest.fixture
+def real_home(tmp_path):
+    """A $VOXX_HOME of the test's own that shares the user's installed Models, so the Voices a test adds stay out of
+    the user's $VOXX_HOME/voices."""
+    user_home = Path(os.environ.get("VOXX_HOME") or Path.home() / ".voxx")
+    home = tmp_path / "voxx-home"
+    home.mkdir()
+    for shared in ("models", "hf-cache"):
+        if (user_home / shared).exists():
+            (home / shared).symlink_to(user_home / shared)
+    return home
 
 
 @pytest.fixture(scope="module")
@@ -133,16 +150,15 @@ def cloning_model(request, installed_models):
 
 
 @pytest.fixture
-def cloned_voice(cloning_model, tmp_path):
-    """A Cloned Voice added from a short recording, its words transcribed by Qwen3-ASR, in a project's voices dir."""
+def cloned_voice(cloning_model, real_home, tmp_path):
+    """A Cloned Voice added from a short recording, its words transcribed by Qwen3-ASR, in `real_home`."""
     [reference] = narrate("qwen3-tts-1.7b-customvoice", REFERENCE, tmp_path / "reference")
-    voices = tmp_path / "voices"
     code, result = real_voxx("voice", "add", "me", "--ref", tmp_path / "reference" / reference["audio"],
-                             "--model", cloning_model, "--voices-dir", voices)
+                             "--model", cloning_model, home=real_home)
     assert code == 0, result
     assert result["data"]["transcribed_by"] == "qwen3-asr-0.6b"
     assert result["data"]["reference_text"].strip()
-    return voices
+    return real_home
 
 
 @pytest.mark.parametrize("language", ["zh", "en"])
@@ -151,7 +167,7 @@ def test_a_cloned_voice_reads_short_lines_that_qwen3_asr_transcribes_almost_word
     out = tmp_path / "out"
     path = out.with_suffix(".json")
     path.write_text(json.dumps({**NARRATIONS[language], "voice": "me", "seed": 42}, ensure_ascii=False), encoding="utf-8")
-    code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", cloned_voice, "--check")
+    code, result = real_voxx("narrate", path, "--out", out, "--check", home=cloned_voice)
 
     assert code == 0, result
     for line in result["data"]["narration"]["lines"]:
@@ -204,7 +220,7 @@ def seconds_of(path):
 
 @pytest.mark.parametrize("language, voice", [("zh", "灵小柔"), ("en", "US_Emma")])
 def test_ming_follows_delivery_controls_in_a_preset_voice_and_in_a_cloned_voice(installed_models, language, voice,
-                                                                                tmp_path):
+                                                                                real_home, tmp_path):
     for needed in ("ming-3.0-tts-0.5b", "qwen3-tts-1.7b-customvoice", "qwen3-forcedaligner-0.6b", "qwen3-asr-0.6b"):
         if needed not in installed_models:
             pytest.skip(f"{needed} is not installed")
@@ -213,9 +229,8 @@ def test_ming_follows_delivery_controls_in_a_preset_voice_and_in_a_cloned_voice(
     # Cloning with an emotion once turned short Lines like this one into a fraction of a second of noise.
     short = {"zh": "这是一个新的发送流程。", "en": "Press send, and you're done."}[language]
     [reference] = narrate("qwen3-tts-1.7b-customvoice", REFERENCE, tmp_path / "reference")
-    voices = tmp_path / "voices"
     code, result = real_voxx("voice", "add", "me", "--ref", tmp_path / "reference" / reference["audio"],
-                             "--model", "ming-3.0-tts-0.5b", "--voices-dir", voices)
+                             "--model", "ming-3.0-tts-0.5b", home=real_home)
     assert code == 0, result
 
     for read_in in (voice, "me"):
@@ -226,7 +241,7 @@ def test_ming_follows_delivery_controls_in_a_preset_voice_and_in_a_cloned_voice(
                                {"id": "happy", "text": short, "emotion": "happy"},
                                {"id": "sad", "text": short, "emotion": "sad", "speed": "slow"}]}
         path.write_text(json.dumps(narration, ensure_ascii=False), encoding="utf-8")
-        code, result = real_voxx("narrate", path, "--out", out, "--voices-dir", voices, "--check")
+        code, result = real_voxx("narrate", path, "--out", out, "--check", home=real_home)
 
         assert code == 0, result
         for line in result["data"]["narration"]["lines"]:

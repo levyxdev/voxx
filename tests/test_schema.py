@@ -39,7 +39,7 @@ def test_schema_describes_models_install_and_doctor(voxx):
     assert {"name", "kind", "reference_text", "model", "languages", "models", "path"} <= set(cloned["required"])
     assert (cloned["properties"]["kind"]["const"], designed["properties"]["kind"]["const"]) == ("cloned", "designed")
     assert {"description", "design_model", "take", "seed"} <= set(designed["required"]) - set(cloned["required"])
-    assert {"model", "language", "voices_dir"} <= set(commands["voices"]["arguments"]["properties"])
+    assert set(commands["voices"]["arguments"]["properties"]) == {"model", "language"}
     assert {"voices", "unlisted"} <= set(commands["voices"]["result"]["required"])
     assert "missing" in commands["narrate"]["errors"]["model_not_installed"]["properties"]
     assert {"unknown_model", "download_failed", "download_corrupt", "invalid_repo", "insufficient_disk_space"} <= set(commands["install"]["errors"])
@@ -109,7 +109,7 @@ def test_schema_describes_the_warnings_for_a_missing_aligner_or_transcriber(voxx
     assert "command" in details["required"]
 
 
-def test_schema_describes_voice_add_and_voices_dir(voxx):
+def test_schema_describes_voice_add(voxx):
     run = voxx("schema", "voice", "add")
 
     assert run.exit_code == 0
@@ -117,14 +117,11 @@ def test_schema_describes_voice_add_and_voices_dir(voxx):
     assert voice_add["arguments"]["required"] == ["name"]
     # A Cloned Voice from --ref, or a Designed Voice from --from-design and --take.
     assert [set(o["required"]) for o in voice_add["arguments"]["oneOf"]] == [{"ref"}, {"from_design", "take"}]
-    assert {"ref_text", "model", "voices_dir", "overwrite"} <= set(voice_add["arguments"]["properties"])
+    assert {"ref_text", "model", "overwrite"} <= set(voice_add["arguments"]["properties"])
     assert [o["properties"]["kind"]["const"] for o in voice_add["result"]["oneOf"]] == ["cloned", "designed"]
     assert all({"reference_text", "model", "path", "warnings"} <= set(o["required"]) for o in voice_add["result"]["oneOf"])
     assert {"model_not_installed", "voice_exists", "unreadable_reference", "capability_unsupported", "design_not_found",
             "invalid_design", "take_not_found"} <= set(voice_add["errors"])
-    commands = voxx("schema").result["data"]["commands"]
-    assert "voices_dir" in commands["narrate"]["arguments"]["properties"]
-    assert "voices_dir" in commands["voices"]["arguments"]["properties"]
 
 
 def test_schema_describes_voice_design(voxx):

@@ -14,13 +14,6 @@ Write the user a script to read: two or three sentences in the Narration's langu
 
 When the user brings a recording of their own instead, pass its words as `--ref-text` if they know them exactly. Otherwise voxx transcribes the recording, which needs the transcribing Model installed (exit 3 otherwise; see [setup.md](setup.md)); show the user the `reference_text` it heard, and if it is wrong, add the voice again with `--ref-text` and `--overwrite`.
 
-## 3. Choose where it lives
-
-Ask the user whether the voice belongs to one project or to this machine:
-
-- **The project**: pass `--voices-dir` with a folder in the project, such as `voices/`. The voice then travels with the project, and may be committed with it. Pass the same `--voices-dir` to every `voices` and `narrate` call in that project.
-- **This machine**: leave `--voices-dir` out, and it is stored under `$VOXX_HOME/voices`.
-
-## 4. Choose the Model
+## 3. Choose the Model
 
 A Cloned Voice is read by the Model it was added with: the default cloning Model unless `voice add --model` picks another one (`voxx models --capability clone`). VoxCPM2 follows `style`, but a Line with `style` may sound less like the speaker, so for a Cloned Voice leave `style` off the top of the Narration and give it only to the Lines that need a different delivery; Qwen3-TTS Base ignores `style` (each such Line says so in `warnings`); Ming-3.0-tts ignores `style` too but follows `emotion`, `speed`, `pitch` and `volume`. They sound different, and only the user can judge which sounds more like the speaker: to let them compare, read the same short Narration once more with `narrate --model <another one>` into a second `--out`, and play them both. Keep the one they choose by adding the voice again with that `--model` and `--overwrite`.

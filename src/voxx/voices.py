@@ -3,8 +3,7 @@ Lightweight: the CLI imports it.
 
 A Cloned Voice or Designed Voice is a directory `<voices dir>/<name>/` holding voice.json and the normalized Reference
 Recording: a recording of a person for a Cloned Voice, the chosen Design Take for a Designed Voice (ADR 0007). Both are read the same
-way, by a Model that clones. The voices dir is $VOXX_HOME/voices, or the one --voices-dir names, such as a directory in
-the user's project."""
+way, by a Model that clones. The voices dir is $VOXX_HOME/voices, the only one (ADR 0010)."""
 
 import json
 import re
@@ -62,11 +61,11 @@ class StoredVoice:
                 "models": [{"model": m.id, "installed": is_installed(m)} for m in cloners], "path": str(self.path)}
 
 
-def voices_dir(path=None):
-    return Path(path).resolve() if path is not None else voxx_home() / "voices"
+def voices_dir():
+    return voxx_home() / "voices"
 
 
-def list_voices(directory=None, model_id=None, language=None):
+def list_voices(model_id=None, language=None):
     """`voxx voices`: the Preset Voices, then the Cloned Voices and Designed Voices in the voices dir; with `model_id`,
     only the Voices that Model reads, and with `language`, only Preset Voices native to it and the other Voices a
     Model reads in it."""
@@ -77,21 +76,21 @@ def list_voices(directory=None, model_id=None, language=None):
     model = find_model(model_id) if model_id is not None else None
     presets, unlisted = list_preset_voices(model, language)
     # Every Model that clones reads every Cloned Voice and Designed Voice.
-    stored = [v.to_json() for v in stored_voices(directory)] if model is None or "clone" in model.capabilities else []
+    stored = [v.to_json() for v in stored_voices()] if model is None or "clone" in model.capabilities else []
     stored = [v for v in stored if language is None or language in (model.languages if model else v["languages"])]
     return {"voices": [*presets, *stored], "unlisted": unlisted}
 
 
-def stored_voices(directory=None):
-    root = voices_dir(directory)
+def stored_voices():
+    root = voices_dir()
     if not root.is_dir():
         return []
     return [_load(path) for path in sorted(root.iterdir())
             if path.is_dir() and not path.name.startswith(".") and (path / VOICE_FILE).exists()]
 
 
-def find_stored_voice(name, directory=None):
-    path = voices_dir(directory) / name
+def find_stored_voice(name):
+    path = voices_dir() / name
     if not is_file_name(name) or not (path / VOICE_FILE).exists():
         return None
     voice = _load(path)
@@ -99,7 +98,7 @@ def find_stored_voice(name, directory=None):
     return voice if voice.name == name else None
 
 
-def resolve_voice(voice, language, model=None, directory=None):
+def resolve_voice(voice, language, model=None):
     """The Model that reads this Voice in this language, the Voice's name, and the Cloned Voice or Designed Voice it
     names, if any.
 
@@ -107,12 +106,12 @@ def resolve_voice(voice, language, model=None, directory=None):
     added with, unless `model` is given."""
     if voice is None or voice in preset_voice_names():
         return (*resolve_preset_voice(voice, language, model), None)
-    stored = find_stored_voice(voice, directory)
+    stored = find_stored_voice(voice)
     if stored is None:
-        known = [*preset_voice_names(), *(v.name for v in stored_voices(directory))]
+        known = [*preset_voice_names(), *(v.name for v in stored_voices())]
         raise VoxxError("unknown_voice", f"No Preset Voice, Cloned Voice or Designed Voice is named {voice!r}.",
-                        "Use one of the Voices in details.known_voices, or run `voxx voices` with the same --voices-dir.",
-                        {"voice": voice, "known_voices": known, "voices_dir": str(voices_dir(directory))}, USAGE)
+                        "Use one of the Voices in details.known_voices, as `voxx voices` lists them.",
+                        {"voice": voice, "known_voices": known}, USAGE)
     if model is None:
         model = find_model(stored.model)
     elif "clone" not in model.capabilities:
@@ -121,7 +120,7 @@ def resolve_voice(voice, language, model=None, directory=None):
     return model, voice, stored
 
 
-def add_voice(name, ref=None, ref_text=None, model_id=None, directory=None, overwrite=False, from_design=None, take=None):
+def add_voice(name, ref=None, ref_text=None, model_id=None, overwrite=False, from_design=None, take=None):
     """`voxx voice add`: normalize the Reference Recording, transcribe it unless its words are given, and store both as
     a Cloned Voice; or, with `from_design`, store the Design Take numbered `take` and the words it read as a Designed
     Voice."""
@@ -154,7 +153,7 @@ def add_voice(name, ref=None, ref_text=None, model_id=None, directory=None, over
     if ref_text is not None and not ref_text.strip():
         raise VoxxError("invalid_reference_text", "--ref-text is empty.",
                         "Pass the words of the Reference Recording, or leave --ref-text out to transcribe them.", {}, USAGE)
-    root = voices_dir(directory)
+    root = voices_dir()
     path = root / name
     if path.exists() and not overwrite:
         raise VoxxError("voice_exists", f"A Voice is already stored at {path}.",
@@ -167,11 +166,7 @@ def add_voice(name, ref=None, ref_text=None, model_id=None, directory=None, over
             raise VoxxError("cannot_transcribe", f"No Model on the Engine of {model.id} can transcribe.",
                             "Pass the words of the Reference Recording with --ref-text.", {"model": model.id}, UNSUPPORTED)
         require_installed([transcriber])
-    try:
-        root.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        raise VoxxError("invalid_voices_dir", f"Cannot store Voices in {root}: {e.strerror}.",
-                        "Pass a writable directory for --voices-dir.", {"voices_dir": str(root)}, USAGE)
+    root.mkdir(parents=True, exist_ok=True)
 
     words = (ref_text or "").strip()
     with staging(root) as stage:

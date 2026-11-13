@@ -238,9 +238,6 @@ DESIGNED_VOICE = {
     },
 }
 
-_voices_dir = {"type": "string", "description": "Directory of Cloned Voices and Designed Voices (--voices-dir), such "
-                                                "as one in the user's project; omit for $VOXX_HOME/voices."}
-
 _ADD_WARNINGS = {"type": "array", "description": "What did not go as asked, such as a recording that could not reach "
                                                "-18 LUFS without clipping.",
                  "items": {"type": "object", "required": ["code", "message"],
@@ -260,8 +257,7 @@ MODEL_NOT_INSTALLED = {
 
 COMMANDS = {
     "narrate": {
-        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--voices-dir <dir>] "
-                 "[--check]",
+        "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--check]",
         "description": "Read every Line of a Narration, time each word, and write <dir>/<id>.wav per Line and "
                        "<dir>/narration.json. With --check, also transcribe each Line back to check it. Only the Model "
                        "that reads must be installed: without the aligner, or with --check the transcriber, the Lines "
@@ -284,9 +280,6 @@ COMMANDS = {
                                         "same --out. Each is read with a new seed: the one the Narration file gives it, "
                                         "if that differs from the seed it was read with before, else a random one. "
                                         "Every other Line keeps its audio file and fields from the earlier run."},
-                "voices_dir": {**_voices_dir, "description": "Where to find the Cloned Voices and Designed Voices "
-                                                             "the Narration names (--voices-dir): the directory they "
-                                                             "were added to; omit for $VOXX_HOME/voices."},
                 "check": {"type": "boolean", "default": False,
                           "description": "Transcribe each Line back and report transcript and error_rate (--check). Off "
                                          "by default: it loads the transcriber beside the reader, which takes more "
@@ -307,8 +300,8 @@ COMMANDS = {
         "errors": {
             "model_not_installed": MODEL_NOT_INSTALLED,
             "invalid_narration": {"description": "Exit 2: details.at points at what is wrong in the Narration file."},
-            "unknown_voice": {"description": "Exit 2: no Preset Voice, or Cloned Voice or Designed Voice in "
-                                             "details.voices_dir, has this name; details.known_voices lists them."},
+            "unknown_voice": {"description": "Exit 2: no Preset Voice, Cloned Voice or Designed Voice has "
+                                             "this name; details.known_voices lists them."},
             "invalid_cloned_voice": {"description": "Exit 2: the directory of a Cloned Voice or Designed Voice, "
                                                     "details.path, cannot be read; add the Voice again with --overwrite."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
@@ -327,10 +320,10 @@ COMMANDS = {
     },
     "voice add": {
         "usage": "voxx voice add <name> (--ref <recording> [--ref-text <text>] | --from-design <dir> --take <n>) "
-                 "[--model <model>] [--voices-dir <dir>] [--overwrite]",
+                 "[--model <model>] [--overwrite]",
         "description": "Store a Cloned Voice: normalize the Reference Recording (mono, 24 kHz, -18 LUFS, 50 ms of "
                        "silence at each end), transcribe it unless --ref-text gives its words, and save both as "
-                       "<voices dir>/<name>/. A Narration then names it as its voice. voxx does not check consent: "
+                       "$VOXX_HOME/voices/<name>/. A Narration then names it as its voice. voxx does not check consent: "
                        "before --ref, ask the user to confirm they have the right to use this voice. Only without "
                        "--ref-text must a Model be installed: the one that transcribes. With --from-design and --take "
                        "instead, store a Designed Voice: the Design Take the user chose from a `voxx voice design` run "
@@ -359,9 +352,6 @@ COMMANDS = {
                 "model": {**_model_id, "description": "The Model that clones, which reads the Voice from then on "
                                                       "(--model). Omit for the default, the first Model with the "
                                                       "clone capability in `voxx models`."},
-                "voices_dir": {**_voices_dir, "description": "Where to store the Voice (--voices-dir), such as a "
-                                                             "directory in the user's project; omit for "
-                                                             "$VOXX_HOME/voices. Pass the same one to narrate."},
                 "overwrite": {"type": "boolean", "description": "Replace the Cloned Voice or Designed Voice of "
                                                                "this name (--overwrite)."},
             },
@@ -391,7 +381,6 @@ COMMANDS = {
             "unreadable_reference": {"description": "Exit 2: the file at --ref cannot be decoded as audio."},
             "silent_reference": {"description": "Exit 2: the recording is silent."},
             "reference_not_transcribed": {"description": "Exit 2: no words were heard; pass --ref-text."},
-            "invalid_voices_dir": {"description": "Exit 2: --voices-dir cannot be created or written."},
             "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
             "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot clone."},
             "cannot_transcribe": {"description": "Exit 4: no Model can transcribe for this Model; pass --ref-text."},
@@ -492,16 +481,15 @@ COMMANDS = {
         },
     },
     "voices": {
-        "usage": "voxx voices [--model <model>] [--language <language>] [--voices-dir <dir>]",
+        "usage": "voxx voices [--model <model>] [--language <language>]",
         "description": "List the Preset Voices and the Models that read them, then the Cloned Voices and Designed "
-                       f"Voices in the voices dir. A Model with more than {LISTED_VOICES_MAX} Preset Voices, such as "
+                       f"Voices in $VOXX_HOME/voices. A Model with more than {LISTED_VOICES_MAX} Preset Voices, such as "
                        "ming-3.0-tts-0.5b, is only summarized in unlisted unless --model names it.",
         "arguments": {"$schema": DRAFT, "type": "object", "properties": {
             "model": {**_model_id, "description": "Only the Voices this Model reads (--model): every one of its Preset "
                                                   "Voices, and the Cloned Voices and Designed Voices if it clones."},
             "language": {**_language, "description": "Only Preset Voices native to this language, and Cloned Voices and "
-                                                     "Designed Voices a Model reads in it (--language)."},
-            "voices_dir": _voices_dir}},
+                                                     "Designed Voices a Model reads in it (--language)."}}},
         "result": {
             "$schema": DRAFT,
             "type": "object",

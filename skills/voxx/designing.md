@@ -31,12 +31,12 @@ Each take takes about 15–30 seconds, so run the command in the background when
 
 ## 4. Store it
 
-Ask where the voice lives, as in [cloning.md](cloning.md) step 3, then store the chosen take:
+Store the chosen take; like every Cloned Voice, it goes to `$VOXX_HOME/voices`:
 
 ```
-voice add <name> --from-design <the round's --out> --take <n> [--model <id>] [--voices-dir <dir>]
+voice add <name> --from-design <the round's --out> --take <n> [--model <id>]
 ```
 
-It is read like a Cloned Voice: the Model and the `style` rules of [cloning.md](cloning.md) step 4 apply. It reads in any language its Model reads, not only the one it was designed in. The default cloning Model, VoxCPM2, also reads only Chinese and English, so a voice for a Narration in another language needs `voice add --model` with a cloning Model that reads it (`voxx models --capability clone`).
+It is read like a Cloned Voice: the Model and the `style` rules of [cloning.md](cloning.md) step 3 apply. It reads in any language its Model reads, not only the one it was designed in. The default cloning Model, VoxCPM2, also reads only Chinese and English, so a voice for a Narration in another language needs `voice add --model` with a cloning Model that reads it (`voxx models --capability clone`).
 
 When delivering, a Designed Voice needs no reminder about the right to use a voice, since no real person's voice is in it; the reminder to label AI-generated speech still applies.

@@ -237,27 +237,6 @@ def test_each_cloned_voice_reads_in_its_own_voice(installed, write_narration, tm
     assert (out / "a.wav").read_bytes() != (out / "b.wav").read_bytes()
 
 
-def test_voices_dir_stores_and_finds_cloned_voices_in_a_project(installed, recording, write_narration, tmp_path):
-    project = tmp_path / "project" / "voices"
-    run = installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone", "--voices-dir", project)
-
-    assert run.exit_code == 0, run.result
-    assert run.result["data"]["path"] == str(project / "me")
-    assert (project / "me" / "voice.json").exists()
-    assert not (installed.home / "voices" / "me").exists()
-    cloned = [v["name"] for v in installed("voices", "--voices-dir", project).result["data"]["voices"] if v["kind"] == "cloned"]
-    assert cloned == ["me"]
-    assert all(v["kind"] == "preset" for v in installed("voices").result["data"]["voices"])
-
-    path = write_narration(NARRATION)
-    run = installed("narrate", path, "--out", tmp_path / "out", "--voices-dir", project)
-    assert run.exit_code == 0, run.result
-    assert {l["voice"] for l in lines(run).values()} == {"me"}
-    # Without --voices-dir, the Voice is looked for in $VOXX_HOME/voices.
-    error = assert_error(installed("narrate", path, "--out", tmp_path / "out2"), 2, "unknown_voice")
-    assert error["details"]["voices_dir"] == str(installed.home / "voices")
-
-
 def test_voices_lists_preset_and_cloned_voices(installed, recording):
     assert installed("voice", "add", "me", "--ref", recording, "--model", "fake-clone").exit_code == 0
     voices = installed("voices").result["data"]["voices"]
