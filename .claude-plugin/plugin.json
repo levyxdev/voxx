@@ -1,7 +1,7 @@
 {
   "name": "voxx",
   "displayName": "voxx",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Voice narration locally on Apple Silicon: one WAV and word timings per Line, in a preset or cloned voice, ready for CueTake.",
   "author": {
     "name": "levyxdev",
