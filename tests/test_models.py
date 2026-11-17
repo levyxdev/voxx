@@ -5,6 +5,7 @@ REAL_MODELS = {
     "voxcpm2": (["clone", "design"], 3_226_617_581, "Apache-2.0", "2026-10-30"),
     "qwen3-forcedaligner-0.6b": (["align"], 1_276_475_979, "Apache-2.0", "2026-10-30"),
     "qwen3-asr-0.6b": (["transcribe"], 1_010_773_761, "Apache-2.0", "2026-10-30"),
+    "qwen3-asr-1.7b": (["transcribe"], 2_467_859_030, "Apache-2.0", "2026-11-17"),
     "ming-3.0-tts-0.5b": (["preset_voice", "clone", "design"], 1_617_181_518, "MIT", "2026-11-06"),
     "qwen3-tts-1.7b-voicedesign": (["design"], 3_080_140_867, "Apache-2.0", "2026-11-06"),
 }
@@ -19,7 +20,7 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
 
     assert run.exit_code == 0
     models = by_id(run)
-    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt", "fake-clone-extra"} == set(models)
+    assert set(REAL_MODELS) | {"fake-tts", "fake-tts-small", "fake-asr", "fake-asr-large", "fake-aligner", "fake-clone", "fake-clone-alt", "fake-clone-extra"} == set(models)
     for id, (capabilities, size, license, verified) in REAL_MODELS.items():
         model = models[id]
         assert model["capabilities"] == capabilities
@@ -79,7 +80,7 @@ def test_an_unknown_capability_is_an_argument_error(voxx):
 
 
 def test_models_can_be_filtered_by_install_state(installed):
-    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr", "fake-aligner", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
+    assert set(by_id(installed("models", "--installed"))) == {"fake-tts", "fake-tts-small", "fake-asr", "fake-asr-large", "fake-aligner", "fake-clone", "fake-clone-alt", "fake-clone-extra"}
     assert set(by_id(installed("models", "--not-installed"))) == set(REAL_MODELS)
     assert by_id(installed("models"))["fake-tts"]["installed"] is True
 

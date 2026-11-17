@@ -4,6 +4,7 @@ its Model is not installed. Listening is still a person's job: these only catch 
 import fcntl
 import json
 import os
+import shutil
 import subprocess
 import wave
 from pathlib import Path
@@ -262,3 +263,33 @@ def test_ming_reads_a_preset_voice_whose_name_has_a_space_and_parentheses(instal
     for line in lines:
         assert line["voice"] == "蜡笔小新_野原美伢 (美伢)"
         assert line["error_rate"] <= 0.25, (line["id"], line["transcript"])
+
+
+@pytest.mark.parametrize("transcriber", ["qwen3-asr-0.6b", "qwen3-asr-1.7b"])
+@pytest.mark.parametrize("language", ["zh", "en"])
+def test_transcribe_reads_back_a_video_of_narrated_lines_with_their_words(installed_models, transcriber, language,
+                                                                           tmp_path):
+    from voxx.self_check import error_rate
+
+    for needed in ("qwen3-tts-1.7b-customvoice", "qwen3-forcedaligner-0.6b", transcriber):
+        if needed not in installed_models:
+            pytest.skip(f"{needed} is not installed")
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("needs ffmpeg to make a video")
+    out = tmp_path / "out"
+    lines = narrate("qwen3-tts-1.7b-customvoice", {**NARRATIONS[language], "seed": 42}, out)
+    video = tmp_path / "demo.mp4"
+    inputs = [arg for line in lines for arg in ("-i", str(out / line["audio"]))]
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=64x64", *inputs,
+                    "-filter_complex", "".join(f"[{i + 1}:a]" for i in range(len(lines))) + f"concat=n={len(lines)}:v=0:a=1[a]",
+                    "-map", "0:v", "-map", "[a]", "-shortest", "-c:v", "libx264", "-c:a", "aac", str(video)], check=True)
+
+    code, result = real_voxx("transcribe", video, "--model", transcriber, "--words")
+
+    assert code == 0, result
+    data = result["data"]
+    assert data["language"] == language
+    said = "".join(line["text"] for line in lines) if language == "zh" else " ".join(line["text"] for line in lines)
+    assert error_rate(said, data["text"]) <= 0.15, data["text"]
+    [passage] = data["passages"]
+    assert passage["words"] and all(0 <= w["start"] <= w["end"] <= data["duration"] for w in passage["words"])

@@ -25,6 +25,9 @@ HEARD_ENV = "VOXX_TEST_FAKE_HEARD"
 # What the fake Engine hears in a recording it did not read itself, such as a Reference Recording; HEARD_ENV can map it
 # to something else too.
 REFERENCE_HEARD = "这是我自己的声音。"
+# A JSON list of what the fake Engine hears, as [text, language], in each recording it did not read itself, in the
+# order this worker transcribes them, such as the Passages of a Media File; after the last, it hears REFERENCE_HEARD.
+SPOKEN_ENV = "VOXX_TEST_FAKE_SPOKEN"
 # A JSON object from a Line's text to the [word, start, end] list the fake Engine aligns it to instead, or to the
 # error it fails with; any other Line's words are spread evenly over the sound in its WAV.
 ALIGNED_ENV = "VOXX_TEST_FAKE_ALIGNED"
@@ -49,6 +52,8 @@ SHAPES = [Shape(0.2, 0.25, 0.35), Shape(0.01, 0.0, 0.8), Shape(0.7, 0.6, 0.0), S
 class FakeEngine:
     # A tone carries no words, so the fake Engine transcribes the text it last read in this worker.
     last_read = None
+    # How many of SPOKEN_ENV's recordings it has transcribed.
+    spoken = 0
 
     def load(self, path, capability, *, extra_repos):
         _crash_if("load")
@@ -79,9 +84,13 @@ class FakeEngine:
         _crash_if("transcribe")
         with wave.open(str(path)) as audio:
             if not any(audio.readframes(audio.getnframes())):
-                return ""
-        heard = REFERENCE_HEARD if FakeEngine.last_read is None else FakeEngine.last_read
-        return json.loads(os.environ.get(HEARD_ENV, "{}")).get(heard, heard)
+                return "", None
+        heard, heard_language = (REFERENCE_HEARD, "zh") if FakeEngine.last_read is None else (FakeEngine.last_read, None)
+        spoken = json.loads(os.environ.get(SPOKEN_ENV, "[]"))
+        if FakeEngine.last_read is None and FakeEngine.spoken < len(spoken):
+            heard, heard_language = spoken[FakeEngine.spoken]
+            FakeEngine.spoken += 1
+        return json.loads(os.environ.get(HEARD_ENV, "{}")).get(heard, heard), language or heard_language
 
     def align(self, path, *, model, text, language):
         _crash_if("align")

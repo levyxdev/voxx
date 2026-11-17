@@ -38,8 +38,9 @@ class Engine(Protocol):
         another voice, so a Design Take is fixed by its audio, not by its description (ADR 0007)."""
         ...
 
-    def transcribe(self, path: Path, *, model: str, language: str | None) -> str:
-        """The words spoken in the WAV at path, in language, a BCP 47 tag; None means whatever language is heard."""
+    def transcribe(self, path: Path, *, model: str, language: str | None) -> tuple[str, str | None]:
+        """The words spoken in the WAV at path, in language, a BCP 47 tag; None means whatever language is heard. Returns
+        the words and the language, as the tag of the one heard when none was given, or None if it has no tag."""
         ...
 
     def align(self, path: Path, *, model: str, text: str, language: str) -> list[tuple[str, float, float]]:

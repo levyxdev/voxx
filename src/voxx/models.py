@@ -154,9 +154,15 @@ REGISTRY = (
     Model("qwen3-forcedaligner-0.6b", "mlx-audio", ("align",), QWEN3_ALIGNER_LANGUAGES,
           "mlx-community/Qwen3-ForcedAligner-0.6B-8bit", "0e1a68e91d815300c7c9754b2a7639378b23db15", 1_276_475_979,
           _apache("https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B"), QWEN3_ASR_CODE, VERIFIED),
+    # Transcribing Models go from the lightest to the one that hears best. The first checks Lines and fills in a
+    # Reference Recording's text, beside the Model that reads; `voxx transcribe` takes the last one installed (ADR 0011).
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
           "mlx-community/Qwen3-ASR-0.6B-8bit", "89e96d92ba34aca20b3e29fb10cc284097d1219f", 1_010_773_761,
           _apache("https://huggingface.co/Qwen/Qwen3-ASR-0.6B"), QWEN3_ASR_CODE, VERIFIED),
+    # The same 30 languages in its pinned config.json, checked 2026-11-17.
+    Model("qwen3-asr-1.7b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,
+          "mlx-community/Qwen3-ASR-1.7B-8bit", "a8379a2e2f9e313c9292cdf1af4055ab56d50d55", 2_467_859_030,
+          _apache("https://huggingface.co/Qwen/Qwen3-ASR-1.7B"), QWEN3_ASR_CODE, "2026-11-17"),
     # Kept after the audition (levyxdev/voxx#25), checked 2026-11-06. It follows Delivery Controls but not style: with a
     # Preset Voice or a Reference Recording it keeps the voice and ignores the style (tested in levyxdev/voxx#33).
     Model("ming-3.0-tts-0.5b", "mlx-audio", ("preset_voice", "clone", "design"), MING_LANGUAGES,
@@ -189,6 +195,11 @@ FAKE_ASR_MODEL = Model("fake-asr", "fake", ("transcribe",), ("zh", "en", "yue"),
                        "voxx-test/fake-asr", "fedcba9876543210fedcba9876543210fedcba98", 4096,
                        _apache("https://huggingface.co/voxx-test/fake-asr"), _apache("https://github.com/levyxdev/voxx"),
                        VERIFIED)
+# Hears best of the fake transcribing Models, as Qwen3-ASR-1.7B does of the real ones.
+FAKE_ASR_LARGE_MODEL = Model("fake-asr-large", "fake", ("transcribe",), ("zh", "en", "yue"),
+                             "voxx-test/fake-asr-large", "e1d2c3b4a5968778695a4b3c2d1e0f1e2d3c4b5a", 4096,
+                             _apache("https://huggingface.co/voxx-test/fake-asr-large"),
+                             _apache("https://github.com/levyxdev/voxx"), VERIFIED)
 # Times the words of the fake Models' Lines, in the languages the real aligner reads.
 FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
                          "voxx-test/fake-aligner", "76543210fedcba9876543210fedcba9876543210", 4096,
@@ -214,7 +225,7 @@ FAKE_EXTRA_MODEL = Model("fake-clone-extra", "fake", ("clone",), ("zh", "en"),
                          _apache("https://huggingface.co/voxx-test/fake-clone-extra"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED, 24_000,
                          extra_repos=(FAKE_EXTRA_REPO,))
-FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL,
+FAKE_MODELS = (FAKE_MODEL, FAKE_SMALL_MODEL, FAKE_ASR_MODEL, FAKE_ASR_LARGE_MODEL, FAKE_ALIGN_MODEL, FAKE_CLONE_MODEL, FAKE_CLONE_ALT_MODEL,
                FAKE_EXTRA_MODEL)
 
 
@@ -371,6 +382,13 @@ def aligner_for(model, language):
 def _listener_for(model, language, capability):
     return next((m for m in models() if capability in m.capabilities and m.engine == model.engine
                  and (language is None or language in m.languages)), None)
+
+
+def default_transcribe_model():
+    """The Model `voxx transcribe` uses unless --model names one: the installed transcribing Model that hears best, else
+    the one that hears best, to ask the user to install."""
+    transcribers = [m for m in models() if "transcribe" in m.capabilities]
+    return next((m for m in reversed(transcribers) if is_installed(m)), transcribers[-1])
 
 
 def preset_voice_names():

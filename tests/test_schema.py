@@ -151,3 +151,15 @@ def test_schema_describes_voice_default_and_which_voices_are_defaults(voxx):
     for kind in commands["voices"]["result"]["properties"]["voices"]["items"]["oneOf"]:
         assert "default_for" in kind["required"]
     assert "default_voice" in commands["narrate"]["errors"]["unknown_voice"]["description"]
+
+
+def test_schema_describes_transcribe(voxx):
+    transcribe = voxx("schema", "transcribe").result["data"]["transcribe"]
+
+    assert transcribe["arguments"]["required"] == ["media"]
+    assert {"language", "model", "words"} <= set(transcribe["arguments"]["properties"])
+    passage = transcribe["result"]["properties"]["passages"]["items"]
+    assert {"start", "end", "language", "text", "warnings"} <= set(passage["required"])
+    assert "words" in passage["properties"]
+    assert {"media_not_found", "unreadable_media", "silent_media", "model_not_installed",
+            "unsupported_language"} <= set(transcribe["errors"])

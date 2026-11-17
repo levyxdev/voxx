@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 from typing import cast
 
-from voxx.audio import finish, prepare_reference, write_wav
+from voxx.audio import finish, prepare_reference, split_media, write_wav
 from voxx.engines import load_engine
 from voxx.models import extra_repo_paths, find_model
 from voxx.output import VoxxError, dumps, progress
@@ -42,8 +42,13 @@ class Worker:
         return {"warnings": prepare_reference(Path(source), Path(path))}
 
     def transcribe_line(self, *, model, engine, model_path, capability, language, path):
-        return {"transcript": self._engine(model, engine, model_path, capability).transcribe(
-            Path(path), model=model, language=language)}
+        """The words heard in the WAV at path, and the language heard, or the one given."""
+        transcript, heard = self._engine(model, engine, model_path, capability).transcribe(Path(path), model=model,
+                                                                                            language=language)
+        return {"transcript": transcript, "language": heard}
+
+    def split_media(self, *, source, directory):
+        return split_media(Path(source), Path(directory))
 
     def align_line(self, *, model, engine, model_path, capability, text, language, path):
         """The Line's words as [word, start, end], or why the Model could not align them: that costs the Line only its words."""
@@ -70,7 +75,8 @@ def main():
     cast(io.TextIOWrapper, sys.stderr).reconfigure(encoding="utf-8")
     worker = Worker()
     methods = {"synthesize_line": worker.synthesize_line, "transcribe_line": worker.transcribe_line,
-               "align_line": worker.align_line, "prepare_reference": worker.prepare_reference, "shutdown": lambda: None}
+               "align_line": worker.align_line, "prepare_reference": worker.prepare_reference,
+               "split_media": worker.split_media, "shutdown": lambda: None}
     for line in sys.stdin:
         request = json.loads(line)
         response = {"jsonrpc": "2.0", "id": request.get("id")}

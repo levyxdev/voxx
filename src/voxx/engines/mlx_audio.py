@@ -22,6 +22,8 @@ LANGUAGE_NAMES = {"zh": "chinese", "en": "english", "ja": "japanese", "ko": "kor
                   "el": "greek", "ro": "romanian", "hu": "hungarian", "mk": "macedonian", "yue": "cantonese",
                   "fil": "filipino", "my": "burmese", "he": "hebrew", "km": "khmer", "lo": "lao", "no": "norwegian",
                   "sw": "swahili", "tl": "tagalog"}
+# Qwen3-ASR names the language it heard in English too.
+LANGUAGE_TAGS = {name: tag for tag, name in LANGUAGE_NAMES.items()}
 
 
 # Ming-3.0-tts's words for the values of each Delivery Control (its cookbook's "Speech Control").
@@ -134,9 +136,13 @@ class MlxAudioEngine:
     def transcribe(self, path, *, model, language):
         # Greedy decoding, so the same Line is always heard the same way; the path lets mlx-audio resample to 16 kHz.
         # No language lets Qwen3-ASR detect it.
-        text = self.model.generate(str(path), language=language and LANGUAGE_NAMES[language], verbose=False).text
+        result = self.model.generate(str(path), language=language and LANGUAGE_NAMES[language], verbose=False)
         mx.clear_cache()
-        return text
+        if language is not None:
+            return result.text, language
+        # One name per stretch mlx-audio cut the audio into, the first of which speaks for it.
+        heard = result.language[0] if isinstance(result.language, list) and result.language else result.language
+        return result.text, LANGUAGE_TAGS.get(str(heard).lower())
 
     def align(self, path, *, model, text, language):
         # The aligner splits the text into words itself: by character for Chinese, by space for English.

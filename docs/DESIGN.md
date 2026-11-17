@@ -4,7 +4,7 @@
 
 ## In one sentence
 
-voxx is a local voice CLI plus a skill, **for agents only**: an agent hands it a Narration, it reads each Line in one continuous take, and returns one audio file per Line plus word timings. Its main use is voicing CueTake screen recordings: the voice-over comes first, the screen is recorded to it, and the picture follows the sound.
+voxx is a local voice CLI plus a skill, **for agents only**: an agent hands it a Narration, it reads each Line in one continuous take, and returns one audio file per Line plus word timings. Its main use is voicing CueTake screen recordings: the voice-over comes first, the screen is recorded to it, and the picture follows the sound. It also listens: `voxx transcribe` returns what is said in an audio or video file ([ADR 0011](adr/0011-voxx-also-transcribes-media-files.md)).
 
 ## Core principle: what is deterministic is fixed in the CLI, judgement goes to the agent
 
@@ -60,13 +60,21 @@ voxx voice design --describe <description>... --text <sample text> --language <t
 voxx voice add <name> --from-design <dir> --take <n> [--model <id>] [--overwrite]   # store the chosen Design Take as a Designed Voice
 voxx voices [--model <id>] [--language <tag>]   # list Preset, Cloned and Designed Voices, with the languages each is the Default Voice of
 voxx voice default (<name> | --clear) --language <tag>   # set or clear the Default Voice of a language
+voxx transcribe <media> [--language <tag>] [--model <id>] [--words]   # the Transcript of an audio or video file, Passage by Passage; --words times each word
 voxx models                                                   # the registry (commercially usable Models only)
 voxx install <model>                                          # the only command that downloads, Extra Repos included
 voxx doctor                                                   # platform, installed Models, disk
 voxx schema                                                   # every command's arguments and result shape
 ```
 
-`align`, `transcribe` and `batch` are not exposed: they are only internal steps of `narrate`.
+`align` and `batch` are not exposed: they are only internal steps of `narrate` and `transcribe`.
+
+## How one Media File is transcribed
+
+1. The CLI checks the file exists and the transcribing Model is installed: `--model`, else the installed one that hears best (Qwen3-ASR-1.7B, then 0.6B), then starts the worker.
+2. The worker decodes the file to mono 16 kHz, through mlx-audio's reader or else ffmpeg (video, and any other format it cannot decode), and cuts it into Passages of at most 300 seconds, each at the quietest tenth of a second in the last 60 seconds before the limit: the aligner times at most five minutes at once.
+3. Passage by Passage: transcribe it, in `--language` or else the language heard → with `--words`, align its text in that language, and count its words' times from the start of the file (a missing aligner or a language no aligner reads costs only the words, with a warning).
+4. The CLI joins the Passages' texts and prints the Transcript; its `language` is `--language`, else the language heard for longest. Nothing is written to disk but temporary Passage WAVs.
 
 ## How one Narration is processed
 
@@ -100,7 +108,8 @@ Only Models whose weight license allows commercial use are registered ([ADR 0003
 | Preset Voice, Cloned Voice, voice design, Delivery Control | Ming-3.0-tts-0.5B (levyxdev/voxx#33) |
 | Voice design (10 languages) | Qwen3-TTS-12Hz-1.7B-VoiceDesign (levyxdev/voxx#36) |
 | Forced alignment | Qwen3-ForcedAligner-0.6B |
-| Self-check transcription, filling in Reference Recording text | Qwen3-ASR-0.6B |
+| Self-check transcription, filling in Reference Recording text, `transcribe` when 1.7B is not installed | Qwen3-ASR-0.6B |
+| `voxx transcribe` (preferred) | Qwen3-ASR-1.7B |
 
 There is no third-party evaluation of how Chinese sounds; the defaults get adjusted after real listening. The reasons and data are in the survey.
 

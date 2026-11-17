@@ -1,6 +1,9 @@
-"""Finishing and writing a Line's audio and a Reference Recording. Worker-side only."""
+"""Finishing and writing a Line's audio and a Reference Recording, and cutting a Media File into Passages.
+Worker-side only."""
 
 import math
+import shutil
+import subprocess
 import warnings
 import wave
 
@@ -22,6 +25,15 @@ REACH = 0.01  # seconds either side of a peak over which the limiter turns the L
 # Every Reference Recording is stored at one rate: as high as any cloning Model hears (Qwen3-TTS Base hears 24 kHz,
 # VoxCPM2 16 kHz), so storing more would keep nothing a Model uses.
 REFERENCE_SAMPLE_RATE = 24_000
+# Passages are cut at the rate Qwen3-ASR and Qwen3-ForcedAligner hear at, at most PASSAGE_MAX seconds long, since the
+# aligner times at most five minutes at once; each cut is at the quietest QUIET_SPAN in the PASSAGE_SEARCH seconds
+# before the limit (ADR 0011).
+MEDIA_SAMPLE_RATE = 16_000
+PASSAGE_MAX = 300
+PASSAGE_SEARCH = 60
+QUIET_SPAN = 0.1
+UNREADABLE_MEDIA_HINT = ("Pass an audio or video file. voxx decodes WAV, MP3 and FLAC itself, and other formats, "
+                         "video included, with ffmpeg")
 
 
 def finish(samples, sample_rate):
@@ -66,6 +78,57 @@ def prepare_reference(source, path):
                         {"ref": str(source)}, USAGE)
     write_wav(path, samples, REFERENCE_SAMPLE_RATE)
     return found
+
+
+def split_media(source, directory):
+    """Decodes the Media File at `source` and writes its Passages into `directory` as passage-<n>.wav. Returns its
+    duration and each Passage's path, start and end, in seconds."""
+    samples = _read_media(source)
+    if not len(samples):
+        raise VoxxError("silent_media", f"{source} has no audio.", "Pass a file with speech in it.",
+                        {"media": str(source)}, USAGE)
+    passages = []
+    for number, (start, end) in enumerate(passage_bounds(samples, MEDIA_SAMPLE_RATE), start=1):
+        path = directory / f"passage-{number}.wav"
+        write_wav(path, samples[start:end], MEDIA_SAMPLE_RATE)
+        passages.append({"path": str(path), "start": round(start / MEDIA_SAMPLE_RATE, 3),
+                         "end": round(end / MEDIA_SAMPLE_RATE, 3)})
+    return {"duration": round(len(samples) / MEDIA_SAMPLE_RATE, 3), "passages": passages}
+
+
+def passage_bounds(samples, sample_rate):
+    """[start, end) of each Passage, in samples: contiguous, covering every sample, none longer than PASSAGE_MAX."""
+    limit, search, span = PASSAGE_MAX * sample_rate, PASSAGE_SEARCH * sample_rate, round(QUIET_SPAN * sample_rate)
+    bounds, start = [], 0
+    while len(samples) - start > limit:
+        searched = samples[start + limit - search:start + limit].astype(np.float64)
+        cut = start + limit - search + int(np.argmin(uniform_filter1d(searched**2, span, mode="nearest")))
+        bounds.append((start, cut))
+        start = cut
+    return bounds + [(start, len(samples))]
+
+
+def _read_media(source):
+    """Mono float32 samples at MEDIA_SAMPLE_RATE: through mlx-audio's reader, else ffmpeg for what it cannot decode."""
+    from mlx_audio.audio_io import read
+
+    try:
+        samples, _ = read(str(source), dtype="float32", sample_rate=MEDIA_SAMPLE_RATE, nchannels=1)
+        return np.asarray(samples, dtype=np.float32).reshape(-1)
+    except Exception as e:
+        failure = f"{type(e).__name__}: {e}"
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise VoxxError("unreadable_media", f"Cannot decode {source}: {failure}",
+                        UNREADABLE_MEDIA_HINT + ", which is not installed: install it, such as with `brew install ffmpeg`.",
+                        {"media": str(source)}, USAGE)
+    decoded = subprocess.run([ffmpeg, "-nostdin", "-loglevel", "error", "-i", str(source), "-vn", "-f", "s16le", "-ac", "1",
+                              "-ar", str(MEDIA_SAMPLE_RATE), "pipe:1"], capture_output=True)
+    if decoded.returncode != 0:
+        raise VoxxError("unreadable_media", f"Neither mlx-audio nor ffmpeg can decode {source}: "
+                                            f"{decoded.stderr.decode(errors='replace').strip() or failure}",
+                        UNREADABLE_MEDIA_HINT + "; ffmpeg could not decode this one either.", {"media": str(source)}, USAGE)
+    return np.frombuffer(decoded.stdout, "<i2").astype(np.float32) / 32768
 
 
 def _loudness(samples, sample_rate):

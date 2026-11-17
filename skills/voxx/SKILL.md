@@ -1,11 +1,11 @@
 ---
 name: voxx
-description: "Voice a Narration locally with the voxx CLI: one WAV and word timings per Line, in a Preset Voice, a Cloned Voice or a Designed Voice, ready for `cuetake record --narration`. Use when a demo video or any other project needs spoken narration, voice-over or text-to-speech, or the user wants to clone or design a voice."
+description: "Voice a Narration locally with the voxx CLI: one WAV and word timings per Line, in a Preset Voice, a Cloned Voice or a Designed Voice, ready for `cuetake record --narration`; or transcribe what is said in a local audio or video file. Use when a demo video or any other project needs spoken narration, voice-over or text-to-speech, the user wants to clone or design a voice, or the user wants the words, or word timings, of a recording or video on their machine."
 ---
 
 # voxx agent operating manual
 
-voxx reads each Line of a Narration in one go with a local speech Model and hands back a WAV per Line and its word timings. The CLI does what is deterministic; you make the judgment calls: language, Voice, `style`, whether a Line needs reading again, and asking the user before anything is downloaded. Run every command through `scripts/voxx` in this skill's folder; it launches the pinned voxx version with `uvx`, and this manual writes commands without that path. Read [setup.md](setup.md) when `uvx` is missing, `doctor` reports an unsupported platform, a command exits 3 or warns that a Model is not installed, or the user wants voxx removed. Read [cloning.md](cloning.md) before cloning a voice, and [designing.md](designing.md) before designing one.
+voxx reads each Line of a Narration in one go with a local speech Model and hands back a WAV per Line and its word timings. The CLI does what is deterministic; you make the judgment calls: language, Voice, `style`, whether a Line needs reading again, and asking the user before anything is downloaded. Run every command through `scripts/voxx` in this skill's folder; it launches the pinned voxx version with `uvx`, and this manual writes commands without that path. Read [setup.md](setup.md) when `uvx` is missing, `doctor` reports an unsupported platform, a command exits 3 or warns that a Model is not installed, or the user wants voxx removed. Read [cloning.md](cloning.md) before cloning a voice, [designing.md](designing.md) before designing one, and [transcribing.md](transcribing.md) before transcribing an audio or video file.
 
 Every command prints one JSON object on stdout and NDJSON progress on stderr. `voxx schema` describes every command's arguments, the Narration file, the results, the warnings and the exit codes; it is the reference, so look things up there rather than guessing.
 

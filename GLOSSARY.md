@@ -1,6 +1,6 @@
 # voxx
 
-voxx is a local voice tool for agents only: it reads aloud, Line by Line, a narration an agent has written, and returns the audio and word timings. Terms it shares with CueTake keep the same names.
+voxx is a local voice tool for agents only: it reads aloud, Line by Line, a narration an agent has written, and returns the audio and word timings; it also transcribes what is said in an audio or video file. Terms it shares with CueTake keep the same names.
 
 ## Language
 
@@ -19,8 +19,22 @@ A way a Line asks to be read, from fixed values. There are four: emotion (happy,
 _Avoid_: control instruction, instruct, parameter
 
 **Word Timing**:
-The moments each word (each character, for Chinese) starts and ends in a Line's audio, relative to the start of that Line's audio.
+The moments each word (each character, for Chinese) starts and ends: in a Line's audio, relative to the start of that Line's audio; in a Transcript, relative to the start of its Media File.
 _Avoid_: alignment, timeline, time
+
+### Transcription
+
+**Media File**:
+An audio or video file whose speech `voxx transcribe` reads.
+_Avoid_: input, source, recording (a Reference Recording is something else)
+
+**Transcript**:
+What is said in a Media File, as voxx heard it: its text and language, Passage by Passage, with Word Timings on request.
+_Avoid_: subtitles, captions, transcription result
+
+**Passage**:
+A stretch of a Media File of at most five minutes, cut where it is quietest, transcribed and timed on its own, in the language heard in it.
+_Avoid_: segment, chunk, Line (a Line is read, a Passage is heard)
 
 ### Voices
 

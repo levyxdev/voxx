@@ -57,6 +57,11 @@ def _parser():
     design.add_argument("--takes", type=int, default=1)
     design.add_argument("--model")
     design.add_argument("--check", action="store_true")
+    transcribe = commands.add_parser("transcribe", add_help=False)
+    transcribe.add_argument("media")
+    transcribe.add_argument("--language")
+    transcribe.add_argument("--model")
+    transcribe.add_argument("--words", action="store_true")
     install = commands.add_parser("install", add_help=False)
     install.add_argument("model")
     commands.add_parser("doctor", add_help=False)
@@ -74,6 +79,9 @@ def main(argv=None):
         if args.command == "narrate":
             from voxx.narrate import narrate
             data = narrate(args.narration, args.out, args.model, args.lines, args.check)
+        elif args.command == "transcribe":
+            from voxx.transcribe import transcribe
+            data = transcribe(args.media, args.language, args.model, args.words)
         elif args.command == "install":
             from voxx.install import install
             data = install(args.model)

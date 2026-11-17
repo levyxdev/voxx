@@ -572,6 +572,85 @@ COMMANDS = {
         "result": {"$schema": DRAFT, "type": "object", "required": ["models"],
                    "properties": {"models": {"type": "array", "items": MODEL}}},
     },
+    "transcribe": {
+        "usage": "voxx transcribe <media> [--language <language>] [--model <model>] [--words]",
+        "description": "Print the Transcript of an audio or video file: what is said, Passage by Passage. voxx decodes "
+                       "WAV, MP3 and FLAC itself, and other formats, video included, with ffmpeg. The file is cut into "
+                       "Passages of at most 300 seconds where it is quietest, and each is transcribed in its own "
+                       "language. Uses the installed transcribing Model that hears best (qwen3-asr-1.7b before "
+                       "qwen3-asr-0.6b) unless --model names one.",
+        "arguments": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["media"],
+            "properties": {
+                "media": {"type": "string", "description": "Path of the audio or video file (positional)."},
+                "language": {**_language, "description": "The language spoken (--language); left out, each Passage is "
+                                                         "transcribed in the language heard."},
+                "model": {**_model_id, "description": "The Model that transcribes (--model)."},
+                "words": {"type": "boolean", "description": "Also time each word (--words), with the aligner: it costs "
+                                                           "about 1.3 GB more memory."},
+            },
+        },
+        "result": {
+            "$schema": DRAFT,
+            "type": "object",
+            "required": ["source", "model", "language", "duration", "text", "passages", "warnings"],
+            "properties": {
+                "source": {"type": "string", "description": "Absolute path of the file."},
+                "model": _model_id,
+                "language": {"anyOf": [_language, {"type": "null"}],
+                             "description": "--language, else the language heard for the longest time; null if no "
+                                            "words were heard."},
+                "duration": {"type": "number", "description": "Seconds of audio."},
+                "text": {"type": "string", "description": "Every Passage's text, joined with a space, but none between "
+                                                          "two full-width characters such as Chinese ones."},
+                "passages": {
+                    "type": "array",
+                    "description": "In order, contiguous, covering the whole file.",
+                    "items": {
+                        "type": "object",
+                        "required": ["start", "end", "language", "text", "warnings"],
+                        "properties": {
+                            "start": {"type": "number", "description": "Seconds from the start of the file."},
+                            "end": {"type": "number", "description": "Seconds from the start of the file."},
+                            "language": {"anyOf": [_language, {"type": "null"}],
+                                         "description": "--language, else the language heard; null if no words were "
+                                                        "heard or the language heard has no tag in voxx."},
+                            "text": {"type": "string", "description": "What was heard; empty for silence."},
+                            "words": {**ALIGN_FIELDS["words"],
+                                      "description": "Only with --words, when the aligner timed the Passage: each word "
+                                                     "of its text, in order, without punctuation, each Chinese "
+                                                     "character a word; start and end are seconds from the start of "
+                                                     "the file, within the Passage."},
+                            "warnings": {**LINE_OUTPUT_FIELDS["warnings"],
+                                         "description": "With --words, why the Passage has no words: no Model aligns "
+                                                        "its language, or the aligner failed (not_aligned)."},
+                        },
+                    },
+                },
+                "warnings": {**LINE_OUTPUT_FIELDS["warnings"],
+                             "description": "With --words, aligner_not_installed when the aligner is not installed: no "
+                                            "Passage has words; details give its size, license and install command."},
+            },
+        },
+        "errors": {
+            "media_not_found": {"description": "Exit 2: no file at the path given."},
+            "unreadable_media": {"description": "Exit 2: the file cannot be decoded; formats other than WAV, MP3 and FLAC "
+                                                "need ffmpeg."},
+            "silent_media": {"description": "Exit 2: the file has no audio."},
+            "model_not_installed": {**MODEL_NOT_INSTALLED,
+                                    "description": "details of a model_not_installed error (exit code 3): no "
+                                                   "transcribing Model is installed, or the one --model names is not; "
+                                                   "missing names the one to install. A missing aligner is a warning "
+                                                   "instead."},
+            "invalid_language": {"description": "Exit 2: --language is not a BCP 47 tag in canonical case."},
+            "unknown_model": {"description": "Exit 2: no Model by the id given to --model; details.known_models lists them."},
+            "capability_unsupported": {"description": "Exit 4: the Model given to --model cannot transcribe."},
+            "unsupported_language": {"description": "Exit 4: the Model cannot transcribe the language; "
+                                                    "details.languages lists what it transcribes."},
+        },
+    },
     "install": {
         "usage": "voxx install <model>",
         "description": "Download a Model into $VOXX_HOME/models, and its extra repos, if any, into $VOXX_HOME/hf-cache. "
