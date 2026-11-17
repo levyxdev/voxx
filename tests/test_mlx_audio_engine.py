@@ -150,3 +150,12 @@ def test_voxcpm2_designs_from_the_description_as_instruct(monkeypatch):
 
     assert arguments(engine) == {"text": "Hello.", "instruct": "A calm man.", "lang_code": "english", "split_pattern": "",
                                  "verbose": False}
+
+
+def test_every_language_an_mlx_audio_model_registers_has_a_name_in_mlx_audio():
+    from voxx.models import REGISTRY
+
+    for model in REGISTRY:
+        assert model.engine == "mlx-audio"
+        for language in model.languages:
+            assert language in mlx_audio.LANGUAGE_NAMES, (model.id, language)

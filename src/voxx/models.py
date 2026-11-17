@@ -127,6 +127,13 @@ QWEN3_ASR_CODE = _apache("https://github.com/QwenLM/Qwen3-ASR")
 QWEN3_ASR_LANGUAGES = ("zh", "en", "yue", "ar", "de", "fr", "es", "pt", "id", "it", "ko", "ru", "th", "vi", "ja", "tr", "hi",
                        "ms", "nl", "sv", "da", "fi", "pl", "cs", "fil", "fa", "el", "ro", "hu", "mk")
 VERIFIED = "2026-10-30"
+# The 30 languages of VoxCPM2's model card (openbmb/VoxCPM2, checked 2026-11-17), as its metadata tags them; its
+# Chinese dialects are not offered. VoxCPM2 is given no language: it reads whichever the text is in.
+VOXCPM2_LANGUAGES = ("zh", "en", "ar", "my", "da", "nl", "fi", "fr", "de", "el", "he", "hi", "id", "it", "ja", "km", "ko",
+                     "lo", "ms", "no", "pl", "pt", "ru", "es", "sw", "sv", "tl", "th", "tr", "vi")
+# The pinned revision's config.json (support_languages, checked 2026-11-17) but Japanese and Korean: mlx-audio splits
+# their words with nagisa and soynlp, which voxx does not install.
+QWEN3_ALIGNER_LANGUAGES = ("zh", "yue", "en", "de", "es", "fr", "it", "pt", "ru")
 # Ming-3.0-tts reads these languages (its cookbook's "Target languages"); its dialects are not offered.
 MING_LANGUAGES = ("zh", "en", "ja", "ko", "de", "fr", "es")
 REGISTRY = (
@@ -137,14 +144,14 @@ REGISTRY = (
           QWEN3_TTS_VOICES, reads_style=True),
     # The first Model that clones is the one a new Cloned Voice is read with; the other is there to compare by ear.
     # The first Model that designs is the one `voxx voice design` uses.
-    Model("voxcpm2", "mlx-audio", ("clone", "design"), ("zh", "en"),
+    Model("voxcpm2", "mlx-audio", ("clone", "design"), VOXCPM2_LANGUAGES,
           "mlx-community/VoxCPM2-8bit", "d52725898a0675703f7f9ddc5a4d1a3cdbb99032", 3_226_617_581,
           _apache("https://huggingface.co/openbmb/VoxCPM2"), _apache("https://github.com/OpenBMB/VoxCPM"), VERIFIED, 48_000,
           reads_style=True),
     Model("qwen3-tts-1.7b-base", "mlx-audio", ("clone",), QWEN3_TTS_LANGUAGES,
           "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit", "e7dd0585652209fa0d7783659aad4e8a324de11c", 3_104_158_788,
           _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base"), QWEN3_TTS_CODE, VERIFIED, 24_000),
-    Model("qwen3-forcedaligner-0.6b", "mlx-audio", ("align",), ("zh", "en"),
+    Model("qwen3-forcedaligner-0.6b", "mlx-audio", ("align",), QWEN3_ALIGNER_LANGUAGES,
           "mlx-community/Qwen3-ForcedAligner-0.6B-8bit", "0e1a68e91d815300c7c9754b2a7639378b23db15", 1_276_475_979,
           _apache("https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B"), QWEN3_ASR_CODE, VERIFIED),
     Model("qwen3-asr-0.6b", "mlx-audio", ("transcribe",), QWEN3_ASR_LANGUAGES,

@@ -20,6 +20,8 @@ NARRATIONS = {
                                        {"id": "send", "text": "点一下发送就完成了。", "style": "语气兴奋"}]},
     "en": {"language": "en", "lines": [{"id": "intro", "text": "This is the new way to send a file."},
                                        {"id": "send", "text": "Press send, and you're done.", "style": "Excited."}]},
+    "fr": {"language": "fr", "lines": [{"id": "intro", "text": "Voici la nouvelle façon d'envoyer un fichier."},
+                                       {"id": "send", "text": "Appuyez sur envoyer, et c'est fini."}]},
 }
 
 
@@ -104,7 +106,7 @@ def test_a_real_model_reads_short_lines_that_qwen3_asr_transcribes_almost_word_f
         assert line["error_rate"] <= 0.25, (line["id"], line["text"], line["transcript"])
 
 
-@pytest.mark.parametrize("language", ["zh", "en"])
+@pytest.mark.parametrize("language", ["zh", "en", "fr"])
 def test_qwen3_forcedaligner_times_every_word_of_short_lines(model, language, tmp_path):
     out = tmp_path / "out"
     for line in narrate(model, {**NARRATIONS[language], "seed": 42}, out):

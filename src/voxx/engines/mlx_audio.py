@@ -20,7 +20,8 @@ LANGUAGE_NAMES = {"zh": "chinese", "en": "english", "ja": "japanese", "ko": "kor
                   "th": "thai", "vi": "vietnamese", "tr": "turkish", "hi": "hindi", "ms": "malay", "nl": "dutch",
                   "sv": "swedish", "da": "danish", "fi": "finnish", "pl": "polish", "cs": "czech", "fa": "persian",
                   "el": "greek", "ro": "romanian", "hu": "hungarian", "mk": "macedonian", "yue": "cantonese",
-                  "fil": "filipino"}
+                  "fil": "filipino", "my": "burmese", "he": "hebrew", "km": "khmer", "lo": "lao", "no": "norwegian",
+                  "sw": "swahili", "tl": "tagalog"}
 
 
 # Ming-3.0-tts's words for the values of each Delivery Control (its cookbook's "Speech Control").

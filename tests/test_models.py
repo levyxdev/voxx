@@ -36,6 +36,12 @@ def test_models_lists_every_registered_model_with_its_license(voxx):
     assert models["qwen3-tts-1.7b-customvoice"]["sample_rate"] == 24_000
     assert models["voxcpm2"]["sample_rate"] == 48_000
     assert models["ming-3.0-tts-0.5b"]["languages"] == ["zh", "en", "ja", "ko", "de", "fr", "es"]
+    # VoxCPM2's model card lists 30 languages, spelled as its own metadata spells them (tl, not fil).
+    assert models["voxcpm2"]["languages"] == ["zh", "en", "ar", "my", "da", "nl", "fi", "fr", "de", "el", "he", "hi", "id",
+                                              "it", "ja", "km", "ko", "lo", "ms", "no", "pl", "pt", "ru", "es", "sw", "sv",
+                                              "tl", "th", "tr", "vi"]
+    # The aligner's 11 languages but Japanese and Korean, whose word splitters mlx-audio would need extra packages for.
+    assert models["qwen3-forcedaligner-0.6b"]["languages"] == ["zh", "yue", "en", "de", "es", "fr", "it", "pt", "ru"]
     assert models["ming-3.0-tts-0.5b"]["sample_rate"] == 44_100
     assert models["ming-3.0-tts-0.5b"]["repo"] == "mlx-community/Ming-3.0-tts-0.5B-8bit"
     assert models["ming-3.0-tts-0.5b"]["revision"] == "d0d1da6f627e4b3f20cc2db6ba4aee86d45343ad"

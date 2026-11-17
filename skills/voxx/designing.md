@@ -14,7 +14,7 @@ Describe traits only. When the user asks for a voice that sounds like a real per
 
 Write it as in [cloning.md](cloning.md) step 2: two or three sentences in the Narration's language, about 10 seconds aloud, in everyday words, in the tone the Narration should have, written as spoken. Pass that language as `--language`.
 
-The default designing Model, VoxCPM2, designs only in Chinese and English. For another language, pass `--model` a Model whose `languages` include it (`voxx models --capability design`): Qwen3-TTS VoiceDesign designs in 10 languages.
+The default designing Model, VoxCPM2, designs in the 30 languages it lists in `voxx models --capability design`. For a language it does not read, pass `--model` a Model whose `languages` include it.
 
 ## 3. Let the user choose
 
@@ -37,6 +37,6 @@ Store the chosen take; like every Cloned Voice, it goes to `$VOXX_HOME/voices`:
 voice add <name> --from-design <the round's --out> --take <n> [--model <id>]
 ```
 
-It is read like a Cloned Voice: the Model and the `style` rules of [cloning.md](cloning.md) step 3 apply. It reads in any language its Model reads, not only the one it was designed in. The default cloning Model, VoxCPM2, also reads only Chinese and English, so a voice for a Narration in another language needs `voice add --model` with a cloning Model that reads it (`voxx models --capability clone`).
+It is read like a Cloned Voice: the Model and the `style` rules of [cloning.md](cloning.md) step 3 apply. It reads in any language its Model reads, not only the one it was designed in. When the default cloning Model, VoxCPM2, does not read the Narration's language, the voice needs `voice add --model` with a cloning Model that reads it (`voxx models --capability clone`).
 
 When delivering, a Designed Voice needs no reminder about the right to use a voice, since no real person's voice is in it; the reminder to label AI-generated speech still applies.
