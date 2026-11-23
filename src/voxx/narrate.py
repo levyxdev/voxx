@@ -9,7 +9,7 @@ from pathlib import Path
 
 from voxx.files import replacing, staging, writable_out
 from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, transcriber_for
-from voxx.narration import CONTROLS, MAX_SEED, check_narration, line_setting, load_narration
+from voxx.narration import CONTROLS, MAX_SEED, check_narration, line_setting, load_narration, respelled_text
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
 from voxx.voices import default_voices, resolve_voice
@@ -60,7 +60,8 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), check=False):
 
 
 def _plan_line(narration, line, chosen, check, shared_seed, earlier_seed=None):
-    """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), style,
+    """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), the text the
+    Model reads (its text with its Respellings applied; everything else keeps the text as written), style,
     Delivery Controls and seed, the Model that times its words, and with `check` the Model that transcribes it back.
 
     A Line that names no seed, nor its Narration, is read with `shared_seed`. A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
@@ -101,7 +102,8 @@ def _plan_line(narration, line, chosen, check, shared_seed, earlier_seed=None):
         seed = shared_seed
     while seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
-    return {"model": model, "voice": voice, "stored": stored, "style": style, "controls": controls, "warnings": warnings,
+    return {"model": model, "voice": voice, "stored": stored, "respelled": respelled_text(narration, line),
+            "style": style, "controls": controls, "warnings": warnings,
             "aligner": aligner, "transcriber": transcriber, "seed": seed}
 
 
@@ -144,13 +146,16 @@ def _read_line(worker, narration, line, plan, stage):
     else:
         voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"], "controls": plan["controls"]}
     result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
-                         text=line["text"], language=narration["language"], seed=plan["seed"], path=str(stage / audio),
+                         text=plan["respelled"], language=narration["language"], seed=plan["seed"], path=str(stage / audio),
                          **voice)
     line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
                 sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
     # A Line given back from an earlier run may still carry the words and self-check of its earlier audio.
-    for field in ("words", "transcript", "error_rate"):
+    for field in ("respelled", "words", "transcript", "error_rate"):
         line.pop(field, None)
+    # What the audio reads, kept so a later --line can tell it is stale once the Narration's say changes.
+    if plan["respelled"] != line["text"]:
+        line["respelled"] = plan["respelled"]
     if aligner := plan["aligner"]:
         aligned = worker.call("align_line", model=aligner.id, engine=aligner.engine, model_path=str(model_dir(aligner)),
                               capability="align", text=line["text"], language=narration["language"], path=str(stage / audio))
@@ -207,8 +212,11 @@ def _lines_to_keep(narration, earlier, to_read, chosen):
         # A warning from an earlier --line run is judged again against this Narration.
         warnings = [w for w in old.get("warnings", []) if w.get("code") != "stale_audio"]
         changes = []
+        respelled, old_respelled = respelled_text(narration, line), old.get("respelled", old["text"])
         if line["text"] != old["text"]:
             changes.append(f"its text is now {line['text']!r}")
+        elif respelled != old_respelled:
+            changes.append(f"it is now read as {respelled!r}, not {old_respelled!r}")
         if narration["language"] != earlier["language"]:
             changes.append(f"the Narration's language is now {narration['language']!r}")
         # The Voice this run would read the Line with, as _plan_line resolves it.

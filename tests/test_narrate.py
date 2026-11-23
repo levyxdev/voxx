@@ -98,6 +98,13 @@ def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_pat
     {"language": "zh", "lines": [{"id": "a", "text": "一", "speed": 1.2}]},
     {"language": "zh", "pitch": "Low", "lines": [{"id": "a", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a", "text": "一", "volume": None}]},
+    {"language": "zh", "say": "CueTake", "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "say": [["CueTake", "Q Take"]], "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "say": None, "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "say": {"": "一"}, "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "say": {"一": ""}, "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "say": {"一": 1}, "lines": [{"id": "a", "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "a", "text": "一", "say": {"一": None}}]},
 ])
 def test_an_invalid_narration_is_an_argument_error(installed, write_narration, tmp_path, narration):
     out = tmp_path / "out"

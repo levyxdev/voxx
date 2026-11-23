@@ -18,6 +18,10 @@ _Avoid_: segment, paragraph, sentence
 A way a Line asks to be read, from fixed values. There are four: emotion (happy, sad, angry, fearful, disgusted, surprised, neutral), speed (slow, medium, fast), pitch (low, medium, high) and volume (low, medium, high). Like style, set at the Narration's top level it is every Line's default, and set on a Line it overrides the default. A Model that cannot follow them ignores them with a warning and reads the Line anyway.
 _Avoid_: control instruction, instruct, parameter
 
+**Respelling**:
+A stretch of a Line's text and the text, written the way it should sound, that the Model reads in its place; given in `say`.
+_Avoid_: pronunciation, reading, alias, display text
+
 **Word Timing**:
 The moments each word (each character, for Chinese) starts and ends: in a Line's audio, relative to the start of that Line's audio; in a Transcript, relative to the start of its Media File.
 _Avoid_: alignment, timeline, time

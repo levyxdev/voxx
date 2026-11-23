@@ -110,10 +110,28 @@ def line_setting(narration, line, field):
     return line.get(field, narration.get(field))
 
 
+def respelled_text(narration, line):
+    """What the Model reads for a Line: its text with every Respelling in `say` applied. The Narration's `say` applies
+    to every Line, and a Line's own entries override it. The text is read left to right, and at each place the longest
+    key that matches is respelled; what it is respelled as is never respelled again."""
+    respellings = {**narration.get("say", {}), **line.get("say", {})}
+    keys = sorted(respellings, key=len, reverse=True)
+    text, read, i = line["text"], [], 0
+    while i < len(text):
+        key = next((k for k in keys if text.startswith(k, i)), None)
+        read.append(text[i] if key is None else respellings[key])
+        i += 1 if key is None else len(key)
+    return "".join(read)
+
+
 def _check_settings(obj, where):
     """The settings a Narration gives every Line and a Line can override."""
     for field in ("voice", "style"):
         _optional_string(obj, field, where)
+    say = obj.get("say", {})
+    if not (isinstance(say, dict) and all(isinstance(v, str) and k and v for k, v in say.items())):
+        _invalid(f"{where}.say", "say must be an object from text as shown to text as read, both non-empty strings, "
+                                 "when given.")
     for field, values in CONTROLS.items():
         if field in obj and obj[field] not in values:
             _invalid(f"{where}.{field}", f"{field} must be one of {', '.join(values)} when given.")

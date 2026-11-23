@@ -172,6 +172,29 @@ def test_a_line_whose_voice_or_style_changed_but_is_not_read_again_is_warned_sta
     assert lines_by_id(run)["intro"]["warnings"] == []
 
 
+@pytest.mark.parametrize("respelled", [
+    {**THREE_LINES, "say": {"简单": "检单"}},
+    with_line(THREE_LINES, "outro", say={"简单": "检单"}),
+])
+def test_a_line_now_read_as_other_text_but_not_read_again_is_warned_stale(installed, write_narration, tmp_path,
+                                                                          respelled):
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+
+    run = installed("narrate", write_narration(respelled), "--out", out, "--line", "send")
+
+    lines = lines_by_id(run)
+    assert [w["code"] for w in lines["outro"]["warnings"]] == ["stale_audio"]
+    assert "it is now read as '就这么检单。', not '就这么简单。'" in lines["outro"]["warnings"][0]["message"]
+    # A Respelling that matches nothing in a Line does not change how it is read.
+    assert lines["intro"]["warnings"] == []
+    # The earlier run now carries the new say, but the audio still reads the old text.
+    again = installed("narrate", write_narration(respelled), "--out", out, "--line", "send")
+    assert [w["code"] for w in lines_by_id(again)["outro"]["warnings"]] == ["stale_audio"]
+    fixed = installed("narrate", write_narration(respelled), "--out", out, "--line", "outro")
+    assert lines_by_id(fixed)["outro"]["warnings"] == []
+
+
 def test_a_narration_style_a_line_overrides_does_not_make_it_stale(installed, write_narration, tmp_path):
     out = tmp_path / "out"
     read_all(installed, write_narration, out)

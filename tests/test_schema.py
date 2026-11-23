@@ -163,3 +163,16 @@ def test_schema_describes_transcribe(voxx):
     assert "words" in passage["properties"]
     assert {"media_not_found", "unreadable_media", "silent_media", "model_not_installed",
             "unsupported_language"} <= set(transcribe["errors"])
+
+
+def test_schema_describes_respelling(voxx):
+    narrate = voxx("schema", "narrate").result["data"]["narrate"]
+    output = narrate["result"]["properties"]["narration"]["properties"]
+
+    for where in (narrate["input"]["properties"], narrate["input"]["properties"]["lines"]["items"]["properties"],
+                  output, output["lines"]["items"]["properties"]):
+        assert where["say"]["type"] == "object"
+    line = output["lines"]["items"]
+    assert line["properties"]["respelled"]["type"] == "string"
+    # A Line no Respelling matched has none.
+    assert "respelled" not in line["required"]

@@ -39,6 +39,13 @@ _CONTROLS = {field: {"enum": list(values), "description": f"{_CONTROL_WORDS[fiel
                                                          "other ignores it with a controls_ignored warning."}
              for field, values in CONTROLS.items()}
 
+# Respelling: what a Line is read as, where its text is what is shown.
+_SAY = {"type": "object", "propertyNames": {"minLength": 1}, "additionalProperties": _non_empty_string}
+_SAY_RULE = ("Each key found in a Line's text is read as its value, such as {\"CueTake\": \"Q Take\"} for a name or "
+             "{\"调岗\": \"掉岗\"} for a Chinese character with two readings: the longest key that matches wins, and "
+             "what a key is read as is never read as another key. Only the Model reads the respelled text: the Line's "
+             "text, words, subtitles and check keep the text as written.")
+
 NARRATION_INPUT = {
     "$schema": DRAFT,
     "title": "Narration",
@@ -57,6 +64,7 @@ NARRATION_INPUT = {
                                                       "Leave it out with a Cloned Voice or Designed Voice: a Line "
                                                       "with style sounds less like it."},
         **_CONTROLS,
+        "say": {**_SAY, "description": f"Respellings for every Line. {_SAY_RULE}"},
         "seed": {**_seed, "description": "Default seed for every Line. Omit for one random seed shared by every Line; the same seed, "
                                          "Model, Voice, style, Delivery Controls and text read the same way again."},
         "lines": {
@@ -74,6 +82,8 @@ NARRATION_INPUT = {
                     "style": {**_non_empty_string, "description": "Overrides the Narration's style for this Line."},
                     **{field: {**schema, "description": f"Overrides the Narration's {field} for this Line."}
                        for field, schema in _CONTROLS.items()},
+                    "say": {**_SAY, "description": "Respellings for this Line, beside the Narration's; an entry for the "
+                                                   "same text overrides the Narration's."},
                     "seed": {**_seed, "description": "Overrides the Narration's seed for this Line."},
                 },
             },
@@ -112,10 +122,16 @@ LINE_OUTPUT_FIELDS = {
                                                   "because the Model that would do it is not installed, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
                                                   "gives it other text, another language, another Voice, another "
-                                                  "style or other Delivery Controls.",
+                                                  "style or other Delivery Controls, or respells it otherwise (say).",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"},
                                           "details": MISSING_MODEL}}},
+}
+
+# Only on Lines a Respelling changed.
+RESPELLED_FIELDS = {
+    "respelled": {"type": "string", "description": "The text the Model read: the Line's text with its Respellings (say) "
+                                                   "applied. Absent when no Respelling matched."},
 }
 
 # Only on Lines a Model aligned; any other Line has a not_aligned or aligner_not_installed warning instead.
@@ -153,7 +169,7 @@ NARRATION_OUTPUT = {
                 **NARRATION_INPUT["properties"]["lines"]["items"],
                 "required": ["id", "text", *LINE_OUTPUT_FIELDS],
                 "properties": {**NARRATION_INPUT["properties"]["lines"]["items"]["properties"], **LINE_OUTPUT_FIELDS,
-                               **ALIGN_FIELDS, **SELF_CHECK_FIELDS},
+                               **RESPELLED_FIELDS, **ALIGN_FIELDS, **SELF_CHECK_FIELDS},
             },
         },
     },
