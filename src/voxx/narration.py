@@ -28,6 +28,11 @@ NARRATION_HINT = "Run `voxx schema narrate` to see the Narration file format."
 # has its own words for the values.
 CONTROLS = {"emotion": ("happy", "sad", "angry", "fearful", "disgusted", "surprised", "neutral"),
             "speed": ("slow", "medium", "fast"), "pitch": ("low", "medium", "high"), "volume": ("low", "medium", "high")}
+# Rate: how many times as fast as the Model read it a Line is played. Beyond this range a time-stretch sounds unnatural.
+MIN_RATE, MAX_RATE = 0.5, 2.0
+# The rate of a Line that gives none: played as the Model read it.
+AS_READ = 1
+RATE_RULE = f"rate must be a number from {MIN_RATE:g} to {MAX_RATE:g} when given."
 
 
 def load_narration(path):
@@ -106,7 +111,7 @@ def check_language_arg(language, hint):
 
 
 def line_setting(narration, line, field):
-    """A Line's voice, style, Delivery Control or seed: its own, else the Narration's, else None."""
+    """A Line's voice, style, Delivery Control, rate or seed: its own, else the Narration's, else None."""
     return line.get(field, narration.get(field))
 
 
@@ -135,6 +140,9 @@ def _check_settings(obj, where):
     for field, values in CONTROLS.items():
         if field in obj and obj[field] not in values:
             _invalid(f"{where}.{field}", f"{field} must be one of {', '.join(values)} when given.")
+    rate = obj.get("rate", AS_READ)
+    if type(rate) not in (int, float) or not MIN_RATE <= rate <= MAX_RATE:
+        _invalid(f"{where}.rate", RATE_RULE)
     seed = obj.get("seed", 0)
     if type(seed) is not int or not 0 <= seed <= MAX_SEED:
         _invalid(f"{where}.seed", SEED_RULE)

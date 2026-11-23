@@ -1,7 +1,7 @@
 """`voxx schema`: every command's arguments and result as JSON Schema, so agents never guess."""
 
 from voxx.models import CAPABILITIES, LISTED_VOICES_MAX
-from voxx.narration import CONTROLS, LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_SEED
+from voxx.narration import CONTROLS, LANGUAGE_PATTERN, LANGUAGE_RULE, LINE_ID_RULE, MAX_RATE, MAX_SEED, MIN_RATE
 from voxx.output import USAGE, VoxxError
 
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
@@ -46,6 +46,9 @@ _SAY_RULE = ("Each key found in a Line's text is read as its value, such as {\"C
              "what a key is read as is never read as another key. Only the Model reads the respelled text: the Line's "
              "text, words, subtitles and check keep the text as written.")
 
+# Rate: a Line's audio played faster or slower than the Model read it.
+_RATE = {"type": "number", "minimum": MIN_RATE, "maximum": MAX_RATE}
+
 NARRATION_INPUT = {
     "$schema": DRAFT,
     "title": "Narration",
@@ -65,8 +68,13 @@ NARRATION_INPUT = {
                                                       "with style sounds less like it."},
         **_CONTROLS,
         "say": {**_SAY, "description": f"Respellings for every Line. {_SAY_RULE}"},
+        "rate": {**_RATE, "description": "How many times as fast as the Model read it each Line is played, at the same "
+                                         "pitch: 1.25 is a quarter faster, 0.8 a fifth slower. Every Model gets it, "
+                                         "since voxx time-stretches the audio after the Model reads the Line; words "
+                                         "and --check are taken from the stretched audio. Omit, or give 1, for the "
+                                         "audio as the Model read it."},
         "seed": {**_seed, "description": "Default seed for every Line. Omit for one random seed shared by every Line; the same seed, "
-                                         "Model, Voice, style, Delivery Controls and text read the same way again."},
+                                         "Model, Voice, style, Delivery Controls, rate and text read the same way again."},
         "lines": {
             "type": "array",
             "minItems": 1,
@@ -84,6 +92,7 @@ NARRATION_INPUT = {
                        for field, schema in _CONTROLS.items()},
                     "say": {**_SAY, "description": "Respellings for this Line, beside the Narration's; an entry for the "
                                                    "same text overrides the Narration's."},
+                    "rate": {**_RATE, "description": "Overrides the Narration's rate for this Line."},
                     "seed": {**_seed, "description": "Overrides the Narration's seed for this Line."},
                 },
             },
@@ -99,6 +108,18 @@ MISSING_MODEL = {
     "required": [*INSTALL_SUMMARY["required"], "command"],
     "properties": {**INSTALL_SUMMARY["properties"],
                    "command": {"type": "string", "description": "The `voxx install` command that installs it."}},
+}
+
+# Only on stale_audio warnings.
+STALE_AUDIO = {
+    "type": "object",
+    "description": "What the stale audio was read with, so a later --line still finds it stale.",
+    "required": ["read_with"],
+    "properties": {"read_with": {"type": "object", "required": ["language"],
+                                 "description": "The language, and the style, Delivery Controls and rate the Line had, "
+                                                "of the Narration it was read with; a setting it had none of is absent.",
+                                 "properties": {"language": _language, "style": _non_empty_string, **_CONTROLS,
+                                                "rate": _RATE}}},
 }
 
 LINE_OUTPUT_FIELDS = {
@@ -122,10 +143,11 @@ LINE_OUTPUT_FIELDS = {
                                                   "because the Model that would do it is not installed, or a Line kept by "
                                                   "--line whose audio is stale (stale_audio) because the Narration now "
                                                   "gives it other text, another language, another Voice, another "
-                                                  "style or other Delivery Controls, or respells it otherwise (say).",
+                                                  "style, other Delivery Controls or another rate, or respells it "
+                                                  "otherwise (say).",
                  "items": {"type": "object", "required": ["code", "message"],
                            "properties": {"code": {"type": "string"}, "message": {"type": "string"},
-                                          "details": MISSING_MODEL}}},
+                                          "details": {"anyOf": [MISSING_MODEL, STALE_AUDIO]}}}},
 }
 
 # Only on Lines a Respelling changed.

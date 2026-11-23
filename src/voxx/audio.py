@@ -10,7 +10,8 @@ import wave
 import numpy as np
 import pyloudnorm
 from scipy.ndimage import minimum_filter1d, uniform_filter1d
-from scipy.signal import resample_poly
+from scipy.signal import correlate, resample_poly
+from scipy.signal.windows import hann
 
 from voxx.files import replacing
 from voxx.output import BUG_HINT, USAGE, VoxxError
@@ -22,7 +23,7 @@ QUIET = 10 ** (-50 / 20)  # a sample this far below the Line's peak counts as si
 BLOCK = 0.4  # seconds: the loudness meter's gating block
 CEILING = 10 ** (-1 / 20)  # the highest peak a Line may reach, a little below full scale so it never clips
 REACH = 0.01  # seconds either side of a peak over which the limiter turns the Line down and back up
-# Every Reference Recording is stored at one rate: as high as any cloning Model hears (Qwen3-TTS Base hears 24 kHz,
+# Every Reference Recording is stored at one sample rate: as high as any cloning Model hears (Qwen3-TTS Base hears 24 kHz,
 # VoxCPM2 16 kHz), so storing more would keep nothing a Model uses.
 REFERENCE_SAMPLE_RATE = 24_000
 # Passages are cut at the rate Qwen3-ASR and Qwen3-ForcedAligner hear at, at most PASSAGE_MAX seconds long, since the
@@ -32,6 +33,10 @@ MEDIA_SAMPLE_RATE = 16_000
 PASSAGE_MAX = 300
 PASSAGE_SEARCH = 60
 QUIET_SPAN = 0.1
+# A Line given a Rate is time-stretched in frames of about STRETCH_FRAME seconds, as ffmpeg's atempo does, each taken from
+# within STRETCH_SEARCH seconds of where the rate puts it, which spans a period of even a low voice.
+STRETCH_FRAME = 1 / 24
+STRETCH_SEARCH = 0.01
 UNREADABLE_MEDIA_HINT = ("Pass an audio or video file. voxx decodes WAV, MP3 and FLAC itself, and other formats, "
                          "video included, with ffmpeg")
 
@@ -53,6 +58,34 @@ def finish(samples, sample_rate):
         return samples, []
     return samples, [{"code": "loudness_below_target",
                       "message": f"The Line peaks too often to reach {LOUDNESS:g} LUFS without clipping; it is {reached:.1f} LUFS."}]
+
+
+def stretch(samples, sample_rate, rate):
+    """The samples played `rate` times as fast at the same pitch, about len(samples) / rate long: WSOLA, as ffmpeg's
+    atempo. Hann frames at 50% overlap are laid one after another, each read from where it best continues the frame
+    before it, by cross-correlation, within STRETCH_SEARCH of where the rate puts it in the input, so the read position
+    never drifts from the rate."""
+    size = round(sample_rate * STRETCH_FRAME) // 2 * 2
+    hop, search = size // 2, round(sample_rate * STRETCH_SEARCH)
+    window = hann(size, sym=False)
+    # Silence around the input, so every frame and every place it is searched for lies inside it.
+    padded = np.concatenate([np.zeros(search), samples.astype(np.float64), np.zeros(2 * size + search)])
+    length = round(len(samples) / rate)
+    stretched = np.zeros(length + size)
+    read = None
+    for start in range(0, length, hop):
+        nominal = min(round(start * rate) + search, len(padded) - size - search)
+        if read is not None:
+            # The input that would have come next after the frame before, and where near nominal it is most alike.
+            following = padded[read + hop:read + hop + size]
+            region = padded[nominal - search:nominal + search + size]
+            # Of the places most alike, the one nearest nominal: in silence every place is alike.
+            likeness = correlate(region, following, mode="valid")
+            offsets = np.flatnonzero(likeness == likeness.max()) - search
+            nominal += int(offsets[np.argmin(np.abs(offsets))])
+        read = nominal
+        stretched[start:start + size] += padded[read:read + size] * window
+    return stretched[:length]
 
 
 def prepare_reference(source, path):

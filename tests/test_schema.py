@@ -104,9 +104,8 @@ def test_schema_describes_the_warnings_for_a_missing_aligner_or_transcriber(voxx
     assert "aligner_not_installed" in warnings["description"]
     assert "checker_not_installed" in warnings["description"]
     # The Model to offer the user, as model_not_installed lists it, and how to install it.
-    details = warnings["items"]["properties"]["details"]
+    details = next(d for d in warnings["items"]["properties"]["details"]["anyOf"] if "command" in d["required"])
     assert set(narrate["errors"]["model_not_installed"]["properties"]["missing"]["items"]["required"]) < set(details["required"])
-    assert "command" in details["required"]
 
 
 def test_schema_describes_voice_add(voxx):
@@ -176,3 +175,18 @@ def test_schema_describes_respelling(voxx):
     assert line["properties"]["respelled"]["type"] == "string"
     # A Line no Respelling matched has none.
     assert "respelled" not in line["required"]
+
+
+def test_schema_describes_rate(voxx):
+    narrate = voxx("schema", "narrate").result["data"]["narrate"]
+    output = narrate["result"]["properties"]["narration"]["properties"]
+
+    for where in (narrate["input"]["properties"], narrate["input"]["properties"]["lines"]["items"]["properties"],
+                  output, output["lines"]["items"]["properties"]):
+        assert where["rate"]["type"] == "number"
+        assert (where["rate"]["minimum"], where["rate"]["maximum"]) == (0.5, 2.0)
+    warnings = output["lines"]["items"]["properties"]["warnings"]
+    assert "rate" in warnings["description"]
+    # What a stale Line was read with, rate included.
+    stale = next(d for d in warnings["items"]["properties"]["details"]["anyOf"] if "read_with" in d["required"])
+    assert stale["properties"]["read_with"]["properties"]["rate"]["type"] == "number"

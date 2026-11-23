@@ -158,9 +158,10 @@ def test_a_line_whose_text_changed_but_is_not_read_again_is_warned_stale(install
     ({"style": "语气平静"}, "its style is now '语气平静', not none"),
     ({"emotion": "sad"}, "its emotion is now 'sad', not none"),
     ({"speed": "slow"}, "its speed is now 'slow', not none"),
+    ({"rate": 1.25}, "its rate is now 1.25, not none"),
 ])
-def test_a_line_whose_voice_or_style_changed_but_is_not_read_again_is_warned_stale(installed, write_narration, tmp_path,
-                                                                                    change, said):
+def test_a_line_whose_voice_or_delivery_changed_but_is_not_read_again_is_warned_stale(installed, write_narration,
+                                                                                       tmp_path, change, said):
     out = tmp_path / "out"
     read_all(installed, write_narration, out)
 
@@ -193,6 +194,40 @@ def test_a_line_now_read_as_other_text_but_not_read_again_is_warned_stale(instal
     assert [w["code"] for w in lines_by_id(again)["outro"]["warnings"]] == ["stale_audio"]
     fixed = installed("narrate", write_narration(respelled), "--out", out, "--line", "outro")
     assert lines_by_id(fixed)["outro"]["warnings"] == []
+
+
+@pytest.mark.parametrize("change, said", [
+    ({"style": "语气平静"}, "its style is now '语气平静', not none"),
+    ({"emotion": "sad"}, "its emotion is now 'sad', not none"),
+    ({"rate": 1.25}, "its rate is now 1.25, not none"),
+    ({"language": "yue"}, "the Narration's language is now 'yue'"),
+])
+def test_a_line_kept_stale_by_a_narration_change_stays_stale_until_it_is_read_again(installed, write_narration,
+                                                                                     tmp_path, change, said):
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+    changed = {**THREE_LINES, **change}
+
+    installed("narrate", write_narration(changed), "--out", out, "--line", "send")
+    # The earlier run now carries the Narration's new setting, but outro's audio was read with the old one.
+    again = installed("narrate", write_narration(changed), "--out", out, "--line", "send")
+
+    outro = lines_by_id(again)["outro"]
+    assert [w["code"] for w in outro["warnings"]] == ["stale_audio"]
+    assert said in outro["warnings"][0]["message"]
+    # Changed back, the Narration asks for the audio outro was read as.
+    back = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send")
+    assert lines_by_id(back)["outro"]["warnings"] == []
+
+
+def test_a_rate_of_one_given_or_taken_away_does_not_make_a_line_stale(installed, write_narration, tmp_path):
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+
+    given = installed("narrate", write_narration({**THREE_LINES, "rate": 1}), "--out", out, "--line", "send")
+    assert lines_by_id(given)["outro"]["warnings"] == []
+    taken = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send")
+    assert lines_by_id(taken)["outro"]["warnings"] == []
 
 
 def test_a_narration_style_a_line_overrides_does_not_make_it_stale(installed, write_narration, tmp_path):

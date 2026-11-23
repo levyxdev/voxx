@@ -8,9 +8,10 @@ import traceback
 from pathlib import Path
 from typing import cast
 
-from voxx.audio import finish, prepare_reference, split_media, write_wav
+from voxx.audio import finish, prepare_reference, split_media, stretch, write_wav
 from voxx.engines import load_engine
 from voxx.models import extra_repo_paths, find_model
+from voxx.narration import AS_READ
 from voxx.output import VoxxError, dumps, progress
 
 
@@ -18,11 +19,11 @@ class Worker:
     def __init__(self):
         self.engines = {}
 
-    def synthesize_line(self, *, model, engine, model_path, capability, text, language, seed, path, **voice):
+    def synthesize_line(self, *, model, engine, model_path, capability, text, language, seed, path, rate=AS_READ, **voice):
         """Reads a Line in a Preset Voice, given as voice, or with capability "clone" in a Cloned Voice, given as
         reference: the path of its Reference Recording (audio) and that recording's words (text). Either way, style
         is the Line's style, or None, and controls its Delivery Controls by field. With capability "design", reads a
-        Design Take in a new voice that fits description."""
+        Design Take in a new voice that fits description. A rate other than AS_READ time-stretches what the Model read."""
         reader = self._engine(model, engine, model_path, capability)
         if capability == "design":
             samples, sample_rate = reader.design(text, model=model, description=voice["description"], language=language,
@@ -34,6 +35,8 @@ class Worker:
         else:
             samples, sample_rate = reader.synthesize(text, model=model, voice=voice["voice"], style=voice["style"],
                                                      controls=voice["controls"], language=language, seed=seed)
+        if rate != AS_READ:
+            samples = stretch(samples, sample_rate, rate)
         samples, warnings = finish(samples, sample_rate)
         write_wav(Path(path), samples, sample_rate)
         return {"sample_rate": sample_rate, "warnings": warnings}

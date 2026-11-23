@@ -9,7 +9,7 @@ from pathlib import Path
 
 from voxx.files import replacing, staging, writable_out
 from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, transcriber_for
-from voxx.narration import CONTROLS, MAX_SEED, check_narration, line_setting, load_narration, respelled_text
+from voxx.narration import AS_READ, CONTROLS, MAX_SEED, check_narration, line_setting, load_narration, respelled_text
 from voxx.output import USAGE, VoxxError, progress
 from voxx.self_check import error_rate
 from voxx.voices import default_voices, resolve_voice
@@ -17,6 +17,8 @@ from voxx.words import word_timings
 from voxx.worker.client import WorkerProcess
 
 OUTPUT_NAME = "narration.json"
+# The settings besides its text, language and Voice that change how a Line sounds, so changing one leaves it stale.
+SOUND_SETTINGS = ("style", *CONTROLS, "rate")
 READ_ALL_HINT = "Read the whole Narration first: run `voxx narrate` without --line."
 
 
@@ -62,7 +64,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), check=False):
 def _plan_line(narration, line, chosen, check, shared_seed, earlier_seed=None):
     """How a Line will be read: its Model, Voice (and the Cloned Voice or Designed Voice it names, if any), the text the
     Model reads (its text with its Respellings applied; everything else keeps the text as written), style,
-    Delivery Controls and seed, the Model that times its words, and with `check` the Model that transcribes it back.
+    Delivery Controls, rate and seed, the Model that times its words, and with `check` the Model that transcribes it back.
 
     A Line that names no seed, nor its Narration, is read with `shared_seed`. A Line read again never reuses `earlier_seed`, the seed it was read with before, so it always sounds different.
     """
@@ -103,7 +105,7 @@ def _plan_line(narration, line, chosen, check, shared_seed, earlier_seed=None):
     while seed == earlier_seed:
         seed = secrets.randbelow(MAX_SEED + 1)
     return {"model": model, "voice": voice, "stored": stored, "respelled": respelled_text(narration, line),
-            "style": style, "controls": controls, "warnings": warnings,
+            "style": style, "controls": controls, "rate": _sound_setting(narration, line, "rate") or AS_READ, "warnings": warnings,
             "aligner": aligner, "transcriber": transcriber, "seed": seed}
 
 
@@ -146,8 +148,8 @@ def _read_line(worker, narration, line, plan, stage):
     else:
         voice = {"capability": "preset_voice", "voice": plan["voice"], "style": plan["style"], "controls": plan["controls"]}
     result = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
-                         text=plan["respelled"], language=narration["language"], seed=plan["seed"], path=str(stage / audio),
-                         **voice)
+                         text=plan["respelled"], language=narration["language"], seed=plan["seed"], rate=plan["rate"],
+                         path=str(stage / audio), **voice)
     line.update(audio=audio, model=model.id, voice=plan["voice"], seed=plan["seed"],
                 sample_rate=result["sample_rate"], warnings=plan["warnings"] + result["warnings"])
     # A Line given back from an earlier run may still carry the words and self-check of its earlier audio.
@@ -209,6 +211,7 @@ def _lines_to_keep(narration, earlier, to_read, chosen):
         if line["id"] in reading:
             continue
         old = earlier_lines[line["id"]]
+        read_with = _read_with(earlier, old)
         # A warning from an earlier --line run is judged again against this Narration.
         warnings = [w for w in old.get("warnings", []) if w.get("code") != "stale_audio"]
         changes = []
@@ -217,21 +220,38 @@ def _lines_to_keep(narration, earlier, to_read, chosen):
             changes.append(f"its text is now {line['text']!r}")
         elif respelled != old_respelled:
             changes.append(f"it is now read as {respelled!r}, not {old_respelled!r}")
-        if narration["language"] != earlier["language"]:
+        if narration["language"] != read_with["language"]:
             changes.append(f"the Narration's language is now {narration['language']!r}")
         # The Voice this run would read the Line with, as _plan_line resolves it.
         _, voice, _ = _resolve_voice_of(narration, line, chosen)
         if voice != old.get("voice"):
             changes.append(f"its voice is now {voice!r}, not {old.get('voice')!r}")
-        for field in ("style", *CONTROLS):
-            value, old_value = line_setting(narration, line, field), line_setting(earlier, old, field)
+        for field in SOUND_SETTINGS:
+            value, old_value = _sound_setting(narration, line, field), read_with.get(field)
             if value != old_value:
                 changes.append(f"its {field} is now {_or_none(value)}, not {_or_none(old_value)}")
         if changes:
-            warnings.append({"code": "stale_audio", "message": f"The audio reads {old['text']!r} in {earlier['language']!r}, "
-                                                               f"but {' and '.join(changes)}. Pass --line {line['id']} to read it again."})
+            warnings.append({"code": "stale_audio", "message": f"The audio reads {old['text']!r} in {read_with['language']!r}, "
+                                                               f"but {' and '.join(changes)}. Pass --line {line['id']} to read it again.",
+                             "details": {"read_with": read_with}})
         kept[line["id"]] = {**old, "warnings": warnings}
     return kept
+
+
+def _read_with(earlier, old):
+    """The language and SOUND_SETTINGS a Line of the earlier run was read with. A Line that run kept stale was read
+    with what its stale_audio warning records, since the earlier run's Narration already asked for the new ones."""
+    stale = next((w for w in old.get("warnings", []) if w.get("code") == "stale_audio" and "details" in w), None)
+    if stale is not None:
+        return stale["details"]["read_with"]
+    return {"language": earlier["language"],
+            **{field: value for field in SOUND_SETTINGS if (value := _sound_setting(earlier, old, field)) is not None}}
+
+
+def _sound_setting(narration, line, field):
+    """`line_setting` for one of SOUND_SETTINGS, with a rate of AS_READ as none, since both leave the audio as it was."""
+    value = line_setting(narration, line, field)
+    return None if field == "rate" and value == AS_READ else value
 
 
 def _or_none(value):
