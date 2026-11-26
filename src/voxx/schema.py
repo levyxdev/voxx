@@ -44,7 +44,9 @@ _SAY = {"type": "object", "propertyNames": {"minLength": 1}, "additionalProperti
 _SAY_RULE = ("Each key found in a Line's text is read as its value, such as {\"CueTake\": \"Q Take\"} for a name or "
              "{\"调岗\": \"掉岗\"} for a Chinese character with two readings: the longest key that matches wins, and "
              "what a key is read as is never read as another key. Only the Model reads the respelled text: the Line's "
-             "text, words, subtitles and check keep the text as written.")
+             "text, words, subtitles and check keep the text as written. A value may hold pinyin with a tone digit, "
+             "such as {\"补给你\": \"补{gei3}你\"}, only for a Model that follows pinyin (voxcpm2); for any other "
+             "the Narration is not read (pinyin_unsupported).")
 
 # Rate: a Line's audio played faster or slower than the Model read it.
 _RATE = {"type": "number", "minimum": MIN_RATE, "maximum": MAX_RATE}
@@ -362,6 +364,9 @@ COMMANDS = {
                                                       "(details.capability)."},
             "voice_unsupported": {"description": "Exit 4: the Model given to --model lacks this Voice; details.voices lists its own."},
             "unsupported_language": {"description": "Exit 4: the Model cannot read the language; details.languages lists what it reads."},
+            "pinyin_unsupported": {"description": "Exit 4: say gives pinyin, such as {gei3}, to Lines whose Model "
+                                                  "would misread it; details.lines lists them and details.models "
+                                                  "their Models. Nothing is read."},
             "unknown_line": {"description": "Exit 2: no Line has an id given to --line; details.known_lines lists them."},
             "no_earlier_output": {"description": "Exit 2: --line needs <dir>/narration.json from a whole run first."},
             "invalid_earlier_output": {"description": "Exit 2: <dir>/narration.json from the earlier run cannot be read; "

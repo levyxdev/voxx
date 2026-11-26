@@ -12,6 +12,9 @@ from voxx.output import USAGE, VoxxError
 LANGUAGE_RULE = ("language must be a BCP 47 tag in canonical case: a language, then optionally a script and a region, "
                  "such as zh, yue, en-US or zh-Hant-HK.")
 LANGUAGE_PATTERN = "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
+# What a Model might take for a pinyin mark, as only VoxCPM2 follows (levyxdev/voxx#49): any Latin letters in braces,
+# tone marks included, then at most one tone digit, such as {gei3}, {ma5}, {lv3} or {xiàng}.
+PINYIN_MARK = re.compile(r"\{[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F]+[0-9]?\}")
 # Seeds fit in 31 bits, so every Engine can take them.
 MAX_SEED = 2**31 - 1
 SEED_RULE = f"seed must be an integer from 0 to {MAX_SEED}."
@@ -119,14 +122,26 @@ def respelled_text(narration, line):
     """What the Model reads for a Line: its text with every Respelling in `say` applied. The Narration's `say` applies
     to every Line, and a Line's own entries override it. The text is read left to right, and at each place the longest
     key that matches is respelled; what it is respelled as is never respelled again."""
+    return "".join(read for _, read in _respellings_applied(narration, line))
+
+
+def respelled_pinyin(narration, line):
+    """The pinyin marks, such as {gei3}, that the Line's Respellings put in what the Model reads; pinyin in its text is
+    not counted."""
+    return [mark for shown, read in _respellings_applied(narration, line) if read != shown
+            for mark in PINYIN_MARK.findall(read)]
+
+
+def _respellings_applied(narration, line):
+    """The Line's text as pairs of a stretch as shown and what it is read as, in order."""
     respellings = {**narration.get("say", {}), **line.get("say", {})}
     keys = sorted(respellings, key=len, reverse=True)
-    text, read, i = line["text"], [], 0
+    text, pairs, i = line["text"], [], 0
     while i < len(text):
         key = next((k for k in keys if text.startswith(k, i)), None)
-        read.append(text[i] if key is None else respellings[key])
+        pairs.append((text[i], text[i]) if key is None else (key, respellings[key]))
         i += 1 if key is None else len(key)
-    return "".join(read)
+    return pairs
 
 
 def _check_settings(obj, where):

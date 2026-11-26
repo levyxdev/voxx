@@ -9,10 +9,11 @@ Aligning `text` rather than the text as read needs no mapping back, and works: i
 - **A `display` field, with `text` as what is read**, as the issue proposed. Rejected: the Narration is the contract voxx shares with CueTake (ADR 0001), so CueTake would have to read a new field, and every existing Narration would change meaning.
 - **One whole-Line `say` string beside `text`.** Not needed: a Line's `say` can map its whole text, and a map at the top of the Narration already holds the Respellings of every Line.
 - **Markup inside `text`**, such as `[CueTake](Q Take)`. Rejected: it collides with literal brackets, and the same word has to be marked on every Line.
-- **Pinyin or other per-Model pronunciation marks.** Rejected (levyxdev/voxx#45): only VoxCPM2 follows `{gan4}`, and only partly; Ming reads it aloud. A homophone that has only the intended reading is plain text and reads right on every Model.
+- **Pinyin or other per-Model pronunciation marks as the way to respell.** Rejected (levyxdev/voxx#45): only VoxCPM2 follows `{gan4}`, and only partly; Ming reads it aloud. A homophone that has only the intended reading is plain text and reads right on every Model. Pinyin is kept only as a fallback; see Consequences.
 
 ## Consequences
 
 - The respelling is applied left to right, the longest matching key first, and what a key is respelled as is never respelled again, so the order of `say`'s entries does not matter.
 - A respelled Line's completed form records what it was read as (`respelled`), so a Line kept by `--line` is warned `stale_audio` when its respelled text changed, even if `text` did not, and stays warned on later runs.
+- Pinyin is a fallback for a reading no other character has, such as gěi in 补给你, and only with VoxCPM2 (levyxdev/voxx#49), which by ear followed numeric tones such as `{gei3}`, though not every time. Qwen3-TTS garbles pinyin and Ming reads it aloud, so `narrate` refuses a Respelling with pinyin for any Model but VoxCPM2 instead of letting it be misread. Pinyin in `text` is left alone. Where pinyin fails too, the Line is reworded with the user's consent, which changes `text` and is not a Respelling.
 - Respellings live only in the Narration, not under `$VOXX_HOME`, so a Narration still reads the same on any machine.

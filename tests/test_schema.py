@@ -21,7 +21,7 @@ def test_schema_describes_narrate(voxx):
     line = narrate["result"]["properties"]["narration"]["properties"]["lines"]["items"]
     assert {"audio", "model", "voice", "seed", "sample_rate", "warnings"} <= set(line["required"])
     assert {"unknown_voice", "unknown_model", "capability_unsupported", "voice_unsupported",
-            "unsupported_language"} <= set(narrate["errors"])
+            "unsupported_language", "pinyin_unsupported"} <= set(narrate["errors"])
     assert set(data["exit_codes"]) == {"0", "1", "2", "3", "4"}
 
 

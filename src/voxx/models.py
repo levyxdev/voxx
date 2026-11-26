@@ -66,6 +66,9 @@ class Model:
     # Whether the Model follows a Line's Delivery Controls (emotion, speed, pitch, volume); a Model that cannot reads
     # the Line without them.
     reads_controls: bool = False
+    # Whether the Model follows a pinyin mark such as {gei3} in a Respelling; a Model that cannot would read it aloud,
+    # so a Line that gives it one is not read (levyxdev/voxx#49).
+    reads_pinyin: bool = False
     # Repos the Engine also loads, downloaded with the Model by `voxx install`.
     extra_repos: tuple[ExtraRepo, ...] = ()
 
@@ -147,7 +150,7 @@ REGISTRY = (
     Model("voxcpm2", "mlx-audio", ("clone", "design"), VOXCPM2_LANGUAGES,
           "mlx-community/VoxCPM2-8bit", "d52725898a0675703f7f9ddc5a4d1a3cdbb99032", 3_226_617_581,
           _apache("https://huggingface.co/openbmb/VoxCPM2"), _apache("https://github.com/OpenBMB/VoxCPM"), VERIFIED, 48_000,
-          reads_style=True),
+          reads_style=True, reads_pinyin=True),
     Model("qwen3-tts-1.7b-base", "mlx-audio", ("clone",), QWEN3_TTS_LANGUAGES,
           "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit", "e7dd0585652209fa0d7783659aad4e8a324de11c", 3_104_158_788,
           _apache("https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base"), QWEN3_TTS_CODE, VERIFIED, 24_000),
@@ -205,14 +208,14 @@ FAKE_ALIGN_MODEL = Model("fake-aligner", "fake", ("align",), ("zh", "en"),
                          "voxx-test/fake-aligner", "76543210fedcba9876543210fedcba9876543210", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-aligner"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED)
-# Clone like the two real cloning Models: the first follows style and designs as VoxCPM2 does, the other ignores style
-# as Qwen3-TTS Base does, and they read at different sample rates. Only the first follows Delivery Controls, as
-# Ming-3.0-tts does.
+# Clone like the two real cloning Models: the first follows style and pinyin and designs as VoxCPM2 does, the other
+# ignores style and pinyin as Qwen3-TTS Base does, and they read at different sample rates. Only the first follows
+# Delivery Controls, as Ming-3.0-tts does.
 FAKE_CLONE_MODEL = Model("fake-clone", "fake", ("clone", "design"), ("zh", "en"),
                          "voxx-test/fake-clone", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c", 4096,
                          _apache("https://huggingface.co/voxx-test/fake-clone"),
                          _apache("https://github.com/levyxdev/voxx"), VERIFIED, 48_000, reads_style=True,
-                         reads_controls=True)
+                         reads_controls=True, reads_pinyin=True)
 FAKE_CLONE_ALT_MODEL = Model("fake-clone-alt", "fake", ("clone",), ("zh", "en"),
                              "voxx-test/fake-clone-alt", "a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2", 4096,
                              _apache("https://huggingface.co/voxx-test/fake-clone-alt"),

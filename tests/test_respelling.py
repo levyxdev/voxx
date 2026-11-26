@@ -1,6 +1,8 @@
 """Respelling: `say` changes what a Line is read as, while its text, words and check stay as written (levyxdev/voxx#46)."""
 
+import pytest
 from conftest import assert_error
+from test_clone import write_recording
 from test_narrate import lines_of
 
 
@@ -59,3 +61,36 @@ def test_the_longest_respelling_wins_wherever_two_match(installed, write_narrati
 def test_a_respelling_is_not_respelled_again(installed, write_narration, tmp_path):
     respelled = narration("甲乙", say={"甲": "乙乙乙", "乙": "丙"})
     assert_read_as(installed, write_narration, tmp_path, respelled, "乙乙乙丙")
+
+
+GIVE = "要补给你。"
+
+
+@pytest.mark.parametrize("mark", ["{gei3}", "{ma5}", "{lv3}", "{xiàng}", "{gei}"])
+def test_pinyin_in_say_fails_before_anything_is_read_on_a_model_that_would_read_it_aloud(installed, write_narration,
+                                                                                        tmp_path, mark):
+    given = {**narration(GIVE), "lines": [{"id": "a", "text": GIVE, "say": {"补给你": f"补{mark}你"}}, {"id": "b", "text": "一"}]}
+    out = tmp_path / "out"
+    error = assert_error(installed("narrate", write_narration(given), "--out", out), 4, "pinyin_unsupported")
+
+    assert error["details"] == {"lines": ["a"], "models": ["fake-tts"]}
+    # No Model that follows pinyin reads fake-alice, so none is offered.
+    assert "--model" not in error["hint"]
+    assert not out.exists()
+
+
+def test_pinyin_in_say_is_read_by_a_model_that_follows_it_and_offered_to_one_that_does_not(installed, write_narration,
+                                                                                         tmp_path):
+    assert installed("voice", "add", "me", "--ref", write_recording(tmp_path / "me.wav"), "--model", "fake-clone").exit_code == 0
+    given = {**narration(GIVE, say={"补给你": "补{gei3}你"}), "voice": "me"}
+
+    run = read(installed, write_narration, tmp_path, "clone", given)
+    assert lines_of(run)[0]["respelled"] == "要补{gei3}你。"
+    alt = installed("narrate", write_narration(given), "--out", tmp_path / "alt", "--model", "fake-clone-alt")
+    assert "--model fake-clone" in assert_error(alt, 4, "pinyin_unsupported")["hint"]
+
+
+@pytest.mark.parametrize("text, say", [("要补{gei3}你。", None), (GIVE, {"补给你": "补{第三}你"}),
+                                       (GIVE, {"补给你": "补{×}你"})])
+def test_braces_that_say_does_not_fill_with_pinyin_are_read_as_given(installed, write_narration, tmp_path, text, say):
+    read(installed, write_narration, tmp_path, "out", narration(text, say=say))

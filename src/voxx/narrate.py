@@ -8,9 +8,10 @@ import secrets
 from pathlib import Path
 
 from voxx.files import replacing, staging, writable_out
-from voxx.models import aligner_for, find_model, is_installed, model_dir, require_installed, transcriber_for
-from voxx.narration import AS_READ, CONTROLS, MAX_SEED, check_narration, line_setting, load_narration, respelled_text
-from voxx.output import USAGE, VoxxError, progress
+from voxx.models import aligner_for, find_model, is_installed, model_dir, models, require_installed, transcriber_for
+from voxx.narration import (AS_READ, CONTROLS, MAX_SEED, check_narration, line_setting, load_narration,
+                             respelled_pinyin, respelled_text)
+from voxx.output import UNSUPPORTED, USAGE, VoxxError, progress
 from voxx.self_check import error_rate
 from voxx.voices import default_voices, resolve_voice
 from voxx.words import word_timings
@@ -40,6 +41,7 @@ def narrate(narration_path, out_dir, model_id=None, line_ids=(), check=False):
     # sound like different speakers (levyxdev/voxx#44).
     shared_seed = secrets.randbelow(MAX_SEED + 1)
     plans = [_plan_line(narration, line, chosen, check, shared_seed, earlier_seeds.get(line["id"])) for line in to_read]
+    _refuse_misread_pinyin(narration, to_read, plans)
     require_installed(dict.fromkeys(plan["model"] for plan in plans))
     writable_out(out)
 
@@ -107,6 +109,40 @@ def _plan_line(narration, line, chosen, check, shared_seed, earlier_seed=None):
     return {"model": model, "voice": voice, "stored": stored, "respelled": respelled_text(narration, line),
             "style": style, "controls": controls, "rate": _sound_setting(narration, line, "rate") or AS_READ, "warnings": warnings,
             "aligner": aligner, "transcriber": transcriber, "seed": seed}
+
+
+def _refuse_misread_pinyin(narration, to_read, plans):
+    """Fail before reading anything when a Line's Respellings give pinyin to a Model that would misread it: Ming reads
+    the marks aloud, Qwen3-TTS garbles them (levyxdev/voxx#49)."""
+    misread = [(line, plan) for line, plan in zip(to_read, plans)
+               if not plan["model"].reads_pinyin and respelled_pinyin(narration, line)]
+    if not misread:
+        return
+    ids = [line["id"] for line, _ in misread]
+    unable = list(dict.fromkeys(plan["model"].id for _, plan in misread))
+    hint = ("Respell each with a homophone that has only the reading meant, or, once the user agrees, reword its text "
+            "so the reading is clear; then take the pinyin out of say.")
+    # Another Model changes how every Line sounds, so it is offered only as the user's call, and only one that follows
+    # pinyin and reads every such Line's Voice; the Model a Voice was added with first, as it keeps the voice as heard.
+    own = [p["stored"].model for _, p in misread if p["stored"] is not None]
+    able = sorted((m.id for m in models()
+                   if m.reads_pinyin and all(_reads_voice(m, narration, p["voice"]) for _, p in misread)),
+                  key=lambda m: m not in own)
+    if able:
+        hint += (f" Or, if the user agrees to every Line sounding different, read the Narration with --model {able[0]}, "
+                 "which follows pinyin.")
+    raise VoxxError("pinyin_unsupported", f"say gives pinyin to Lines {', '.join(ids)}, which Model "
+                                          f"{', '.join(unable)} cannot follow: it would read the marks aloud or garble "
+                                          "them.", hint, {"lines": ids, "models": unable}, UNSUPPORTED)
+
+
+def _reads_voice(model, narration, voice):
+    """Whether `model` can read `voice` in the Narration's language."""
+    try:
+        resolve_voice(voice, narration["language"], model)
+    except VoxxError:
+        return False
+    return True
 
 
 def _resolve_voice_of(narration, line, chosen):
