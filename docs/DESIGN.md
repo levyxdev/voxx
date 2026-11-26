@@ -152,5 +152,4 @@ $VOXX_HOME (default ~/.voxx)
 
 ## Open / later
 
-- **Pronunciation**: what to do when a Model misreads a product name or an abbreviation. The candidate is a pronunciation dictionary plus inline `{text|reading}` marks, replaced in the text before synthesis (the Line is still read in one take), with word timings mapped back to the original text. Try it out before deciding.
 - A resident service mode, a venv per Engine, Linux/CUDA, CosyVoice3.

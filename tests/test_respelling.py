@@ -90,7 +90,9 @@ def test_pinyin_in_say_is_read_by_a_model_that_follows_it_and_offered_to_one_tha
     assert "--model fake-clone" in assert_error(alt, 4, "pinyin_unsupported")["hint"]
 
 
-@pytest.mark.parametrize("text, say", [("要补{gei3}你。", None), (GIVE, {"补给你": "补{第三}你"}),
-                                       (GIVE, {"补给你": "补{×}你"})])
-def test_braces_that_say_does_not_fill_with_pinyin_are_read_as_given(installed, write_narration, tmp_path, text, say):
-    read(installed, write_narration, tmp_path, "out", narration(text, say=say))
+@pytest.mark.parametrize("text, say, said", [("要补{gei3}你。", None, "要补{gei3}你。"),
+                                             (GIVE, {"补给你": "补{第三}你"}, "要补{第三}你。"),
+                                             (GIVE, {"补给你": "补{×}你"}, "要补{×}你。")])
+def test_braces_that_say_does_not_fill_with_pinyin_are_read_as_given(installed, write_narration, tmp_path, text, say,
+                                                                    said):
+    assert_read_as(installed, write_narration, tmp_path, narration(text, say=say), said)
