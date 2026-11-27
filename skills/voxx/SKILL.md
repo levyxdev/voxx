@@ -44,7 +44,7 @@ A Cloned Voice or Designed Voice is listed by `voxx voices` beside the Preset Vo
 
 ## Checking each Line
 
-The user listens to the Lines: give them each Line's absolute path, asking them to listen first to the Lines with an unsettled reading, for the character and the reading you noted, and read again with `--line <id>` the ones they want read again. `narrate` reads them with new seeds and leaves every other Line's file byte for byte as it was.
+The user listens to the Lines: hand over each Line's audio ([Handing over audio](#handing-over-audio)), asking them to listen first to the Lines with an unsettled reading, for the character and the reading you noted, and read again with `--line <id>` the ones they want read again, then hand those over too. `narrate` reads them with new seeds and leaves every other Line's file byte for byte as it was.
 
 `narrate --check` also transcribes every Line back and reports `transcript` and `error_rate` (per character in Chinese, Japanese and Korean, per word otherwise). It loads the transcriber beside the reading Model, which takes about 1 GB more memory and a few seconds more per Line, so pass it only when the user asks for the check or will not listen to every Line, such as for a long Narration. voxx only reports; deciding is your job.
 
@@ -56,6 +56,10 @@ The user listens to the Lines: give them each Line's absolute path, asking them 
 - `not_aligned` means the Line has no `words`, either because no Model times words in this language or because timing this Line failed. The audio is fine, and CueTake then spreads the Subtitles over the Line by character count. When timing failed on a Line in a language other Lines were timed in, reading it again may fix it.
 - `aligner_not_installed` or, with `--check`, `checker_not_installed` means a Model that adds word timings or the check is missing. The audio is usable as it is. Ask the user whether to install it, as [setup.md](setup.md) describes. Once it is installed, run `narrate <dir>/narration.json --out <dir>` with the same `--model` (and `--check` for the check): the completed Narration carries each Line's seed, so the audio comes out the same and gains `words` and the check.
 - `stale_audio` after `--line` means a kept Line's audio no longer matches the Narration: its text, how `say` respells it, Voice, `style`, `emotion`, `speed`, `pitch`, `volume`, `rate` or the language changed since it was read. Read that Line again too.
+
+## Handing over audio
+
+Every WAV the user listens to, a Line, a Design Take or a comparison between Models, reaches them the same way. When you have a tool that attaches files to the conversation, send the file itself: where the user sees the conversation but not your filesystem, a path is only text they cannot play. Send a copy, since `--line` overwrites a Line's file and every run names its files alike (`<id>.wav`, `take-1.wav`): copy each file into a temporary directory outside `--out`, under a name no file you have sent has, made of the Line id or take and what tells it from the others, such as its Model, Voice, round or reading: `gei-pinyin__voxcpm2.wav`, `round-2__take-1.wav`, `intro__reading-2.wav`. Give the original's absolute path beside it, or alone when you have no such tool.
 
 ## Errors
 

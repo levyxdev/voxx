@@ -27,7 +27,7 @@ voice design --describe <description> [--describe <description>]... --text <text
 1. **The style**: two or three different descriptions, one take each, into `voice-design/1/`. The user picks the description they like.
 2. **The voice**: that one description with `--takes 2` or `3`, into `voice-design/2/`. Every take is a different person; the user picks one.
 
-Each take takes about 15–30 seconds, so run the command in the background when your shell would time out. Give the user each take's absolute path with its description, and let them listen: the choice is theirs, since only they can hear the takes. A take now and then reads its description out loud; if the user hears that, drop the take. With `--check`, each take also has a `transcript`, which shows such a take before the user listens: pass it when the user asks for it.
+Each take takes about 15–30 seconds, so run the command in the background when your shell would time out. Hand over each take with its description ([Handing over audio](SKILL.md#handing-over-audio)), and let the user listen: the choice is theirs, since only they can hear the takes. A take now and then reads its description out loud; if the user hears that, drop the take. With `--check`, each take also has a `transcript`, which shows such a take before the user listens: pass it when the user asks for it.
 
 ## 4. Store it
 
