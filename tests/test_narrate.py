@@ -3,7 +3,7 @@ import os
 import wave
 
 import pytest
-from conftest import assert_error, snapshot
+from conftest import assert_error, line_audio, snapshot, started_of
 
 TWO_LINES = {
     "language": "zh",
@@ -27,8 +27,9 @@ def test_narrate_writes_a_wav_per_line_and_the_completed_narration(installed, wr
     assert written == run.result["data"]["narration"]
     assert written["language"] == "zh"
     assert [(l["id"], l["text"]) for l in written["lines"]] == [(l["id"], l["text"]) for l in TWO_LINES["lines"]]
+    # Each file is named for its Line and the local time its run started, with the UTC offset (ADR 0013).
+    assert len({started_of(line["audio"], line["id"]) for line in written["lines"]}) == 1
     for line in written["lines"]:
-        assert line["audio"] == f"{line['id']}.wav"
         assert line["model"] == "fake-tts"
         assert line["voice"] == "fake-alice"
         assert isinstance(line["seed"], int)
@@ -55,13 +56,13 @@ def test_a_line_voice_overrides_the_narration_voice(installed, write_narration, 
 
 def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_path):
     out = tmp_path / "out"
-    longest = "开" * 81  # 243 bytes, so `<id>.wav.partial` is 255
+    longest = "开" * 74  # 222 bytes, so `<id>-<run start time>.wav.partial` is 255 (ADR 0013)
     narration = {"language": "zh", "voice": "fake-alice",
                  "lines": [{"id": "开场", "text": "一"}, {"id": "step 1", "text": "二"}, {"id": longest, "text": "三"}]}
     run = installed("narrate", write_narration(narration), "--out", out)
 
     assert run.exit_code == 0
-    assert all((out / f"{id}.wav").exists() for id in ("开场", "step 1", longest))
+    assert all(line_audio(out, id).exists() for id in ("开场", "step 1", longest))
 
 
 @pytest.mark.parametrize("narration", [
@@ -90,7 +91,7 @@ def test_a_line_id_can_be_any_safe_file_name(installed, write_narration, tmp_pat
     {"language": "zh", "lines": [{"id": "a\u200bb", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "\u202eabc", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a\u2028b", "text": "一"}]},
-    {"language": "zh", "lines": [{"id": "开" * 82, "text": "一"}]},
+    {"language": "zh", "lines": [{"id": "开" * 75, "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a", "text": ""}]},
     {"language": "zh", "emotion": "excited", "lines": [{"id": "a", "text": "一"}]},
     {"language": "zh", "lines": [{"id": "a", "text": "一", "emotion": "高兴"}]},
@@ -241,7 +242,17 @@ def lines_of(run):
 
 
 def audio_of(out, line_id):
-    return (out / f"{line_id}.wav").read_bytes()
+    return line_audio(out, line_id).read_bytes()
+
+
+def test_runs_into_separate_outs_never_write_files_of_the_same_name(installed, write_narration, tmp_path):
+    # As when the user compares Models: one Narration, an --out per Model (ADR 0013).
+    path = write_narration(TWO_LINES)
+    first = installed("narrate", path, "--out", tmp_path / "first")
+    second = installed("narrate", path, "--out", tmp_path / "second", "--model", "fake-tts-small")
+
+    assert first.exit_code == second.exit_code == 0
+    assert {l["audio"] for l in lines_of(first)}.isdisjoint(l["audio"] for l in lines_of(second))
 
 
 def test_model_picks_which_model_reads_the_narration(installed, write_narration, tmp_path):

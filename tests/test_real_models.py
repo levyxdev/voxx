@@ -249,8 +249,9 @@ def test_ming_follows_delivery_controls_in_a_preset_voice_and_in_a_cloned_voice(
             assert line["model"] == "ming-3.0-tts-0.5b"
             assert line["warnings"] == []
             assert line["error_rate"] <= 0.25, (read_in, line["id"], line["transcript"])
+        audio = {line["id"]: out / line["audio"] for line in result["data"]["narration"]["lines"]}
         # Ming's speed is a nudge of about 5 to 20 percent, so only the order is certain.
-        assert seconds_of(out / "slow.wav") > seconds_of(out / "fast.wav"), read_in
+        assert seconds_of(audio["slow"]) > seconds_of(audio["fast"]), read_in
 
 
 def test_ming_reads_a_preset_voice_whose_name_has_a_space_and_parentheses(installed_models, tmp_path):

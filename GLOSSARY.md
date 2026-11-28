@@ -11,7 +11,7 @@ An ordered set of Lines in one language: the input to one voxx synthesis, and th
 _Avoid_: script, copy file, voice-over script
 
 **Line**:
-A piece of text in a Narration with a unique id, read in one continuous take, and matched by one audio file.
+A piece of text in a Narration with a unique id, read in one continuous take, and matched by the latest audio file read of it.
 _Avoid_: segment, paragraph, sentence
 
 **Delivery Control**:

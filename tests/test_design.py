@@ -3,7 +3,7 @@ import wave
 
 import numpy as np
 import pyloudnorm
-from conftest import assert_error
+from conftest import assert_error, started_of
 
 TEXT = "大家好，这是一段试读稿。"
 WARM = "温和的中年女声，语速偏慢"
@@ -37,9 +37,10 @@ def test_voice_design_reads_the_text_once_per_take_of_each_description(installed
     assert (written["model"], written["language"], written["text"]) == ("fake-clone", "zh", TEXT)
     takes = written["takes"]
     # Numbered in the order of the descriptions, each description's takes together.
-    assert [(t["take"], t["description"], t["audio"]) for t in takes] == [
-        (1, WARM, "take-1.wav"), (2, WARM, "take-2.wav"), (3, BRIGHT, "take-3.wav"), (4, BRIGHT, "take-4.wav")]
-    assert sorted(p.name for p in out.iterdir()) == ["design.json", "take-1.wav", "take-2.wav", "take-3.wav", "take-4.wav"]
+    assert [(t["take"], t["description"]) for t in takes] == [(1, WARM), (2, WARM), (3, BRIGHT), (4, BRIGHT)]
+    # Each file is named for its take and the local time its run started, with the UTC offset (ADR 0013).
+    assert len({started_of(t["audio"], f"take-{t['take']}") for t in takes}) == 1
+    assert sorted(p.name for p in out.iterdir()) == sorted(["design.json", *(t["audio"] for t in takes)])
     assert len({t["seed"] for t in takes}) == 4
     sounds = set()
     for take in takes:
@@ -140,3 +141,13 @@ def test_voice_design_without_check_neither_transcribes_the_takes_nor_warns(inst
     [take] = run.result["data"]["design"]["takes"]
     assert "transcript" not in take and "error_rate" not in take
     assert take["warnings"] == []
+
+
+def test_design_rounds_never_write_files_of_the_same_name(installed, tmp_path):
+    # The skill designs in two rounds, each into a new --out (ADR 0013).
+    first = design(installed, tmp_path / "1", WARM, BRIGHT)
+    second = design(installed, tmp_path / "2", WARM, takes=2)
+
+    assert first.exit_code == second.exit_code == 0
+    names = [{t["audio"] for t in run.result["data"]["design"]["takes"]} for run in (first, second)]
+    assert names[0].isdisjoint(names[1])

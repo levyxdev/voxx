@@ -2,7 +2,7 @@ import json
 import wave
 
 import numpy as np
-from conftest import assert_error, snapshot
+from conftest import assert_error, line_audio, snapshot
 
 TEXT = "大家好，这是一段试读稿。"
 WARM = "温和的中年女声，语速偏慢"
@@ -40,7 +40,7 @@ def test_a_chosen_design_take_is_stored_as_a_designed_voice_that_narrate_reads(i
     assert (voice["design_model"], voice["take"], voice["seed"]) == ("fake-clone", 2, takes[1]["seed"])
     # The Design Take is the Reference Recording, and the words it read are its text.
     assert (voice["reference_text"], voice["model"], voice["transcribed_by"]) == (TEXT, "fake-clone", None)
-    assert voice["source"] == str(tmp_path / "design" / "take-2.wav")
+    assert voice["source"] == str(tmp_path / "design" / takes[1]["audio"])
     channels, rate, _ = read_wav(path / "reference.wav")
     assert (channels, rate) == (1, 24_000)
     stored = json.loads((path / "voice.json").read_text(encoding="utf-8"))
@@ -59,7 +59,7 @@ def test_a_chosen_design_take_is_stored_as_a_designed_voice_that_narrate_reads(i
 
 def test_a_take_that_is_not_there_or_a_design_that_cannot_be_read_is_an_argument_error(installed, tmp_path):
     out = tmp_path / "design"
-    design(installed, out, WARM, takes=2)
+    takes = design(installed, out, WARM, takes=2)["takes"]
 
     def add(path, take):
         return installed("voice", "add", "host", "--from-design", path, "--take", take, "--model", "fake-clone")
@@ -67,7 +67,7 @@ def test_a_take_that_is_not_there_or_a_design_that_cannot_be_read_is_an_argument
     error = assert_error(add(out, 3), 2, "take_not_found")
     assert error["details"]["takes"] == [1, 2]
     assert_error(add(tmp_path / "nowhere", 1), 2, "design_not_found")
-    (out / "take-1.wav").unlink()
+    (out / takes[0]["audio"]).unlink()
     assert_error(add(out, 1), 2, "invalid_design")
     (out / "design.json").write_text("{", encoding="utf-8")
     error = assert_error(add(out, 2), 2, "invalid_design")
@@ -77,8 +77,7 @@ def test_a_take_that_is_not_there_or_a_design_that_cannot_be_read_is_an_argument
 
 def test_from_design_goes_with_take_and_not_with_ref_or_ref_text(installed, tmp_path):
     out = tmp_path / "design"
-    design(installed, out, WARM)
-    take = out / "take-1.wav"
+    take = out / design(installed, out, WARM)["takes"][0]["audio"]
 
     for args in (["--from-design", out], ["--take", 1], ["--from-design", out, "--take", 1, "--ref", take],
                  ["--from-design", out, "--take", 1, "--ref-text", TEXT], []):
@@ -114,8 +113,8 @@ def test_a_designed_voice_overwrites_only_with_overwrite(installed, tmp_path):
 
 def test_a_cloned_voice_stored_before_designed_voices_lists_and_reads_as_cloned(installed, write_narration, tmp_path):
     out = tmp_path / "design"
-    design(installed, out, WARM)
-    assert installed("voice", "add", "host", "--ref", out / "take-1.wav", "--ref-text", TEXT, "--model",
+    take = out / design(installed, out, WARM)["takes"][0]["audio"]
+    assert installed("voice", "add", "host", "--ref", take, "--ref-text", TEXT, "--model",
                      "fake-clone").exit_code == 0
     file = installed.home / "voices" / "host" / "voice.json"
     stored = json.loads(file.read_text(encoding="utf-8"))
@@ -130,9 +129,9 @@ def test_a_cloned_voice_stored_before_designed_voices_lists_and_reads_as_cloned(
 
 def test_a_designed_voice_reads_as_the_cloned_voice_of_its_take_would(installed, write_narration, tmp_path):
     out = tmp_path / "design"
-    design(installed, out, WARM)
+    take = out / design(installed, out, WARM)["takes"][0]["audio"]
     assert installed("voice", "add", "host", "--from-design", out, "--take", 1, "--model", "fake-clone").exit_code == 0
-    assert installed("voice", "add", "copy", "--ref", out / "take-1.wav", "--ref-text", TEXT, "--model",
+    assert installed("voice", "add", "copy", "--ref", take, "--ref-text", TEXT, "--model",
                      "fake-clone").exit_code == 0
     first = installed("narrate", write_narration(NARRATION), "--out", tmp_path / "designed")
     assert first.exit_code == 0, first.result
@@ -144,4 +143,5 @@ def test_a_designed_voice_reads_as_the_cloned_voice_of_its_take_would(installed,
     second = installed("narrate", path, "--out", tmp_path / "cloned")
     assert second.exit_code == 0, second.result
     for line in done["lines"]:
-        assert (tmp_path / "designed" / line["audio"]).read_bytes() == (tmp_path / "cloned" / line["audio"]).read_bytes()
+        designed, cloned = (line_audio(tmp_path / out, line["id"]) for out in ("designed", "cloned"))
+        assert designed.read_bytes() == cloned.read_bytes()

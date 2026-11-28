@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,19 @@ FAKE_FILES = {"config.json": FAKE_CONFIG,
 # README is left on the hub.
 FAKE_EXTRA_REVISION = "e0c9886f0e1c35ae85b1f27277416fb19fc72bec"
 FAKE_EXTRA_FILES = {**FAKE_FILES, "README.md": b"# fake tokenizer\n"}
+
+
+def started_of(audio, stem):
+    """The time a run started, as the audio file `<stem>-<time>.wav` it wrote carries it (ADR 0013)."""
+    match = re.fullmatch(rf"{re.escape(stem)}-(\d{{8}}-\d{{6}}[+-]\d{{4}})\.wav", audio)
+    assert match is not None, audio
+    return match[1]
+
+
+def line_audio(out, line_id):
+    """The audio file of a Line, as the completed Narration in `out` names it."""
+    narration = json.loads((out / "narration.json").read_text(encoding="utf-8"))
+    return out / next(line["audio"] for line in narration["lines"] if line["id"] == line_id)
 
 
 def assert_error(run, exit_code, code):

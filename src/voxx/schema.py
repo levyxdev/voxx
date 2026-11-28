@@ -125,8 +125,9 @@ STALE_AUDIO = {
 }
 
 LINE_OUTPUT_FIELDS = {
-    "audio": {"type": "string", "description": "Mono WAV at the Model's native sample rate, at -18 LUFS with 50 ms of "
-                                               "silence before and after the speech; relative to the output Narration file."},
+    "audio": {"type": "string", "description": "The Line's latest audio file, <id>-<time>.wav as narrate names it: a mono "
+                                               "WAV at the Model's native sample rate, at -18 LUFS with 50 ms of silence "
+                                               "before and after the speech; relative to the output Narration file."},
     "model": {"type": "string"},
     "voice": {"type": "string", "description": "The name of the Preset Voice, Cloned Voice or Designed Voice the Line "
                                                "was read in."},
@@ -308,8 +309,10 @@ MODEL_NOT_INSTALLED = {
 COMMANDS = {
     "narrate": {
         "usage": "voxx narrate <narration.json> --out <dir> [--model <model>] [--line <id>]... [--check]",
-        "description": "Read every Line of a Narration, time each word, and write <dir>/<id>.wav per Line and "
-                       "<dir>/narration.json. With --check, also transcribe each Line back to check it. Only the Model "
+        "description": "Read every Line of a Narration, time each word, and write <dir>/<id>-<time>.wav per Line, "
+                       "<time> being the local time the run started, such as 20261127-182201+0800, so no two runs "
+                       "write a file of the same name and no earlier file is overwritten, and <dir>/narration.json, "
+                       "which names each Line's latest file. With --check, also transcribe each Line back to check it. Only the Model "
                        "that reads must be installed: without the aligner, or with --check the transcriber, the Lines "
                        "are read without words or the check, with a warning. "
                        "The completed Narration, read again with the same --model, gives the same audio. "
@@ -471,8 +474,8 @@ COMMANDS = {
                  "--language <tag> --out <dir> [--takes <n>] [--model <model>] [--check]",
         "description": "Design new voices from text descriptions: read --text --takes times for each description, each "
                        "time with a new seed and so in a new voice, as Design Takes for the user to listen to and choose "
-                       "from. Writes <dir>/take-<n>.wav, numbered in the order of the descriptions, and "
-                       "<dir>/design.json. Stores no Voice. With --check, each take is transcribed back to check it, as a "
+                       "from. Writes <dir>/take-<n>-<time>.wav, numbered in the order of the descriptions and timed as "
+                       "narrate's files are, and <dir>/design.json. Stores no Voice. With --check, each take is transcribed back to check it, as a "
                        "Line is: a take that reads its description out loud shows it in its transcript. Only the "
                        "Model that designs must be installed: with --check but without the transcriber, the takes "
                        "come without the check, with a warning.",
@@ -521,7 +524,7 @@ COMMANDS = {
                             "type": "object",
                             "required": ["take", "description", "seed", "audio", "sample_rate", "warnings"],
                             "properties": {
-                                "take": {"type": "integer", "minimum": 1, "description": "The n of take-<n>.wav."},
+                                "take": {"type": "integer", "minimum": 1, "description": "Its number, which --take picks."},
                                 "description": {"type": "string", "description": "The --describe it was read from."},
                                 "seed": {"type": "integer", "description": "Seed it was read with."},
                                 "audio": {**LINE_OUTPUT_FIELDS["audio"],

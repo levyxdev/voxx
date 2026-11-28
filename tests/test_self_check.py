@@ -3,7 +3,7 @@
 import json
 import shutil
 
-from conftest import assert_error
+from conftest import assert_error, line_audio
 
 HEARD = "VOXX_TEST_FAKE_HEARD"
 
@@ -70,7 +70,7 @@ def test_a_line_in_a_language_no_model_transcribes_is_read_but_not_checked(insta
     narration = {"language": "fr", "voice": "fake-alice", "lines": [{"id": "a", "text": "Bonjour."}]}
     [line] = narrate(installed, write_narration, tmp_path, narration)
 
-    assert (tmp_path / "out" / "a.wav").exists()
+    assert line_audio(tmp_path / "out", "a").exists()
     assert "transcript" not in line and "error_rate" not in line
     assert [w["code"] for w in line["warnings"]] == ["not_aligned", "not_checked"]
 

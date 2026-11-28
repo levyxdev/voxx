@@ -176,7 +176,7 @@ def _not_installed(code, model, fields, read_again="--line"):
 def _read_line(worker, narration, line, plan, stage):
     """Every step that turns one Line into its audio file in `stage` and completes its fields, for a whole run and
     --line alike."""
-    audio = f"{line['id']}.wav"
+    audio = worker.audio_name(line["id"])
     model = plan["model"]
     if stored := plan["stored"]:
         voice = {"capability": "clone", "reference": {"audio": str(stored.reference), "text": stored.reference_text},

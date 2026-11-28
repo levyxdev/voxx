@@ -30,7 +30,8 @@ def narrate_one(installed, write_narration, tmp_path, name, given):
     out = tmp_path / name
     run = installed("narrate", write_narration(given, f"{name}.json"), "--out", out)
     assert run.exit_code == 0, run.result
-    return run.result["data"]["narration"]["lines"][0], out / "a.wav"
+    line = run.result["data"]["narration"]["lines"][0]
+    return line, out / line["audio"]
 
 
 def samples_of(path):

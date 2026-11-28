@@ -4,7 +4,7 @@ import wave
 import numpy as np
 import pyloudnorm
 import pytest
-from conftest import assert_error, snapshot
+from conftest import assert_error, line_audio, snapshot
 
 NARRATION = {"language": "zh", "voice": "me", "lines": [{"id": "intro", "text": "这是一个新的发送流程。"},
                                                         {"id": "send", "text": "点一下发送就完成了。"}]}
@@ -161,7 +161,7 @@ def test_a_cloned_voice_follows_style_only_on_a_model_that_reads_style(installed
             for out, model in (("first", []), ("again", []), ("alt", ["--model", "fake-clone-alt"]))}
 
     def audio(out, line_id):
-        return (tmp_path / out / f"{line_id}.wav").read_bytes()
+        return line_audio(tmp_path / out, line_id).read_bytes()
 
     assert audio("first", "styled") != audio("first", "plain")
     assert [line["warnings"] for line in lines(runs["first"]).values()] == [[], []]
@@ -201,7 +201,7 @@ def test_a_cloned_voice_follows_emotion_speed_pitch_and_volume_only_on_a_model_t
             for out, model in (("first", []), ("alt", ["--model", "fake-clone-alt"]))}
 
     def audio(out, line_id):
-        return (tmp_path / out / f"{line_id}.wav").read_bytes()
+        return line_audio(tmp_path / out, line_id).read_bytes()
 
     assert len({audio("first", line_id) for line_id in ("plain", "slow", "both")}) == 3
     assert [line["warnings"] for line in lines(runs["first"]).values()] == [[], [], []]
@@ -251,7 +251,7 @@ def test_each_cloned_voice_reads_in_its_own_voice(installed, write_narration, tm
     out = tmp_path / "out"
     assert installed("narrate", write_narration(narration), "--out", out).exit_code == 0
 
-    assert (out / "a.wav").read_bytes() != (out / "b.wav").read_bytes()
+    assert line_audio(out, "a").read_bytes() != line_audio(out, "b").read_bytes()
 
 
 def test_voices_lists_preset_and_cloned_voices(installed, recording):

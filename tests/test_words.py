@@ -6,6 +6,7 @@ import shutil
 import wave
 
 import pytest
+from conftest import line_audio
 
 ALIGNED = "VOXX_TEST_FAKE_ALIGNED"
 
@@ -84,7 +85,7 @@ def test_a_line_the_aligner_fails_on_has_no_words_and_a_warning(installed, write
     [warning] = a["warnings"]
     assert warning["code"] == "not_aligned"
     assert "out of memory" in warning["message"]
-    assert (tmp_path / "out" / "a.wav").exists()
+    assert line_audio(tmp_path / "out", "a").exists()
     assert [w["text"] for w in b["words"]] == list("就完成了")
 
 

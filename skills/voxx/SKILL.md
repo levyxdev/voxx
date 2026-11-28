@@ -59,7 +59,7 @@ The user listens to the Lines: hand over each Line's audio ([Handing over audio]
 
 ## Handing over audio
 
-Every WAV the user listens to, a Line, a Design Take or a comparison between Models, reaches them the same way. When you have a tool that attaches files to the conversation, send the file itself: where the user sees the conversation but not your filesystem, a path is only text they cannot play. Send a copy, since `--line` overwrites a Line's file and every run names its files alike (`<id>.wav`, `take-1.wav`): copy each file into a temporary directory outside `--out`, under a name no file you have sent has, made of the Line id or take and what tells it from the others, such as its Model, Voice, round or reading: `gei-pinyin__voxcpm2.wav`, `round-2__take-1.wav`, `intro__reading-2.wav`. Give the original's absolute path beside it, or alone when you have no such tool.
+Every WAV the user listens to, a Line, a Design Take or a comparison between Models, reaches them the same way. When you have a tool that sends files to the user, send the file as voxx wrote it: where the user sees the conversation but not your filesystem, a path is only text they cannot play. Otherwise give its absolute path. When the files come from several runs, also say which Model, Voice or round each one is.
 
 ## Errors
 

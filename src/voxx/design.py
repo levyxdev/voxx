@@ -21,8 +21,9 @@ ARGS_HINT = "Run `voxx schema voice design` to see its arguments."
 
 
 def design(descriptions, text, language, out_dir, takes=1, model_id=None, check=False):
-    """Reads `text` `takes` times for each description, each time with a new seed, into <out_dir>/take-<n>.wav, and
-    writes <out_dir>/design.json. With `check`, each Design Take is transcribed back, as a Line is (ADR 0008)."""
+    """Reads `text` `takes` times for each description, each time with a new seed, into <out_dir>/take-<n>-<time>.wav
+    (ADR 0013), and writes <out_dir>/design.json. With `check`, each Design Take is transcribed back, as a Line is
+    (ADR 0008)."""
     if not descriptions or not all(d.strip() for d in descriptions):
         _invalid("Each --describe must be a non-empty description of the voice.")
     if not text.strip():
@@ -67,7 +68,7 @@ def design(descriptions, text, language, out_dir, takes=1, model_id=None, check=
         with WorkerProcess("voice design") as worker:
             for number, (description, seed) in enumerate(planned, start=1):
                 progress("take_started", take=number, total=len(planned))
-                audio = f"take-{number}.wav"
+                audio = worker.audio_name(f"take-{number}")
                 read = worker.call("synthesize_line", model=model.id, engine=model.engine, model_path=str(model_dir(model)),
                                    capability="design", text=text, language=language, seed=seed,
                                    path=str(stage / audio), description=description)

@@ -4,7 +4,7 @@ import json
 import shutil
 
 import pytest
-from conftest import assert_error, snapshot
+from conftest import assert_error, line_audio, snapshot, started_of
 
 THREE_LINES = {
     "language": "zh",
@@ -32,6 +32,12 @@ def lines_by_id(run):
     return {l["id"]: l for l in run.result["data"]["narration"]["lines"]}
 
 
+def unchanged(out, files, line_id):
+    """Whether the Narration in `out` still names the audio file `files` held for the Line, as it was."""
+    path = line_audio(out, line_id)
+    return path.read_bytes() == files[path.name]
+
+
 def test_line_reads_only_that_line_again_and_keeps_every_other_line(installed, write_narration, tmp_path):
     out = tmp_path / "out"
     before = lines_by_id(read_all(installed, write_narration, out))
@@ -42,10 +48,14 @@ def test_line_reads_only_that_line_again_and_keeps_every_other_line(installed, w
     assert run.exit_code == 0, run.result
     after = lines_by_id(run)
     assert after["send"]["seed"] == 8 != before["send"]["seed"]
-    assert (out / "send.wav").read_bytes() != files["send.wav"]
+    # The Line read again gets a file of its own, and the one the user heard before stays (ADR 0013).
+    started_of(after["send"]["audio"], "send")
+    assert after["send"]["audio"] != before["send"]["audio"]
+    assert (out / after["send"]["audio"]).read_bytes() != files[before["send"]["audio"]]
+    assert (out / before["send"]["audio"]).read_bytes() == files[before["send"]["audio"]]
     for line_id in ("intro", "outro"):
         assert after[line_id] == before[line_id]
-        assert (out / f"{line_id}.wav").read_bytes() == files[f"{line_id}.wav"]
+        assert unchanged(out, files, line_id)
     assert json.loads((out / "narration.json").read_text(encoding="utf-8")) == run.result["data"]["narration"]
     assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["send"]
 
@@ -58,6 +68,27 @@ def test_a_line_read_again_without_a_seed_gets_a_new_one(installed, write_narrat
     run = installed("narrate", write_narration(unseeded), "--out", out, "--line", "intro")
 
     assert lines_by_id(run)["intro"]["seed"] != before["intro"]["seed"]
+
+
+def test_line_keeps_the_audio_files_an_earlier_voxx_named_after_their_line(installed, write_narration, tmp_path):
+    # voxx before ADR 0013 named each Line's audio <id>.wav.
+    out = tmp_path / "out"
+    read_all(installed, write_narration, out)
+    narration = json.loads((out / "narration.json").read_text(encoding="utf-8"))
+    for line in narration["lines"]:
+        (out / line["audio"]).rename(out / f"{line['id']}.wav")
+        line["audio"] = f"{line['id']}.wav"
+    (out / "narration.json").write_text(json.dumps(narration, ensure_ascii=False), encoding="utf-8")
+    files = snapshot(out)
+
+    run = installed("narrate", write_narration(THREE_LINES), "--out", out, "--line", "send")
+
+    assert run.exit_code == 0, run.result
+    after = lines_by_id(run)
+    assert after["intro"]["audio"] == "intro.wav" and after["outro"]["audio"] == "outro.wav"
+    assert unchanged(out, files, "intro") and unchanged(out, files, "outro")
+    started_of(after["send"]["audio"], "send")
+    assert (out / "send.wav").read_bytes() == files["send.wav"]
 
 
 def test_a_line_read_again_with_the_seed_it_was_read_with_gets_a_new_one(installed, write_narration, tmp_path):
@@ -82,7 +113,7 @@ def test_the_completed_narration_can_be_given_back_with_line(installed, write_na
     after = lines_by_id(run)
     assert after["intro"]["seed"] != before["intro"]["seed"]
     assert after["send"] == before["send"] and after["outro"] == before["outro"]
-    assert (out / "send.wav").read_bytes() == files["send.wav"]
+    assert unchanged(out, files, "send")
 
 
 def test_line_can_be_given_more_than_once(installed, write_narration, tmp_path):
@@ -95,7 +126,7 @@ def test_line_can_be_given_more_than_once(installed, write_narration, tmp_path):
 
     assert run.exit_code == 0, run.result
     assert [l["seed"] for l in run.result["data"]["narration"]["lines"]] == [8, 7, 9]
-    assert (out / "send.wav").read_bytes() == files["send.wav"]
+    assert unchanged(out, files, "send")
     assert [e["id"] for e in run.events if e["event"] == "line_done"] == ["outro", "intro"]
 
 
@@ -142,7 +173,7 @@ def test_a_line_whose_text_changed_but_is_not_read_again_is_warned_stale(install
     assert [w["code"] for w in outro["warnings"]] == ["stale_audio"]
     assert "--line outro" in outro["warnings"][0]["message"]
     assert {k: v for k, v in outro.items() if k != "warnings"} == {k: v for k, v in before["outro"].items() if k != "warnings"}
-    assert (out / "outro.wav").read_bytes() == files["outro.wav"]
+    assert unchanged(out, files, "outro")
     assert lines_by_id(run)["intro"]["warnings"] == []
 
     # Running again does not repeat the warning, and reading the Line again clears it.
@@ -279,8 +310,8 @@ def test_a_new_line_must_be_read_with_line(installed, write_narration, tmp_path)
     run = installed("narrate", write_narration(grown), "--out", out, "--line", "tip")
     assert run.exit_code == 0, run.result
     assert [l["id"] for l in run.result["data"]["narration"]["lines"]] == ["intro", "send", "tip", "outro"]
-    assert (out / "tip.wav").exists()
-    assert (out / "send.wav").read_bytes() == files["send.wav"]
+    assert line_audio(out, "tip").exists()
+    assert unchanged(out, files, "send")
 
 
 def test_a_line_read_again_is_aligned_again(installed, write_narration, tmp_path):

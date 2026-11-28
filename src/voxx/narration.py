@@ -21,8 +21,9 @@ SEED_RULE = f"seed must be an integer from 0 to {MAX_SEED}."
 # A Line id names its audio file, so it must be a safe, visible file name. Any other text works, such as "开场" or "step 1".
 # Control, formatting, surrogate, and line or paragraph separator characters.
 UNSAFE_CATEGORIES = {"Cc", "Cf", "Cs", "Zl", "Zp"}
-# The longest file name voxx writes for a Line, within macOS's 255-byte limit.
-LONGEST_SUFFIX = ".wav.partial"
+# The longest file name voxx writes for a Line, within a 255-byte limit: its id, the time its run started (ADR 0013),
+# and .wav.partial.
+LONGEST_SUFFIX = "-20261127-182201+0800.wav.partial"
 FILE_NAME_BYTES = 255
 LINE_ID_RULE = ("An id is visible text that does not start with '.', has no '/', '\\', control or formatting characters, "
                 f"and is at most {FILE_NAME_BYTES - len(LONGEST_SUFFIX)} bytes in UTF-8.")

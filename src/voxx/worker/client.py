@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 from typing import IO, cast
 
 from voxx.models import hf_cache_dir, voxx_home
@@ -22,16 +23,21 @@ CRASH_HINT = "The worker process died, often because memory ran out. Close other
 LOCK_FILE = "worker.lock"
 # How many times a waiting command reads who holds the lock before it waits without knowing.
 HOLDER_READS = 20
+# The second the last run under this $VOXX_HOME started, so the next one starts in a later second (ADR 0013).
+LAST_RUN_FILE = "last-run"
 
 
 class WorkerProcess:
     def __init__(self, command):
         # The voxx command starting the worker, such as "narrate", which a command waiting for its turn is told.
         self.command = command
+        # When the run started, as the audio files it writes are named: set once it holds the lock.
+        self.stamp = ""
 
     def __enter__(self):
         self.lock = _take_turn(self.command)
         try:
+            self.stamp = _start_time()
             self._start()
         except BaseException:
             _give_turn(self.lock)
@@ -51,6 +57,11 @@ class WorkerProcess:
         self.stderr_thread = threading.Thread(target=self._forward_stderr, daemon=True)
         self.stderr_thread.start()
         self.next_id = 0
+
+    def audio_name(self, stem):
+        """The name of an audio file this run writes, such as intro-20261127-182201+0800.wav: no two runs write a file
+        of the same name (ADR 0013)."""
+        return f"{stem}-{self.stamp}.wav"
 
     def call(self, method, **params):
         self.next_id += 1
@@ -140,6 +151,19 @@ def _take_turn(command):
     lock.write(json.dumps({"command": command, "pid": os.getpid()}))
     lock.flush()
     return lock
+
+
+def _start_time():
+    """The local time this run started, to the second and with the UTC offset, such as 20261127-182201+0800. Called
+    while holding the lock: a run that starts within the second the last one started takes the next second."""
+    path = voxx_home() / LAST_RUN_FILE
+    try:
+        last = int(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        last = 0
+    second = max(int(time.time()), last + 1)
+    path.write_text(str(second), encoding="utf-8")
+    return datetime.fromtimestamp(second).astimezone().strftime("%Y%m%d-%H%M%S%z")
 
 
 def _holder(lock):
